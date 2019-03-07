@@ -1,0 +1,17 @@
+Package: moiR
+Title: Joint Estimation of MOI and Allele Frequencies from Multiallelic Genetics Data
+Version: 0.0.0.9000
+Authors@R: 
+    person(given = "Maxwell",
+           family = "Murphy",
+           role = c("aut", "cre"),
+           email = "murphy2122@gmail.com")
+Description: What the package does (one paragraph).
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+SystemRequirements: C++14
+LinkingTo: 
+    Rcpp
+Imports: 
+    Rcpp
