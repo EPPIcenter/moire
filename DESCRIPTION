@@ -12,7 +12,7 @@ Encoding: UTF-8
 LazyData: true
 SystemRequirements: C++14
 LinkingTo: 
-    Rcpp
+    Rcpp,
 Imports: 
     Rcpp
 URL: https://github.com/m-murphy/moiR
