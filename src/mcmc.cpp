@@ -10,15 +10,14 @@ void MCMC::burnin() {
         UtilFunctions::print("Running Burnin -- Chain", i);
         std::vector<double> chain_llik(params.burnin);
         llik_burnin.push_back(chain_llik);
-        auto chain = chains[i];
         for(int j = 0; j < params.burnin; j++){
             UtilFunctions::print("Iteration", j + 1);
-            chain.update_m();
-            chain.update_p();
-            chain.update_eps_neg();
-            chain.update_eps_pos();
-            chain.calculate_llik();
-            llik_burnin[i][j] = chain.get_llik();
+            chains[i].update_m();
+            chains[i].update_p();
+            chains[i].update_eps_neg();
+            chains[i].update_eps_pos();
+            chains[i].calculate_llik();
+            llik_burnin[i][j] = chains[i].get_llik();
             // chain_llik[j] = chains[i].get_llik();
             // m_store.push_back(chains[i].m);
             // p_store.push_back(chains[i].p);
@@ -32,22 +31,21 @@ void MCMC::burnin() {
 void MCMC::sample() {
     for(size_t i = 0; i < params.num_chains; i++){
         UtilFunctions::print("Sampling -- Chain", i);
-        std::vector<double> chain_llik(params.samples);
+        std::vector<double> chain_llik(params.burnin);
         llik_sample.push_back(chain_llik);
-        auto chain = chains[i];
         for(int j = 0; j < params.samples; j++){
             UtilFunctions::print("Iteration:", j + 1);
-            chain.update_m();
-            chain.update_p();
-            chain.update_eps_neg();
-            chain.update_eps_pos();
-            chain.calculate_llik();
+            chains[i].update_m();
+            chains[i].update_p();
+            chains[i].update_eps_neg();
+            chains[i].update_eps_pos();
+            chains[i].calculate_llik();
             // chain_llik[j] = chain.get_llik();
             m_store.push_back(chains[i].m);
             p_store.push_back(chains[i].p);
             eps_neg_store.push_back(chains[i].eps_neg);
             eps_pos_store.push_back(chains[i].eps_pos);
-            llik_sample[i][j] = chain.get_llik();
+            llik_sample[i][j] = chains[i].get_llik();
         }
 
     }
