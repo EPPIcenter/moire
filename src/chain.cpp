@@ -106,7 +106,7 @@ void Chain::update_p() {
 
 void Chain::update_eps_pos() {
     prop_eps_pos = sampler.sample_epsilon_pos(eps_pos, params.eps_pos_var);
-    if (prop_eps_pos < params.max_eps_pos) {
+    if (prop_eps_pos < params.max_eps_pos && prop_eps_pos > 0) {
         double sum_can = 0;
         double sum_orig = 0;
         for(size_t j = 0; j < genotyping_data.num_loci; j++) {
@@ -138,7 +138,7 @@ void Chain::update_eps_pos() {
 
 void Chain::update_eps_neg() {
     prop_eps_neg = sampler.sample_epsilon_neg(eps_neg, params.eps_neg_var);
-    if (prop_eps_neg < params.max_eps_neg) {
+    if (prop_eps_neg < params.max_eps_neg && prop_eps_neg > 0) {
         double sum_can = 0;
         double sum_orig = 0;
         for(size_t j = 0; j < genotyping_data.num_loci; j++) {

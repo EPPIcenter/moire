@@ -16,8 +16,6 @@ private:
     Parameters params;
     Sampler sampler;
 
-
-
     void initialize_p();
     void initialize_m();
     void initialize_eps_neg();
@@ -53,7 +51,7 @@ public:
     double eps_neg;
     double prop_eps_neg;
     int eps_neg_accept;
-    
+
     Chain() {};
     Chain(GenotypingData genotyping_data, Lookup lookup, Parameters params);
 

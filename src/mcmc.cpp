@@ -31,7 +31,7 @@ void MCMC::burnin() {
 void MCMC::sample() {
     for(size_t i = 0; i < params.num_chains; i++){
         UtilFunctions::print("Sampling -- Chain", i);
-        std::vector<double> chain_llik(params.burnin);
+        std::vector<double> chain_llik(params.samples);
         llik_sample.push_back(chain_llik);
         for(int j = 0; j < params.samples; j++){
             UtilFunctions::print("Iteration:", j + 1);

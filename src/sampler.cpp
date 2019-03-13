@@ -57,8 +57,7 @@ int Sampler::sample_coi(int curr_coi, int delta, int max_coi) {
 
 double Sampler::sample_epsilon(double curr_epsilon, double variance) {
     norm_distr.param(std::normal_distribution<double>::param_type(curr_epsilon, variance));
-    double norm_sample = norm_distr(eng);
-    return exp(norm_sample) / (1 + exp(norm_sample));
+    return norm_distr(eng);
 };
 
 double Sampler::sample_epsilon_pos(double curr_epsilon_pos, double variance) {
