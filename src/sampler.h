@@ -9,7 +9,7 @@
 class Sampler {
 private:
     static std::random_device rd; // obtain a random number from hardware
-    static std::mt19937 eng; // seed the generator
+    static std::ranlux24_base eng; // seed the generator
 
     static std::uniform_int_distribution<int> unif_int_distr;
     static std::normal_distribution<double> norm_distr;
@@ -29,6 +29,7 @@ public:
     std::vector<double> sample_allele_frequencies(std::vector<double> const &curr_allele_frequencies, double alpha);
     std::vector<std::vector<int> > sample_genotype(int coi, std::vector<double> const &allele_frequencies, int num_samples);
     double sample_log_mh_acceptance();
+    double runif_0_1();
 
     Sampler() { };
     Sampler(int seed);

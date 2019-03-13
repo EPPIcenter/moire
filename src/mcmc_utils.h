@@ -5,11 +5,17 @@
 
 #include <Rcpp.h>
 #include <R.h>
+#include <math.h>
 
 #define OVERFLO 1e100
 #define UNDERFLO 1e-100
 
 namespace UtilFunctions {
+  
+  float fastlog2 (float x);
+
+  float fastlog (float x);
+
   int r_to_bool(SEXP x);
 
   int r_to_int(SEXP x);

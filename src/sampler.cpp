@@ -6,7 +6,7 @@
 #include "mcmc_utils.h"
 
 std::random_device Sampler::rd;
-std::mt19937 Sampler::eng(rd());
+std::ranlux24_base Sampler::eng(rd());
 
 std::uniform_int_distribution<int> Sampler::unif_int_distr;
 std::normal_distribution<double> Sampler::norm_distr;
@@ -65,7 +65,7 @@ double Sampler::sample_epsilon_pos(double curr_epsilon_pos, double variance) {
 };
 
 double Sampler::sample_epsilon_neg(double curr_epsilon_neg, double variance) {
-    return sample_epsilon_neg(curr_epsilon_neg, variance);
+    return sample_epsilon(curr_epsilon_neg, variance);
 };
 
 std::vector<double> Sampler::sample_allele_frequencies(std::vector<double> const &curr_allele_frequencies, double alpha) {
@@ -89,11 +89,10 @@ std::vector<std::vector<int> > Sampler::sample_genotype(int coi, std::vector<dou
             res[i][discrete_distr(eng)] += 1;
         }
     }
-
     return res;
     
 }
 
 double Sampler::sample_log_mh_acceptance() {
-    return log(unif_distr(eng));
+    return UtilFunctions::fastlog(unif_distr(eng));
 };
