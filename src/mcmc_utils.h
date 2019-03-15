@@ -79,6 +79,16 @@ namespace UtilFunctions {
     Rcpp::Rcout << x1 << " " << x2 << " " << x3 << " " << x4 << " " << x5 << "\n";
     R_FlushConsole();
   }
+
+  template <class T>
+  void print_vector(std::vector<T> v) {
+    Rcpp::Rcout << '[';
+    for(size_t i = 0; i < v.size() - 1; i++)
+    {
+      Rcpp::Rcout << v[i] << ", ";
+    }
+    Rcpp::Rcout << v[v.size() - 1] << "]" << "\n";
+  }
 }
 
 
