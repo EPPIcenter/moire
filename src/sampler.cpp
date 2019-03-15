@@ -96,12 +96,10 @@ std::vector<double> Sampler::sample_allele_frequencies(std::vector<double> const
 
 std::vector<std::vector<int > >& Sampler::sample_genotype(int coi, std::vector<double> const &allele_frequencies, int num_samples) {
     discrete_distr.param(std::discrete_distribution<int>::param_type(allele_frequencies.begin(), allele_frequencies.end()));
-    
     for(size_t i = 0; i < num_samples; i++)
     {
 
         std::fill(genotype_samples[allele_frequencies.size()][i].begin(), genotype_samples[allele_frequencies.size()][i].end(), 0);
-        
         for(int j = 0; j < coi; j++)
         {
             genotype_samples[allele_frequencies.size()][i][discrete_distr(eng)] += 1;

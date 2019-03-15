@@ -198,6 +198,7 @@ std::vector<double> Chain::calc_genotype_log_pmf(std::vector<std::vector<int> > 
     for(size_t i = 0; i < allele_frequencies.size(); i++) {
         double log_prob = UtilFunctions::fastlog(allele_frequencies[i] + 1e-12);
         for(size_t j = 0; j < genotypes.size(); j++) {
+            // UtilFunctions::print_vector(genotypes[j]);
             if(genotypes[j][i] > 0) {
                 // UtilFunctions::print("Log Prob:", log_prob, allele_frequencies[i], genotypes[i][j], lookup.lookup_lgamma[genotypes[i][j] + 1]);
                 res[j] += (genotypes[j][i] * log_prob) - lookup.lookup_lgamma[genotypes[j][i] + 1];

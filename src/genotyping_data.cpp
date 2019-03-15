@@ -33,7 +33,6 @@ GenotypingData::GenotypingData(const Rcpp::List &args) {
 
       if(total_alleles > observed_coi[j]) {
         observed_coi[j] = total_alleles;
-        UtilFunctions::print("Current MOI:", observed_coi[j]);
       }
     }
     
