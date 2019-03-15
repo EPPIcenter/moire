@@ -13,10 +13,23 @@ std::normal_distribution<double> Sampler::norm_distr;
 std::gamma_distribution<double> Sampler::gamma_distr;
 std::discrete_distribution<int> Sampler::discrete_distr;
 std::uniform_real_distribution<double> Sampler::unif_distr(0, 1);
+// std::vector<std::vector<std::vector<int> > > Sampler::genotype_samples;
+std::map<int, std::vector<std::vector<int> > > Sampler::genotype_samples;
 
-Sampler::Sampler(int seed) {
-    eng.seed(seed);
-};
+
+Sampler::Sampler(int genotype_sampling_depth, std::vector<int> const &num_alleles) {
+    for(size_t i = 0; i < num_alleles.size(); i++)
+    {
+        int allele_key = num_alleles[i];
+        auto search = genotype_samples.find(allele_key);
+        if (search == genotype_samples.end()) {
+            genotype_samples[allele_key] = std::vector<std::vector<int > >(genotype_sampling_depth, std::vector<int>(allele_key));
+        }
+    }
+    
+
+}
+
 
 double Sampler::rgamma(double alpha, double beta) {
     gamma_distr.param(std::gamma_distribution<double>::param_type(alpha, beta));
@@ -56,8 +69,11 @@ int Sampler::sample_coi(int curr_coi, int delta, int max_coi) {
 };
 
 double Sampler::sample_epsilon(double curr_epsilon, double variance) {
-    norm_distr.param(std::normal_distribution<double>::param_type(curr_epsilon, variance));
-    return norm_distr(eng);
+    // norm_distr.param(std::normal_distribution<double>::param_type(curr_epsilon, variance));
+    // return norm_distr(eng);
+    norm_distr.param(std::normal_distribution<double>::param_type(UtilFunctions::fastlog(curr_epsilon / (1 - curr_epsilon)), variance));
+    double prop = norm_distr(eng);
+    return exp(prop) / (1 + exp(prop));
 };
 
 double Sampler::sample_epsilon_pos(double curr_epsilon_pos, double variance) {
@@ -78,19 +94,21 @@ std::vector<double> Sampler::sample_allele_frequencies(std::vector<double> const
     return rdirichlet(shape_vec);
 };
 
-std::vector<std::vector<int> > Sampler::sample_genotype(int coi, std::vector<double> const &allele_frequencies, int num_samples) {
+std::vector<std::vector<int > >& Sampler::sample_genotype(int coi, std::vector<double> const &allele_frequencies, int num_samples) {
     discrete_distr.param(std::discrete_distribution<int>::param_type(allele_frequencies.begin(), allele_frequencies.end()));
-    std::vector<std::vector<int> > res(num_samples);
+    
     for(size_t i = 0; i < num_samples; i++)
     {
-        res[i] = std::vector<int>(allele_frequencies.size(), 0);
+
+        std::fill(genotype_samples[allele_frequencies.size()][i].begin(), genotype_samples[allele_frequencies.size()][i].end(), 0);
+        
         for(int j = 0; j < coi; j++)
         {
-            res[i][discrete_distr(eng)] += 1;
+            genotype_samples[allele_frequencies.size()][i][discrete_distr(eng)] += 1;
         }
     }
-    return res;
-    
+    return genotype_samples[allele_frequencies.size()];
+
 }
 
 double Sampler::sample_log_mh_acceptance() {

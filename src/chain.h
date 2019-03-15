@@ -16,11 +16,14 @@ private:
     Parameters params;
     Sampler sampler;
 
+    std::vector<std::vector<int>> importance_sample;
+
     void initialize_p();
     void initialize_m();
     void initialize_eps_neg();
     void initialize_eps_pos();
     void initialize_likelihood();
+    void initialize_sampler();
 
     std::vector<double> reweight_allele_frequencies(std::vector<double> const &allele_frequencies, std::vector<int> const &observed_genotype, double epsilon_neg);
     std::vector<double> calc_genotype_log_pmf(std::vector<std::vector<int> > const &genotypes, int coi, std::vector<double> const &allele_frequencies);
@@ -44,12 +47,12 @@ public:
 
     // Epsilon Positive
     double eps_pos;
-    double prop_eps_pos;
+    // double prop_eps_pos;
     int eps_pos_accept;
 
     // Epsilon Negative
     double eps_neg;
-    double prop_eps_neg;
+    // double prop_eps_neg;
     int eps_neg_accept;
 
     Chain() {};

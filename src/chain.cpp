@@ -51,6 +51,10 @@ void Chain::initialize_eps_pos() {
     eps_pos_accept = 0;
 }
 
+void Chain::initialize_sampler() {
+    sampler = Sampler(params.importance_sampling_depth, genotyping_data.num_alleles);
+}
+
 void Chain::update_m() {
     for(int i = 0; i < genotyping_data.num_samples; i++) {
         int prop_m = sampler.sample_coi(m[i], params.coi_delta, params.max_coi);
@@ -92,6 +96,7 @@ void Chain::update_p() {
 
         // Accept
         if(sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig)) {
+            // UtilFunctions::print("Updating P", j);
             p[j] = prop_p;
             p_accept[j] += 1;
             for(size_t i = 0; i < genotyping_data.num_samples; i++) {
@@ -105,7 +110,7 @@ void Chain::update_p() {
 }
 
 void Chain::update_eps_pos() {
-    prop_eps_pos = sampler.sample_epsilon_pos(eps_pos, params.eps_pos_var);
+    double prop_eps_pos = sampler.sample_epsilon_pos(eps_pos, params.eps_pos_var);
     if (prop_eps_pos < params.max_eps_pos && prop_eps_pos > 0) {
         double sum_can = 0;
         double sum_orig = 0;
@@ -120,15 +125,18 @@ void Chain::update_eps_pos() {
 
         // Accept
         if(sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig)) {
+            // UtilFunctions::print("Updating Eps Pos", prop_eps_pos);
             eps_pos = prop_eps_pos;
             eps_pos_accept += 1;
             for(size_t j = 0; j < genotyping_data.num_loci; j++) {
                 for(size_t i = 0; i < genotyping_data.num_samples; i++) {
                     llik_old[j][i] = llik_new[j][i];
                 }
-
             }
+            llik = sum_can;
 
+        } else {
+            llik = sum_orig;
         }
     }
     
@@ -137,7 +145,7 @@ void Chain::update_eps_pos() {
 }
 
 void Chain::update_eps_neg() {
-    prop_eps_neg = sampler.sample_epsilon_neg(eps_neg, params.eps_neg_var);
+    double prop_eps_neg = sampler.sample_epsilon_neg(eps_neg, params.eps_neg_var);
     if (prop_eps_neg < params.max_eps_neg && prop_eps_neg > 0) {
         double sum_can = 0;
         double sum_orig = 0;
@@ -151,9 +159,11 @@ void Chain::update_eps_neg() {
         }
 
         // Accept
+        // UtilFunctions::print("Update Eps Neg", sum_can, sum_orig, sum_can - sum_orig, prop_eps_neg);
         if(sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig)) {
-            eps_pos = prop_eps_pos;
-            eps_pos_accept += 1;
+            // UtilFunctions::print("Updating Eps Neg", prop_eps_neg);
+            eps_neg = prop_eps_neg;
+            eps_neg_accept += 1;
             for(size_t j = 0; j < genotyping_data.num_loci; j++) {
                 for(size_t i = 0; i < genotyping_data.num_samples; i++) {
                     llik_old[j][i] = llik_new[j][i];
@@ -242,7 +252,6 @@ long double Chain::calc_genotype_marginal_llik(std::vector<int> const &obs_genot
     auto g_star_probabilities = calc_genotype_log_pmf(sample_true_genotypes, coi, allele_frequencies);
     auto g_given_g_star_probabilities = calc_obs_genotype_lliks(obs_genotype, sample_true_genotypes, epsilon_neg, epsilon_pos);
 
-    // mp::cpp_dec_float_100 res = 0;
     long double res = 0;
     for(size_t i = 0; i < importance_sampling_depth; i++) {
         res += exp(g_given_g_star_probabilities[i] + g_star_probabilities[i] - importance_probabilities[i]);
@@ -293,6 +302,7 @@ Chain::Chain(GenotypingData genotyping_data, Lookup lookup, Parameters params) :
         UtilFunctions::print("Starting Sampler...");
 
         llik = 0;
+        initialize_sampler();
         initialize_p();
         initialize_m();
         initialize_eps_neg();
