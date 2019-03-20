@@ -13,6 +13,8 @@ std::normal_distribution<double> Sampler::norm_distr;
 std::gamma_distribution<double> Sampler::gamma_distr;
 std::discrete_distribution<int> Sampler::discrete_distr;
 std::uniform_real_distribution<double> Sampler::unif_distr(0, 1);
+std::bernoulli_distribution Sampler::ber_distr(.5);
+std::geometric_distribution<int> Sampler::geom_distr;
 // std::vector<std::vector<std::vector<int> > > Sampler::genotype_samples;
 std::map<int, std::vector<std::vector<int> > > Sampler::genotype_samples;
 
@@ -68,10 +70,15 @@ int Sampler::sample_coi(int curr_coi, int delta, int max_coi) {
     return unif_int_distr(eng);
 };
 
+int Sampler::sample_coi_delta(double coi_prop_mean) {
+    geom_distr.param(std::geometric_distribution<int>::param_type(1.0 / (1.0 + coi_prop_mean)));
+    return (2 * ber_distr(eng) - 1) * geom_distr(eng);
+}
+
 double Sampler::sample_epsilon(double curr_epsilon, double variance) {
     // norm_distr.param(std::normal_distribution<double>::param_type(curr_epsilon, variance));
     // return norm_distr(eng);
-    norm_distr.param(std::normal_distribution<double>::param_type(UtilFunctions::fastlog(curr_epsilon / (1 - curr_epsilon)), variance));
+    norm_distr.param(std::normal_distribution<double>::param_type(log(curr_epsilon / (1 - curr_epsilon)), variance));
     double prop = norm_distr(eng);
     return exp(prop) / (1 + exp(prop));
 };
@@ -110,5 +117,5 @@ std::vector<std::vector<int > >& Sampler::sample_genotype(int coi, std::vector<d
 }
 
 double Sampler::sample_log_mh_acceptance() {
-    return UtilFunctions::fastlog(unif_distr(eng));
+    return log(unif_distr(eng));
 };
