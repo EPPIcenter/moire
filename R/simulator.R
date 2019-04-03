@@ -51,7 +51,7 @@ sim_data <- function(mean_moi, num_loci, locus_freq_alpha, num_samples, epsilon_
   )
 }
 
-run_prof_mcmc <- function(args) {
+run_prof_mcmc_rcpp <- function(args) {
   .Call("start_profiler", "samples.log")
 
   res <- .Call(`_moiR_run_mcmc`, args)
@@ -61,30 +61,24 @@ run_prof_mcmc <- function(args) {
   return(res)
 }
 
+run_mcmc <- function(data, thin = 0, burnin = 1e4, samples = 1e4, num_chains = 1, importance_sampling_depth = 20,
+                     max_coi = 30, max_coi_delta = 5, eps_pos_0 = .01, eps_neg_0 = .05,
+                     max_eps_pos = .2, max_eps_neg = .2, alpha = 200) {
+  args <- as.list(environment())
+  res <- run_mcmc_rcpp(args)
+  res
+}
+
 
 mean_moi = 7
-num_loci = 20
-locus_freq_alpha = rep(1, 30)
-num_samples = 100
+num_loci = 10
+locus_freq_alpha = rep(1, 15)
+num_samples = 50
 epsilon_pos = .01
 epsilon_neg = .10
 
 res <- sim_data(mean_moi, num_loci, locus_freq_alpha, num_samples, epsilon_pos, epsilon_neg)
-
-res$thin <- 0
-res$burnin <- 1000
-res$samples <- 1000
-res$num_chains <- 1
-res$importance_sampling_depth <- 20
-res$max_coi <- 30
-res$max_coi_delta <- 5
-res$eps_pos_0 <- .01
-res$eps_neg_0 <- .01
-res$eps_pos_var <- .05
-res$eps_neg_var <- .05
-res$max_eps_pos <- .2
-res$max_eps_neg <- .2
-res$alpha <- 200
+# ret <- run_mcmc(res$data)
 
 Sys.getpid()
 # run_mcmc(res)
