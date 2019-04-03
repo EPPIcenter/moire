@@ -11,7 +11,7 @@ bool Lookup::sample_depth_initialized = false;
 
 Lookup::Lookup(int max_coi, int max_alleles) {
     init_lgamma(max_coi);
-    init_sampling_depth(max_coi, max_alleles);
+    // init_sampling_depth(max_coi, max_alleles);
 };
 
 

@@ -269,7 +269,8 @@ std::vector<double> Chain::calc_obs_genotype_lliks(std::vector<int> const &obs_g
 }
 
 long double Chain::calc_genotype_marginal_llik(std::vector<int> const &obs_genotype, int coi, std::vector<double> const &allele_frequencies, double epsilon_neg, double epsilon_pos) {
-    int importance_sampling_depth = std::min(params.importance_sampling_depth, lookup.lookup_sampling_depth[coi][allele_frequencies.size()]);
+    // int importance_sampling_depth = std::min(params.importance_sampling_depth, lookup.lookup_sampling_depth[coi][allele_frequencies.size()]);
+    int importance_sampling_depth = params.importance_sampling_depth;
     auto importance_reweighted_frequencies = reweight_allele_frequencies(allele_frequencies, obs_genotype, epsilon_neg, epsilon_pos);
     auto sample_true_genotypes = sampler.sample_genotype(coi, importance_reweighted_frequencies, importance_sampling_depth);
     auto importance_probabilities = calc_genotype_log_pmf(sample_true_genotypes, coi, importance_reweighted_frequencies, importance_sampling_depth);
