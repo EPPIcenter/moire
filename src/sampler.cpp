@@ -6,20 +6,24 @@
 #include "mcmc_utils.h"
 
 std::random_device Sampler::rd;
-std::ranlux24_base Sampler::eng(rd());
+// std::ranlux24_base Sampler::eng(rd());
 
-std::uniform_int_distribution<int> Sampler::unif_int_distr;
-std::normal_distribution<double> Sampler::norm_distr;
-std::gamma_distribution<double> Sampler::gamma_distr;
-std::discrete_distribution<int> Sampler::discrete_distr;
-std::uniform_real_distribution<double> Sampler::unif_distr(0, 1);
-std::bernoulli_distribution Sampler::ber_distr(.5);
-std::geometric_distribution<int> Sampler::geom_distr;
+// std::uniform_int_distribution<int> Sampler::unif_int_distr;
+// std::normal_distribution<double> Sampler::norm_distr;
+// std::gamma_distribution<double> Sampler::gamma_distr;
+// std::discrete_distribution<int> Sampler::discrete_distr;
+// std::uniform_real_distribution<double> Sampler::unif_distr(0, 1);
+// std::bernoulli_distribution Sampler::ber_distr(.5);
+// std::geometric_distribution<int> Sampler::geom_distr;
 // std::vector<std::vector<std::vector<int> > > Sampler::genotype_samples;
-std::map<int, std::vector<std::vector<int> > > Sampler::genotype_samples;
+// std::map<int, std::vector<std::vector<int> > > Sampler::genotype_samples;
 
 
 Sampler::Sampler(int genotype_sampling_depth, std::vector<int> const &num_alleles) {
+    eng = std::ranlux24_base(rd());
+    unif_distr = std::uniform_real_distribution<double>(0, 1);
+    ber_distr = std::bernoulli_distribution(.5);
+
     for(size_t i = 0; i < num_alleles.size(); i++)
     {
         int allele_key = num_alleles[i];
@@ -65,6 +69,27 @@ std::vector<double> Sampler::rdirichlet(std::vector<double> const &shape_vec) {
     
 };
 
+std::vector<double> Sampler::rlogit_norm(std::vector<double> const &p, double variance) {
+    int n = p.size() - 1;
+    std::vector<double> ret(n+1);
+    
+    double tmp1 = 0;  
+    for (int i = 0; i < n; i++) {
+        norm_distr.param(std::normal_distribution<double>::param_type(log(p[i] / p[n]), variance));
+        ret[i] = exp(norm_distr(eng));
+        tmp1 += ret[i];
+    }
+    
+    double tmp2 = 1.0 / (1.0 + tmp1);
+    for (int i = 0; i < n; i++) {
+        ret[i] *= tmp2;
+    }
+    
+    ret[n] = tmp2;
+    
+    return ret;
+}
+
 int Sampler::sample_coi(int curr_coi, int delta, int max_coi) {
     unif_int_distr.param(std::uniform_int_distribution<int>::param_type(curr_coi - delta, std::min(curr_coi + delta, max_coi)));
     return unif_int_distr(eng);
@@ -91,14 +116,15 @@ double Sampler::sample_epsilon_neg(double curr_epsilon_neg, double variance) {
     return sample_epsilon(curr_epsilon_neg, variance);
 };
 
-std::vector<double> Sampler::sample_allele_frequencies(std::vector<double> const &curr_allele_frequencies, double alpha) {
-    std::vector<double> shape_vec(curr_allele_frequencies.size());
+std::vector<double> Sampler::sample_allele_frequencies(std::vector<double> const &curr_allele_frequencies, double variance) {
+    // std::vector<double> shape_vec(curr_allele_frequencies.size());
 
-    for(size_t i = 0; i < shape_vec.size(); i++) {
-        shape_vec[i] = curr_allele_frequencies[i] * alpha;
-    }
+    // for(size_t i = 0; i < shape_vec.size(); i++) {
+    //     shape_vec[i] = curr_allele_frequencies[i] * alpha;
+    // }
 
-    return rdirichlet(shape_vec);
+    // return rdirichlet(shape_vec);
+    return rlogit_norm(curr_allele_frequencies, variance);
 };
 
 std::vector<std::vector<int > >& Sampler::sample_genotype(int coi, std::vector<double> const &allele_frequencies, int num_samples) {

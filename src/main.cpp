@@ -15,11 +15,11 @@ Rcpp::List run_mcmc(Rcpp::List args) {
     UtilFunctions::print("Loading Genotyping Data...");
     GenotypingData genotyping_data(args);
     UtilFunctions::print("Generating Lookup Tables...");
-    Lookup lookup(params.max_coi);
+    Lookup lookup(params.max_coi, genotyping_data.max_alleles);
 
     MCMC mcmc(genotyping_data, lookup, params);
 
-    UtilFunctions::print("Running Chains:", mcmc.chains.size());
+    UtilFunctions::print("Running Chains:", params.num_chains);
 
     if(params.burnin > 0) {
         mcmc.burnin();
@@ -48,5 +48,4 @@ Rcpp::List run_mcmc(Rcpp::List args) {
 
     res.names() = res_names;
     return res;
-    // return 25;
 }

@@ -26,9 +26,9 @@ private:
     void initialize_sampler();
 
     std::vector<double> reweight_allele_frequencies(std::vector<double> const &allele_frequencies, std::vector<int> const &observed_genotype, double epsilon_neg, double epsilon_pos);
-    std::vector<double> calc_genotype_log_pmf(std::vector<std::vector<int> > const &genotypes, int coi, std::vector<double> const &allele_frequencies);
-    std::vector<double> calc_obs_genotype_lliks(std::vector<int> const &obs_genotype, std::vector<std::vector<int> > const &true_genotypes, double epsilon_neg, double epsilon_pos);
-    long double calc_genotype_marginal_llik(std::vector<int> const &obs_genotype, int coi, std::vector<double> const &allele_frequencies, double epsilon_neg, double epsilon_pos, int importance_sampling_depth);
+    std::vector<double> calc_genotype_log_pmf(std::vector<std::vector<int> > const &genotypes, int coi, std::vector<double> const &allele_frequencies, int num_genotypes);
+    std::vector<double> calc_obs_genotype_lliks(std::vector<int> const &obs_genotype, std::vector<std::vector<int> > const &true_genotypes, double epsilon_neg, double epsilon_pos, int num_genotypes);
+    long double calc_genotype_marginal_llik(std::vector<int> const &obs_genotype, int coi, std::vector<double> const &allele_frequencies, double epsilon_neg, double epsilon_pos);
 
 public:
     std::vector<std::vector<double> > llik_old;
@@ -44,6 +44,7 @@ public:
     // Allele Frequencies
     std::vector<std::vector<double> > p;
     std::vector<double> prop_p;
+    std::vector<double> p_prop_var;
     std::vector<int> p_accept;
 
     // Epsilon Positive
@@ -62,7 +63,7 @@ public:
     Chain(GenotypingData genotyping_data, Lookup lookup, Parameters params);
 
     void update_m(int iteration);
-    void update_p();
+    void update_p(int iteration);
     void update_eps_pos(int iteration);
     void update_eps_neg(int iteration);
     void calculate_llik();
