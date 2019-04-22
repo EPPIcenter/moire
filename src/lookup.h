@@ -17,7 +17,7 @@ class Lookup {
     static std::vector<double> lookup_lgamma;
     static std::vector<std::vector<int > > lookup_sampling_depth;
 
-    void init_lgamma(int max_coi);
+    void init_lgamma(int max_coi, int max_alleles);
     void init_sampling_depth(int max_coi, int max_alleles);
 };
 

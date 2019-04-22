@@ -17,10 +17,10 @@
 // int Parameters::coi_delta;
 // double Parameters::eps_pos_0;
 // double Parameters::max_eps_pos;
-// // double Parameters::eps_pos_var;
+// double Parameters::eps_pos_var;
 // double Parameters::eps_neg_0;
 // double Parameters::max_eps_neg;
-// // double Parameters::eps_neg_var;
+// double Parameters::eps_neg_var;
 // double Parameters::alpha;
 
 
@@ -33,14 +33,18 @@ Parameters::Parameters(const Rcpp::List &args) {
     importance_sampling_depth = UtilFunctions::r_to_int(args["importance_sampling_depth"]);
 
     // Model
-    max_coi     =   UtilFunctions::r_to_int(args["max_coi"]);
-    coi_delta   =   UtilFunctions::r_to_int(args["max_coi_delta"]);
-    eps_pos_0   =   UtilFunctions::r_to_double(args["eps_pos_0"]);
-    max_eps_pos =   UtilFunctions::r_to_double(args["max_eps_pos"]);
-    // eps_pos_var =   UtilFunctions::r_to_double(args["eps_pos_var"]);
-    eps_neg_0   =   UtilFunctions::r_to_double(args["eps_neg_0"]);
-    max_eps_neg =   UtilFunctions::r_to_double(args["max_eps_neg"]);
-    // eps_neg_var =   UtilFunctions::r_to_double(args["eps_neg_var"]);
-    alpha       =   UtilFunctions::r_to_double(args["alpha"]);
+    max_coi         =   UtilFunctions::r_to_int(args["max_coi"]);
+    coi_delta       =   UtilFunctions::r_to_int(args["max_coi_delta"]);
+    eps_pos_0       =   UtilFunctions::r_to_double(args["eps_pos_0"]);
+    max_eps_pos     =   UtilFunctions::r_to_double(args["max_eps_pos"]);
+    eps_pos_alpha   =   UtilFunctions::r_to_double(args["eps_pos_alpha"]);
+    eps_pos_beta    =   UtilFunctions::r_to_double(args["eps_pos_beta"]);
+    eps_pos_var     =   UtilFunctions::r_to_double(args["eps_pos_var"]);
+    eps_neg_0       =   UtilFunctions::r_to_double(args["eps_neg_0"]);
+    max_eps_neg     =   UtilFunctions::r_to_double(args["max_eps_neg"]);
+    eps_neg_alpha   =   UtilFunctions::r_to_double(args["eps_neg_alpha"]);
+    eps_neg_beta    =   UtilFunctions::r_to_double(args["eps_neg_beta"]);
+    eps_neg_var     =   UtilFunctions::r_to_double(args["eps_neg_var"]);
+    alpha           =   UtilFunctions::r_to_double(args["alpha"]);
 };
 
