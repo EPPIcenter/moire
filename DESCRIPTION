@@ -1,5 +1,5 @@
 Package: moiR
-Title: Joint Estimation of Multiplicity of Infection (MOI) and Allele Frequencies from Multiallelic Genetics Data
+Title: Joint Estimation of Multiplicity of Infection (MOI) and Allele Frequencies from Noisy Multiallelic Genetics Data
 Version: 0.0.0.9000
 Authors@R: 
     person(given = "Maxwell",
@@ -17,3 +17,4 @@ Imports:
     Rcpp
 URL: https://github.com/m-murphy/moiR
 BugReports: https://github.com/m-murphy/moiR/issues
+RoxygenNote: 6.1.1
