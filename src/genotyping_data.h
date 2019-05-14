@@ -17,7 +17,8 @@ public:
   static std::vector<int> observed_coi;
   static size_t num_samples;
   static size_t num_loci;
-
+  static int max_alleles;
+  
   // constructors
   GenotypingData() {};
   GenotypingData(const Rcpp::List &args);

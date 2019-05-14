@@ -6,20 +6,20 @@
 
 
 namespace UtilFunctions {
-  float fastlog2 (float x) {
-    union { float f; uint32_t i; } vx = { x };
-    union { uint32_t i; float f; } mx = { (vx.i & 0x007FFFFF) | 0x3f000000 };
-    float y = vx.i;
-    y *= 1.1920928955078125e-7f;
+  // float fastlog2 (float x) {
+  //   union { float f; uint32_t i; } vx = { x };
+  //   union { uint32_t i; float f; } mx = { (vx.i & 0x007FFFFF) | 0x3f000000 };
+  //   float y = vx.i;
+  //   y *= 1.1920928955078125e-7f;
 
-    return y - 124.22551499f
-            - 1.498030302f * mx.f 
-            - 1.72587999f / (0.3520887068f + mx.f);
-  }
+  //   return y - 124.22551499f
+  //           - 1.498030302f * mx.f 
+  //           - 1.72587999f / (0.3520887068f + mx.f);
+  // }
 
-  float fastlog (float x) {
-    return 0.69314718f * fastlog2 (x);
-  }
+  // float fastlog (float x) {
+  //   return 0.69314718f * fastlog2 (x);
+  // }
 
   int r_to_bool(SEXP x) {
     return Rcpp::as<bool>(x);

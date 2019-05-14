@@ -10,29 +10,34 @@ class Parameters {
     public:
     
     // MCMC Parameters
-    static int thin;
-    static int burnin;
-    static int samples;
-    static int num_chains;
-    static int importance_sampling_depth;
+    int thin;
+    int burnin;
+    int samples;
+    int num_chains;
+    int importance_sampling_depth;
 
     // Model Parameters
     // Complexity of Infection
-    static int max_coi; // Max allowed value
-    static int coi_delta; // Max shift in COI during MCMC
+    int max_coi;            // Max allowed value
+    // int coi_delta;          // Max shift in COI during MCMC
     
     // False Positive Rate
-    static double eps_pos_0; // Initial eps pos
-    static double max_eps_pos; // Max allowed value
-    static double eps_pos_var; // Variance of sampler
+    double eps_pos_0;       // Initial eps pos
+    double max_eps_pos;     // Max allowed value
+    double eps_pos_var;     // Variance of sampler
+    double eps_pos_alpha;   // Alpha parameter prior on beta distribution
+    double eps_pos_beta;    // Beta parameter prior on beta distribution
     
     // False Negative Rate
-    static double eps_neg_0; // Initial eps neg
-    static double max_eps_neg; // Max allowed value
-    static double eps_neg_var; // Variance of sampler
+    double eps_neg_0;       // Initial eps neg
+    double max_eps_neg;     // Max allowed value
+    double eps_neg_var;     // Variance of sampler
+    double eps_neg_alpha;   // Alpha parameter prior on beta distribution
+    double eps_neg_beta;    // Beta parameter prior on beta distribution
+    
 
     // Allele Frequencies
-    static double alpha; // Dirichlet sampling variance (higher values create lower variance)
+    // double alpha;           // Dirichlet sampling variance (higher values create lower variance)
 
 
     // constructors
