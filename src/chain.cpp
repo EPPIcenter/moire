@@ -1,4 +1,3 @@
-
 #include <algorithm>
 
 #include "chain.h"
@@ -68,7 +67,6 @@ void Chain::initialize_mean_coi() {
 void Chain::update_m(int iteration) {
     for(int i = 0; i < genotyping_data.num_samples; i++) {
         int prop_m =  m[i] + sampler.sample_coi_delta(m_prop_mean[i]);
-        // int prop_m = sampler.sample_coi(m[i], params.coi_delta, params.max_coi);
 
         // Accept automatically if COI is unchanged
         if(prop_m == m[i]) {

@@ -34,7 +34,7 @@ Parameters::Parameters(const Rcpp::List &args) {
 
     // Model
     max_coi         =   UtilFunctions::r_to_int(args["max_coi"]);
-    coi_delta       =   UtilFunctions::r_to_int(args["max_coi_delta"]);
+    // coi_delta       =   UtilFunctions::r_to_int(args["max_coi_delta"]);
     eps_pos_0       =   UtilFunctions::r_to_double(args["eps_pos_0"]);
     max_eps_pos     =   UtilFunctions::r_to_double(args["max_eps_pos"]);
     eps_pos_alpha   =   UtilFunctions::r_to_double(args["eps_pos_alpha"]);
@@ -45,6 +45,6 @@ Parameters::Parameters(const Rcpp::List &args) {
     eps_neg_alpha   =   UtilFunctions::r_to_double(args["eps_neg_alpha"]);
     eps_neg_beta    =   UtilFunctions::r_to_double(args["eps_neg_beta"]);
     eps_neg_var     =   UtilFunctions::r_to_double(args["eps_neg_var"]);
-    alpha           =   UtilFunctions::r_to_double(args["alpha"]);
+    // alpha           =   UtilFunctions::r_to_double(args["alpha"]);
 };
 
