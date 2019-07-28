@@ -2,6 +2,6 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 run_mcmc_rcpp <- function(args) {
-    .Call(`_moiR_run_mcmc`, args)
+    .Call('_moiR_run_mcmc', PACKAGE = 'moiR', args)
 }
 

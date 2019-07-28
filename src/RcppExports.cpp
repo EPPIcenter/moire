@@ -17,13 +17,8 @@ BEGIN_RCPP
 END_RCPP
 }
 
-RcppExport SEXP start_profiler(SEXP);
-RcppExport SEXP stop_profiler();
-
 static const R_CallMethodDef CallEntries[] = {
     {"_moiR_run_mcmc", (DL_FUNC) &_moiR_run_mcmc, 1},
-    {"start_profiler", (DL_FUNC) &start_profiler, 1},
-    {"stop_profiler",  (DL_FUNC) &stop_profiler,  0},
     {NULL, NULL, 0}
 };
 

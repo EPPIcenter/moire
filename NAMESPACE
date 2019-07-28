@@ -2,3 +2,4 @@
 
 export(run_mcmc)
 export(sim_data)
+useDynLib(moiR)

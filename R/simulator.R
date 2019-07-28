@@ -6,7 +6,7 @@
 }
 
 .sim_locus_allele_frequencies <- function(alpha, num_loci) {
-  dists <- rdirichlet(num_loci, alpha)
+  dists <- .rdirichlet(num_loci, alpha)
   lapply(seq_len(num_loci), function(x) {
     dists[x,]
   })

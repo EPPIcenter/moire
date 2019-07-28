@@ -6,7 +6,6 @@
 #include "lookup.h"
 
 //----------------------------------------------
-// Run MCMC
 // [[Rcpp::export(name='run_mcmc_rcpp')]]
 Rcpp::List run_mcmc(Rcpp::List args) {
     UtilFunctions::print("Starting Run MCMC");
