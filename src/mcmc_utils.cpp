@@ -1,4 +1,4 @@
-#include <gperftools/profiler.h>
+// #include <gperftools/profiler.h>
 #include <stdint.h>
 #include <math.h>
 
@@ -13,7 +13,7 @@ namespace UtilFunctions {
   //   y *= 1.1920928955078125e-7f;
 
   //   return y - 124.22551499f
-  //           - 1.498030302f * mx.f 
+  //           - 1.498030302f * mx.f
   //           - 1.72587999f / (0.3520887068f + mx.f);
   // }
 
@@ -62,7 +62,7 @@ namespace UtilFunctions {
     {
       x_mat[i] = Rcpp::as<std::vector<T> > (x[i]);
     }
-    
+
     return x_mat;
   };
 
@@ -83,7 +83,7 @@ namespace UtilFunctions {
     int n_elements = x.size();
     UtilFunctions::print("Parsing Elements:", n_elements);
     std::vector<std::vector<std::vector<T> > > x_mat(n_elements);
-    
+
     for(size_t i = 0; i < n_elements; i++) {
       Rcpp::List x_i(x[i]);
       int nrows = x_i.size();
@@ -93,7 +93,7 @@ namespace UtilFunctions {
         x_mat[i][j] = Rcpp::as<std::vector<T> >(x_i_j);
       }
     }
-    
+
     return x_mat;
   };
 
@@ -111,12 +111,12 @@ namespace UtilFunctions {
 
 }
 
-RcppExport SEXP start_profiler(SEXP str) {
-  ProfilerStart(Rcpp::as<const char*>(str));
-  return R_NilValue;
-}
-
-RcppExport SEXP stop_profiler() {
-  ProfilerStop();
-  return R_NilValue;
-}
+// RcppExport SEXP start_profiler(SEXP str) {
+//   ProfilerStart(Rcpp::as<const char*>(str));
+//   return R_NilValue;
+// }
+//
+// RcppExport SEXP stop_profiler() {
+//   ProfilerStop();
+//   return R_NilValue;
+// }

@@ -1,2 +1,1 @@
-PKG_CXXFLAGS += -Wall -pedantic -g -ggdb -fopenmp
-PKG_LIBS += -lprofiler -fopenmp
+PKG_CXXFLAGS += -Wall -pedantic -g -fopenmp
