@@ -111,10 +111,16 @@ double Sampler::get_epsilon_log_prior(double x, double alpha, double beta) {
     return dbeta(x, alpha, beta, true);
 }
 
+// double Sampler::sample_epsilon(double curr_epsilon, double variance) {
+//     norm_distr.param(std::normal_distribution<double>::param_type(log(curr_epsilon / (1 - curr_epsilon)), variance));
+//     double prop = norm_distr(eng);
+//     return exp(prop) / (1 + exp(prop));
+// };
+
 double Sampler::sample_epsilon(double curr_epsilon, double variance) {
-    norm_distr.param(std::normal_distribution<double>::param_type(log(curr_epsilon / (1 - curr_epsilon)), variance));
+    norm_distr.param(std::normal_distribution<double>::param_type(curr_epsilon, variance));
     double prop = norm_distr(eng);
-    return exp(prop) / (1 + exp(prop));
+    return prop;
 };
 
 double Sampler::sample_epsilon_pos(double curr_epsilon_pos, double variance) {
@@ -146,7 +152,7 @@ std::vector<std::vector<int > >& Sampler::sample_genotype(int coi, std::vector<d
         std::fill(genotype_samples[allele_frequencies.size()][i].begin(), genotype_samples[allele_frequencies.size()][i].end(), 0);
         for(int j = 0; j < coi; j++)
         {
-            genotype_samples[allele_frequencies.size()][i][discrete_distr(eng)] += 1;
+            genotype_samples[allele_frequencies.size()][i][discrete_distr(eng)] += 1; // TODO: implement faster discrete distribution sampler
         }
     }
     return genotype_samples[allele_frequencies.size()];

@@ -83,8 +83,8 @@ void Chain::update_m(int iteration) {
                 sum_can += llik_new[j][i];
                 sum_orig += llik_old[j][i];
             }
-            sum_can += sampler.get_coi_log_prior(prop_m, mean_coi);
-            sum_orig += sampler.get_coi_log_prior(m[i], mean_coi);
+            // sum_can += sampler.get_coi_log_prior(prop_m, mean_coi);
+            // sum_orig += sampler.get_coi_log_prior(m[i], mean_coi);
 
             // Accept
             if(sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig)) {
@@ -206,7 +206,7 @@ void Chain::update_eps(int iteration) {
 void Chain::update_eps_pos(int iteration) {
     double prop_eps_pos = sampler.sample_epsilon_pos(eps_pos, eps_pos_var);
     UtilFunctions::print("Epsilon Pos:", eps_pos, prop_eps_pos, eps_pos_var);
-
+    
     if (prop_eps_pos < params.max_eps_pos && prop_eps_pos > 0) {
         double sum_can = 0;
         double sum_orig = 0;
@@ -226,7 +226,7 @@ void Chain::update_eps_pos(int iteration) {
         if(sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig)) {
             UtilFunctions::print("Updating Eps Pos", prop_eps_pos);
             eps_pos = prop_eps_pos;
-            eps_pos_var += (1-0.23)/sqrt(double(iteration));
+            eps_pos_var += (1-0.23) / sqrt(double(iteration));
             eps_pos_accept += 1;
             for(size_t j = 0; j < genotyping_data.num_loci; j++) {
                 for(size_t i = 0; i < genotyping_data.num_samples; i++) {
@@ -235,8 +235,8 @@ void Chain::update_eps_pos(int iteration) {
             }
         } else {
             eps_pos_var -= 0.23/sqrt(double(iteration));
-            if (eps_pos_var < UNDERFLO) {
-                eps_pos_var = UNDERFLO;
+            if (eps_pos_var < .005) { // Minimum variance, should make input parameter instead of hardcoding
+                eps_pos_var = .005;
             }
         }
     }
@@ -247,6 +247,8 @@ void Chain::update_eps_pos(int iteration) {
 
 void Chain::update_eps_neg(int iteration) {
     double prop_eps_neg = sampler.sample_epsilon_neg(eps_neg, eps_neg_var);
+    UtilFunctions::print("Epsilon Neg:", eps_neg, prop_eps_neg, eps_neg_var);
+
     if (prop_eps_neg < params.max_eps_neg && prop_eps_neg > 0) {
         double sum_can = 0;
         double sum_orig = 0;
@@ -267,7 +269,7 @@ void Chain::update_eps_neg(int iteration) {
         if(sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig)) {
             UtilFunctions::print("Updating Eps Neg", prop_eps_neg);
             eps_neg = prop_eps_neg;
-            eps_neg_var += (1-0.23)/sqrt(double(iteration));
+            eps_neg_var += (1-0.23) / sqrt(double(iteration));
             eps_neg_accept += 1;
             for(size_t j = 0; j < genotyping_data.num_loci; j++) {
                 for(size_t i = 0; i < genotyping_data.num_samples; i++) {
@@ -276,8 +278,8 @@ void Chain::update_eps_neg(int iteration) {
             }
         } else {
             eps_neg_var -= 0.23/sqrt(double(iteration));
-            if (eps_neg_var < UNDERFLO) {
-                eps_neg_var = UNDERFLO;
+            if (eps_neg_var < .005) { // Minimum variance, should make input parameter instead of hardcoding
+                eps_neg_var = .005;
             }
         }
     }

@@ -67,13 +67,13 @@ public:
 
     // Epsilon Positive
     double eps_pos;
-    // double prop_eps_pos;
+    double prop_eps_pos;
     int eps_pos_accept;
     double eps_pos_var;
 
     // Epsilon Negative
     double eps_neg;
-    // double prop_eps_neg;
+    double prop_eps_neg;
     int eps_neg_accept;
     double eps_neg_var;
 
