@@ -205,7 +205,7 @@ void Chain::update_eps(int iteration) {
 
 void Chain::update_eps_pos(int iteration) {
     double prop_eps_pos = sampler.sample_epsilon_pos(eps_pos, eps_pos_var);
-    UtilFunctions::print("Epsilon Pos:", eps_pos, prop_eps_pos, eps_pos_var);
+    // UtilFunctions::print("Epsilon Pos:", eps_pos, prop_eps_pos, eps_pos_var);
     
     if (prop_eps_pos < params.max_eps_pos && prop_eps_pos > 0) {
         double sum_can = 0;
@@ -224,7 +224,7 @@ void Chain::update_eps_pos(int iteration) {
 
         // Accept
         if(sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig)) {
-            UtilFunctions::print("Updating Eps Pos", prop_eps_pos);
+            // UtilFunctions::print("Updating Eps Pos", prop_eps_pos);
             eps_pos = prop_eps_pos;
             eps_pos_var += (1-0.23) / sqrt(double(iteration));
             eps_pos_accept += 1;
@@ -247,7 +247,7 @@ void Chain::update_eps_pos(int iteration) {
 
 void Chain::update_eps_neg(int iteration) {
     double prop_eps_neg = sampler.sample_epsilon_neg(eps_neg, eps_neg_var);
-    UtilFunctions::print("Epsilon Neg:", eps_neg, prop_eps_neg, eps_neg_var);
+    // UtilFunctions::print("Epsilon Neg:", eps_neg, prop_eps_neg, eps_neg_var);
 
     if (prop_eps_neg < params.max_eps_neg && prop_eps_neg > 0) {
         double sum_can = 0;
@@ -267,7 +267,7 @@ void Chain::update_eps_neg(int iteration) {
 
         // Accept
         if(sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig)) {
-            UtilFunctions::print("Updating Eps Neg", prop_eps_neg);
+            // UtilFunctions::print("Updating Eps Neg", prop_eps_neg);
             eps_neg = prop_eps_neg;
             eps_neg_var += (1-0.23) / sqrt(double(iteration));
             eps_neg_accept += 1;
@@ -409,8 +409,8 @@ void Chain::generate_possible_genotypes(int coi, int total_alleles) {
     std::vector<int> chosen(coi + 1);
     std::vector<int> arr(total_alleles);
     std::iota(arr.begin(), arr.end(), 0);
-    UtilFunctions::print("Generating Possible Genotypes:", coi, total_alleles);
-    UtilFunctions::print("Total Genotypes:", lookup.lookup_lgamma[coi + total_alleles], lookup.lookup_lgamma[coi + 1], lookup.lookup_lgamma[total_alleles]);
+    // UtilFunctions::print("Generating Possible Genotypes:", coi, total_alleles);
+    // UtilFunctions::print("Total Genotypes:", lookup.lookup_lgamma[coi + total_alleles], lookup.lookup_lgamma[coi + 1], lookup.lookup_lgamma[total_alleles]);
     generate_possible_genotypes_helper(chosen, arr, 0, coi, total_alleles, 0, total_alleles - 1);
 }
 

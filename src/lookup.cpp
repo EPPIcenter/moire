@@ -22,8 +22,8 @@ void Lookup::init_lgamma(int max_coi, int max_alleles) {
         lookup_lgamma[i] = std::lgamma(i);
     }
 
-    UtilFunctions::print("Lookup Lgamma:", max_coi + max_alleles + 10, lookup_lgamma.size());
-    UtilFunctions::print_vector(lookup_lgamma);
+    // UtilFunctions::print("Lookup Lgamma:", max_coi + max_alleles + 10, lookup_lgamma.size());
+    // UtilFunctions::print_vector(lookup_lgamma);
 
 };
 
