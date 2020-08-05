@@ -25,7 +25,7 @@
 .sim_observed_allele <- function(alleles, epsilon_pos, epsilon_neg) {
   sapply(alleles, function(allele) {
     if (allele) {
-      rbinom(1, 1, prob = 1 - epsilon_pos ** allele)
+      rbinom(1, 1, prob = 1 - (epsilon_neg ** allele))
     } else {
       rbinom(1, 1, epsilon_pos)
     }
