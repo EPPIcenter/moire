@@ -50,7 +50,7 @@
 <meta property="og:image" content="/logo.svg" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:creator" content="@MxMrphy" />
-<meta name="twitter:site" content="@MxMrphy" />
+<meta name="twitter:site" content="@EPPIcenter_UCSF" />
 
 
 
@@ -154,6 +154,25 @@
     <tbody>
       <tr>
         <th colspan="2">
+          <h2 id="section-mcmc" class="hasAnchor"><a href="#section-mcmc" class="anchor"></a>MCMC</h2>
+          <p class="section-desc"></p>
+        </th>
+      </tr>
+      
+      
+    </tbody><tbody>
+      
+      
+      <tr>
+        
+        <td>
+          <p><code><a href="run_mcmc.html">run_mcmc()</a></code> </p>
+        </td>
+        <td><p>Sample from the target distribution using MCMC</p></td>
+      </tr>
+    </tbody><tbody>
+      <tr>
+        <th colspan="2">
           <h2 id="section-simulate" class="hasAnchor"><a href="#section-simulate" class="anchor"></a>Simulate</h2>
           <p class="section-desc"></p>
         </th>
@@ -199,11 +218,17 @@
           <p><code><a href="simulate_sample_moi.html">simulate_sample_moi()</a></code> </p>
         </td>
         <td><p>Simulate sample MOIs from a zero-truncated Poisson distribution</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="rdirichlet.html">rdirichlet()</a></code> </p>
+        </td>
+        <td><p>Implementation of random sampling from a Dirichlet distribution</p></td>
       </tr>
     </tbody><tbody>
       <tr>
         <th colspan="2">
-          <h2 id="section-mcmc" class="hasAnchor"><a href="#section-mcmc" class="anchor"></a>MCMC</h2>
+          <h2 id="section-utilities" class="hasAnchor"><a href="#section-utilities" class="anchor"></a>Utilities</h2>
           <p class="section-desc"></p>
         </th>
       </tr>
@@ -215,9 +240,46 @@
       <tr>
         
         <td>
-          <p><code><a href="run_mcmc.html">run_mcmc()</a></code> </p>
+          <p><code><a href="calculate_he.html">calculate_he()</a></code> </p>
         </td>
-        <td><p>Sample from the target distribution using MCMC</p></td>
+        <td><p>Calculate the expected heterozygosity from allele frequencies</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="calculate_naive_coi.html">calculate_naive_coi()</a></code> </p>
+        </td>
+        <td><p>Estimates the complexity of infection using a naive approach that chooses the highest number of observed alleles.</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="calculate_naive_coi_offset.html">calculate_naive_coi_offset()</a></code> </p>
+        </td>
+        <td><p>Estimates the complexity of infection using a naive approach that chooses the n'th highest number of observed alleles.</p></td>
+      </tr>
+    </tbody><tbody>
+      <tr>
+        <th colspan="2">
+          <h2 id="section-data" class="hasAnchor"><a href="#section-data" class="anchor"></a>Data</h2>
+          <p class="section-desc"></p>
+        </th>
+      </tr>
+      
+      
+    </tbody><tbody>
+      
+      
+      <tr>
+        
+        <td>
+          <p><code><a href="simulated_data.html">simulated_data</a></code> </p>
+        </td>
+        <td><p>Simulated genotyping data</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="mcmc_results.html">mcmc_results</a></code> </p>
+        </td>
+        <td><p>MCMC results from using the packaged simulated data and calling run_mcmc()</p></td>
       </tr>
     </tbody>
     </table>
