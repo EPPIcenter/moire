@@ -2,6 +2,16 @@ home:
   title: moire
   description: MOI and allele frequency recovery from noisy polyallelic genomics data
 
+template:
+  opengraph:
+    twitter:
+      creator: "@MxMrphy"
+      site: "@EPPIcenter_UCSF"
+      card: summary
+  params:
+    bootswatch: simplex
+    ganalytics: UA-176090065-1
+
 reference:
 - title: MCMC
 - contents:
@@ -20,12 +30,4 @@ reference:
   - simulated_data
   - mcmc_results
 
-template:
-  opengraph:
-    twitter:
-      creator: "@MxMrphy"
-      site: "@EPPIcenter_UCSF"
-      card: summary_large_image
-  params:
-    bootswatch: simplex
-    ganalytics: UA-176090065-1
+
