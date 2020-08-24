@@ -3,17 +3,28 @@ home:
   description: MOI and allele frequency recovery from noisy polyallelic genomics data
 
 reference:
+- title: MCMC
+- contents:
+  - run_mcmc
 - title : Simulate
 - contents:
   - starts_with("simulate_")
-- title: MCMC
+  - rdirichlet
+- title: Utilities
 - contents:
-  - starts_with("run_mcmc")
+  - calculate_he
+  - calculate_naive_coi
+  - calculate_naive_coi_offset
+- title: Data
+- contents:
+  - simulated_data
+  - mcmc_results
 
 template:
   opengraph:
     twitter:
       creator: "@MxMrphy"
+      site: "@EPPIcenter_UCSF"
       card: summary_large_image
   params:
     bootswatch: simplex
