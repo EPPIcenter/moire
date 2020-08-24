@@ -1,12 +1,14 @@
-Package: moiR
-Title: Joint Estimation of Multiplicity of Infection (MOI) and Allele Frequencies from Noisy Multiallelic Genetics Data
-Version: 0.0.0.9000
+Package: moire
+Title: MOI and Allele Frequency Recovery from Noisy Polyallelic Genetics Data
+Version: 1.0.0
 Authors@R: 
     person(given = "Maxwell",
            family = "Murphy",
            role = c("aut", "cre"),
-           email = "murphy2122@berkeley.edu")
-Description: What the package does (one paragraph).
+           email = "murphy2122@gmail.com",
+           comment = c(ORCID = "0000-0003-0332-4388"))
+Description: An MCMC based approach to Bayesian estimation of individual level multiplicity of infection and 
+    population allele frequencies from polyallelic genetic data.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
@@ -15,6 +17,17 @@ LinkingTo:
     Rcpp,
 Imports: 
     Rcpp
-URL: https://github.com/m-murphy/moiR
-BugReports: https://github.com/m-murphy/moiR/issues
-RoxygenNote: 6.1.1
+URL: https://github.com/m-murphy/moire
+BugReports: https://github.com/m-murphy/moire/issues
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.1
+Suggests: 
+    knitr,
+    rmarkdown,
+    magrittr,
+    ggplot2,
+    dplyr,
+    tidyr
+VignetteBuilder: knitr
+Depends: 
+    R (>= 2.10)

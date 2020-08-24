@@ -18,8 +18,8 @@ Rcpp::List run_mcmc(Rcpp::List args) {
 
     MCMC mcmc(genotyping_data, lookup, params);
 
-    UtilFunctions::print("Running Chains:", params.num_chains);
-
+    // UtilFunctions::print("Running Chains:", params.num_chains);
+    UtilFunctions::print("Starting Sampling...");
     if(params.burnin > 0) {
         mcmc.burnin();
     }

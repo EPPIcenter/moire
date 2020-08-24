@@ -51,6 +51,9 @@ public:
     double llik;
 
     // Mean COI
+    // TODO: Allow for other priors on complexity of infection
+    // std::string prior;
+    // double poisson_prior_lambda;
     double mean_coi;
 
     // COI

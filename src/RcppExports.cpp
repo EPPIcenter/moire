@@ -7,7 +7,7 @@ using namespace Rcpp;
 
 // run_mcmc
 Rcpp::List run_mcmc(Rcpp::List args);
-RcppExport SEXP _moiR_run_mcmc(SEXP argsSEXP) {
+RcppExport SEXP _moire_run_mcmc(SEXP argsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -18,11 +18,11 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_moiR_run_mcmc", (DL_FUNC) &_moiR_run_mcmc, 1},
+    {"_moire_run_mcmc", (DL_FUNC) &_moire_run_mcmc, 1},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_moiR(DllInfo *dll) {
+RcppExport void R_init_moire(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

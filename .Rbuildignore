@@ -1,3 +1,10 @@
+^renv$
+^renv\.lock$
 ^\.travis\.yml$
 ^moiR\.Rproj$
 ^\.Rproj\.user$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^\.github$
+^data-raw$

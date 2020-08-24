@@ -1,0 +1,20 @@
+home:
+  title: moire
+  description: MOI and allele frequency recovery from noisy polyallelic genomics data
+
+reference:
+- title : Simulate
+- contents:
+  - starts_with("simulate_")
+- title: MCMC
+- contents:
+  - starts_with("run_mcmc")
+
+template:
+  opengraph:
+    twitter:
+      creator: "@MxMrphy"
+      card: summary_large_image
+  params:
+    bootswatch: simplex
+    ganalytics: UA-176090065-1

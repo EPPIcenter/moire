@@ -26,7 +26,6 @@ GenotypingData::GenotypingData(const Rcpp::List &args) {
     }
     
     for(size_t j = 0; j < num_samples; j++) {
-      // UtilFunctions::print("Total Observed Alleles", i, j, observed_alleles[i][j].size());
       int total_alleles = 0;
       for(size_t k = 0; k < observed_alleles[i][j].size(); k++) {
         total_alleles += observed_alleles[i][j][k];

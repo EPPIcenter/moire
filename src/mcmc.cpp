@@ -9,7 +9,7 @@ void MCMC::burnin() {
     UtilFunctions::print("Beginning Burnin");
     UtilFunctions::print("Running Burnin over", chains.size(), "Chains");
     for(size_t i = 0; i < params.num_chains; i++){
-        UtilFunctions::print("Running Burnin -- Chain", i);
+        // UtilFunctions::print("Running Burnin -- Chain", i);
         std::vector<double> chain_llik;
         llik_burnin.push_back(chain_llik);
         for(int j = 0; j < params.burnin; j++){
@@ -32,7 +32,7 @@ void MCMC::burnin() {
 
 void MCMC::sample() {
     for(size_t i = 0; i < params.num_chains; i++){
-        UtilFunctions::print("Sampling -- Chain", i);
+        // UtilFunctions::print("Sampling -- Chain", i);
         std::vector<double> chain_llik;
         llik_sample.push_back(chain_llik);
         for(int j = 0; j < params.samples; j++){
