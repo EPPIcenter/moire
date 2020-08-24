@@ -2,6 +2,6 @@ pandoc: 2.7.3
 pkgdown: 1.5.1
 pkgdown_sha: ~
 articles:
-  demo: demo.html
-last_built: 2020-08-24T22:08Z
+  mcmc_demo: mcmc_demo.html
+last_built: 2020-08-24T22:25Z
 
