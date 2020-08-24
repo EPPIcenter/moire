@@ -4,7 +4,7 @@
 moire is a package implementing an MCMC based approach to estimating
 complexity of infection and population allele frequencies from
 polyallelic genomics data. Details of the method may be found
-[here](/refs/thesis.pdf).
+[here](https://github.com/m-murphy/moire/raw/master/refs/thesis.pdf).
 
 ## Installation
 

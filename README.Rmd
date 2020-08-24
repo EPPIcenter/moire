@@ -8,7 +8,7 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.path = "man/figures/"
 
 # moire <img src="man/figures/logo.svg" align="right" alt="" height="139" />
 
-moire is a package implementing an MCMC based approach to estimating complexity of infection and population allele frequencies from polyallelic genomics data. Details of the method may be found [here](refs/thesis.pdf).
+moire is a package implementing an MCMC based approach to estimating complexity of infection and population allele frequencies from polyallelic genomics data. Details of the method may be found [here](https://github.com/m-murphy/moire/raw/master/refs/thesis.pdf).
 
 ## Installation
 
