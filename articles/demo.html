@@ -74,6 +74,9 @@
     </li>
   </ul>
 </li>
+<li>
+  <a href="../news/index.html">Changelog</a>
+</li>
       </ul>
 <ul class="nav navbar-nav navbar-right">
 <li>
@@ -168,7 +171,7 @@
 <p>Here we demonstrate the difference in distribution of the estimate of MOI using our approach vs the naive method of taking the maximum number of alleles observed or the second highest number of alleles observed</p>
 <div class="sourceCode" id="cb5"><html><body><pre class="r"><span class="no">coi_estimates</span> <span class="kw">&lt;-</span> <span class="no">coi_data</span> <span class="kw">%&gt;%</span>
   <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html">select</a></span>(<span class="no">est_coi_50</span>, <span class="no">naive_coi</span>, <span class="no">offset_naive_coi</span>) <span class="kw">%&gt;%</span>
-  <span class="fu"><a href="https://rdrr.io/pkg/tidyr/man/gather.html">gather</a></span>(<span class="kw">key</span> <span class="kw">=</span> <span class="st">"estimator"</span>, <span class="kw">value</span> <span class="kw">=</span> <span class="st">"estimate"</span>) <span class="kw">%&gt;%</span>
+  <span class="fu"><a href="https://tidyr.tidyverse.org/reference/gather.html">gather</a></span>(<span class="kw">key</span> <span class="kw">=</span> <span class="st">"estimator"</span>, <span class="kw">value</span> <span class="kw">=</span> <span class="st">"estimate"</span>) <span class="kw">%&gt;%</span>
   <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html">mutate</a></span>(<span class="kw">estimator_pretty</span> <span class="kw">=</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/case_when.html">case_when</a></span>(
     <span class="no">estimator</span> <span class="kw">==</span> <span class="st">'est_coi_50'</span> ~ <span class="st">"Mean Posterior Est."</span>,
     <span class="no">estimator</span> <span class="kw">==</span> <span class="st">'naive_coi'</span> ~ <span class="st">"Naive Estimate"</span>,
