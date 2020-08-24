@@ -4,6 +4,8 @@ home:
 
 template:
   opengraph:
+    image:
+      src: man/figures/logo.png
     twitter:
       creator: "@MxMrphy"
       site: "@EPPIcenter_UCSF"
