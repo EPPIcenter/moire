@@ -20,6 +20,8 @@ void MCMC::burnin() {
             }
             chains[i].update_eps_neg(j + 1);
             chains[i].update_eps_pos(j + 1);
+            // UtilFunctions::print("Eps Pos: ", chains[i].eps_pos);
+            // UtilFunctions::print("Eps Neg: ", chains[i].eps_neg);
             // chains[i].update_eps(j + 1);
             chains[i].update_p(j + 1);
             chains[i].update_m(j + 1);
@@ -43,6 +45,8 @@ void MCMC::sample() {
             }
             chains[i].update_eps_neg(params.burnin + j + 1);
             chains[i].update_eps_pos(params.burnin + j + 1);
+            // UtilFunctions::print("Eps Pos: ", chains[i].eps_pos);
+            // UtilFunctions::print("Eps Neg: ", chains[i].eps_neg);
             // chains[i].update_eps(j + 1);
             chains[i].update_p(params.burnin + j + 1);
             chains[i].update_m(params.burnin + j + 1);

@@ -19,13 +19,13 @@ private:
     std::vector<std::vector<int>> importance_sample;
     std::tuple<int, int> genotype_cache_key;
 
-    std::vector<std::vector<int> > genotypes;
-    std::vector<std::vector<int> > sample_true_genotypes;
-    std::vector<double> importance_probabilities;
-    std::vector<double> importance_reweighted_frequencies;
-    std::vector<double> g_given_g_star_probabilities;
-    std::vector<double> g_star_probabilities;
-    std::map<std::tuple<int, int>, std::vector<std::vector<int> > >::iterator true_genotypes_iter;
+    // std::vector<std::vector<int> > genotypes;
+    // std::vector<std::vector<int> > sample_true_genotypes;
+    // std::vector<double> importance_probabilities;
+    // std::vector<double> importance_reweighted_frequencies;
+    // std::vector<double> g_given_g_star_probabilities;
+    // std::vector<double> g_star_probabilities;
+    // std::map<std::tuple<int, int>, std::vector<std::vector<int> > >::iterator true_genotypes_iter;
 
     void initialize_p();
     void initialize_m();
