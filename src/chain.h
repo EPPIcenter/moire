@@ -19,13 +19,6 @@ private:
     std::vector<std::vector<int>> importance_sample;
     std::tuple<int, int> genotype_cache_key;
 
-    // std::vector<std::vector<int> > genotypes;
-    // std::vector<std::vector<int> > sample_true_genotypes;
-    // std::vector<double> importance_probabilities;
-    // std::vector<double> importance_reweighted_frequencies;
-    // std::vector<double> g_given_g_star_probabilities;
-    // std::vector<double> g_star_probabilities;
-    // std::map<std::tuple<int, int>, std::vector<std::vector<int> > >::iterator true_genotypes_iter;
 
     void initialize_p();
     void initialize_m();
@@ -33,7 +26,6 @@ private:
     void initialize_eps_neg();
     void initialize_eps_pos();
     void initialize_likelihood();
-    // void initialize_sampler();
 
     std::vector<double> reweight_allele_frequencies(std::vector<double> const &allele_frequencies, std::vector<int> const &observed_genotype, double epsilon_neg, double epsilon_pos, int coi);
     std::vector<double> calc_genotype_log_pmf(std::vector<std::vector<int> > const &genotypes, int coi, std::vector<double> const &allele_frequencies, int num_genotypes);
@@ -69,15 +61,17 @@ public:
     std::vector<int> p_accept;
 
     // Epsilon Positive
-    double eps_pos;
+    // double eps_pos;
+    std::vector<double> eps_pos;
     double prop_eps_pos;
-    int eps_pos_accept;
+    std::vector<int> eps_pos_accept;
     double eps_pos_var;
 
     // Epsilon Negative
-    double eps_neg;
+    // double eps_neg;
+    std::vector<double> eps_neg;
     double prop_eps_neg;
-    int eps_neg_accept;
+    std::vector<int> eps_neg_accept;
     double eps_neg_var;
 
     Chain() {};

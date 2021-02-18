@@ -20,8 +20,8 @@ public:
 
     std::vector<std::vector<int> > m_store;
     std::vector<std::vector<std::vector<double > > > p_store;
-    std::vector<double> eps_pos_store;
-    std::vector<double> eps_neg_store;
+    std::vector<std::vector<double>> eps_pos_store;
+    std::vector<std::vector<double>> eps_neg_store;
     std::vector<double> mean_coi_store;
 
     std::vector<std::vector<double > > llik_burnin;
