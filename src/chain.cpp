@@ -82,12 +82,13 @@ void Chain::update_m(int iteration)
 {
     for (int i = 0; i < genotyping_data.num_samples; i++)
     {
-        int prop_m = m[i] + sampler.sample_coi_delta(m_prop_mean[i]);
+        // int prop_m = m[i] + sampler.sample_coi_delta(m_prop_mean[i]);
+        int prop_m = m[i] + sampler.sample_coi_delta(1);
 
         // Accept automatically if COI is unchanged
         if (prop_m == m[i])
         {
-            m_prop_mean[i] += (1 - 0.23) / sqrt(double(iteration));
+            // m_prop_mean[i] += (1 - 0.23) / sqrt(double(iteration));
             m_accept[i] += 1;
             continue;
         }
@@ -111,18 +112,18 @@ void Chain::update_m(int iteration)
             if (sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig))
             {
                 m[i] = prop_m;
-                m_prop_mean[i] += (1 - 0.23) / sqrt(double(iteration));
+                // m_prop_mean[i] += (1 - 0.23) / sqrt(double(iteration));
                 m_accept[i] += 1;
                 for (size_t j = 0; j < genotyping_data.num_loci; j++)
                 {
                     llik_old[j][i] = llik_new[j][i];
                 }
             }
-            else
-            {
-                m_prop_mean[i] -= 0.23 / sqrt(double(iteration));
-                m_prop_mean[i] = (m_prop_mean[i] < 0) ? 0 : m_prop_mean[i];
-            }
+            // else
+            // {
+            // m_prop_mean[i] -= 0.23 / sqrt(double(iteration));
+            // m_prop_mean[i] = (m_prop_mean[i] < 0) ? 0 : m_prop_mean[i];
+            // }
         }
     }
 }
@@ -146,7 +147,8 @@ void Chain::update_p(int iteration)
 {
     for (size_t j = 0; j < genotyping_data.num_loci; j++)
     {
-        prop_p = sampler.sample_allele_frequencies2(p[j], p_prop_var[j]);
+        // prop_p = sampler.sample_allele_frequencies2(p[j], p_prop_var[j]);
+        prop_p = sampler.sample_allele_frequencies2(p[j], .1);
         double sum_can = 0;
         double sum_orig = 0;
         for (size_t i = 0; i < genotyping_data.num_samples; i++)
@@ -161,17 +163,17 @@ void Chain::update_p(int iteration)
         {
             p[j] = prop_p;
             p_accept[j] += 1;
-            p_prop_var[j] = exp(log(p_prop_var[j]) + (1 - 0.23) / sqrt(iteration));
+            // p_prop_var[j] = exp(log(p_prop_var[j]) + (1 - 0.23) / sqrt(iteration));
             for (size_t i = 0; i < genotyping_data.num_samples; i++)
             {
                 llik_old[j][i] = llik_new[j][i];
             }
             // Reject
         }
-        else
-        {
-            p_prop_var[j] = exp(log(p_prop_var[j]) - 0.23 / sqrt(iteration));
-        }
+        // else
+        // {
+        // p_prop_var[j] = exp(log(p_prop_var[j]) - 0.23 / sqrt(iteration));
+        // }
     }
 }
 
@@ -225,6 +227,7 @@ void Chain::update_eps_pos(int iteration)
     for (size_t i = 0; i < m.size(); i++)
     {
         double prop_eps_pos = sampler.sample_epsilon_pos(eps_pos[i], eps_pos_var);
+        // UtilFunctions::print("Eps Pos prop: ", prop_eps_pos, prop_eps_pos - eps_pos[i]);
 
         if (prop_eps_pos < params.max_eps_pos && prop_eps_pos > 0)
         {
@@ -270,6 +273,7 @@ void Chain::update_eps_neg(int iteration)
     for (size_t i = 0; i < m.size(); i++)
     {
         double prop_eps_neg = sampler.sample_epsilon_neg(eps_neg[i], eps_neg_var);
+        // UtilFunctions::print("Eps Neg prop: ", prop_eps_neg, prop_eps_neg - eps_neg[i]);
 
         if (prop_eps_neg < params.max_eps_neg && prop_eps_neg > 0)
         {
