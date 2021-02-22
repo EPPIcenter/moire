@@ -2,6 +2,7 @@
 #include <random>
 #include <algorithm>
 #include <Rcpp.h>
+
 #include "sampler.h"
 #include "mcmc_utils.h"
 
@@ -10,6 +11,8 @@ std::random_device Sampler::rd;
 Sampler::Sampler(int genotype_sampling_depth, std::vector<int> const &num_alleles)
 {
     eng = std::ranlux24_base(rd());
+    // gsl_rd = gsl_rng_alloc(gsl_rng_mt19937);
+    gsl_rd = gsl_rng_alloc(gsl_rng_minstd);
     unif_distr = std::uniform_real_distribution<double>(0, 1);
     ber_distr = std::bernoulli_distribution(.5);
 
@@ -121,7 +124,8 @@ int Sampler::sample_coi_delta(double coi_prop_mean)
 {
     geom_distr.param(std::geometric_distribution<int>::param_type(1.0 / (1.0 + coi_prop_mean)));
     // abs delta >= 1
-    return (2 * ber_distr(eng) - 1) * (geom_distr(eng) + 1);
+    return (2 * ber_distr(eng) - 1) * (geom_distr(eng));
+    // return (2 * ber_distr(eng) - 1);
 }
 
 double Sampler::get_epsilon_log_prior(double x, double alpha, double beta)
@@ -169,16 +173,26 @@ std::vector<double> Sampler::sample_allele_frequencies2(std::vector<double> cons
     return rlogit_norm(curr_allele_frequencies, variance);
 };
 
+// std::vector<std::vector<int>> &Sampler::sample_genotype(int coi, std::vector<double> const &allele_frequencies, int num_samples)
+// {
+//     discrete_distr.param(std::discrete_distribution<int>::param_type(allele_frequencies.begin(), allele_frequencies.end()));
+//     for (size_t i = 0; i < num_samples; i++)
+//     {
+//         std::fill(genotype_samples[allele_frequencies.size()][i].begin(), genotype_samples[allele_frequencies.size()][i].end(), 0);
+//         for (int j = 0; j < coi; j++)
+//         {
+//             genotype_samples[allele_frequencies.size()][i][discrete_distr(eng)] += 1;
+//         }
+//     }
+//     return genotype_samples[allele_frequencies.size()];
+// }
+
 std::vector<std::vector<int>> &Sampler::sample_genotype(int coi, std::vector<double> const &allele_frequencies, int num_samples)
 {
-    discrete_distr.param(std::discrete_distribution<int>::param_type(allele_frequencies.begin(), allele_frequencies.end()));
     for (size_t i = 0; i < num_samples; i++)
     {
         std::fill(genotype_samples[allele_frequencies.size()][i].begin(), genotype_samples[allele_frequencies.size()][i].end(), 0);
-        for (int j = 0; j < coi; j++)
-        {
-            genotype_samples[allele_frequencies.size()][i][discrete_distr(eng)] += 1;
-        }
+        gsl_ran_multinomial(gsl_rd, allele_frequencies.size(), coi, allele_frequencies.data(), (unsigned int *)genotype_samples[allele_frequencies.size()][i].data());
     }
     return genotype_samples[allele_frequencies.size()];
 }
