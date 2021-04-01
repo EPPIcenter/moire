@@ -18,4 +18,8 @@ autom4te.cache/
 
 config.status
 
+configure
+
 src/Makevars
+
+.ccls-cache

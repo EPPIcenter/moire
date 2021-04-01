@@ -1,0 +1,20 @@
+BasedOnStyle: Google
+IndentWidth: 4
+---
+Language: Cpp
+DerivePointerAlignment: false
+PointerAlignment: Right
+BreakBeforeBraces: Allman
+
+IncludeBlocks: Regroup
+# prioritize headers from most local to system libs
+IncludeCategories:
+  - Regex:           '".*"'
+    Priority:        1
+    SortPriority:    1
+  - Regex:           '<[[:alnum:].]+[^.h]>'
+    Priority:        2
+    SortPriority:    3
+  - Regex:           '<[[:alnum:].]+.h>'
+    Priority:        2
+    SortPriority:    2
