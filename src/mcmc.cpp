@@ -54,8 +54,8 @@ void MCMC::sample()
             UtilFunctions::print("Log Likelihood:", chain.get_llik());
             // UtilFunctions::print("Update P: ");
             // UtilFunctions::print_vector(chain.p_accept);
-            UtilFunctions::print("Update M: ");
-            UtilFunctions::print_vector(chain.m_accept);
+            // UtilFunctions::print("Update M: ");
+            // UtilFunctions::print_vector(chain.m_accept);
             // UtilFunctions::print("Update Eps Pos:");
             // UtilFunctions::print_vector(chain.eps_pos_accept);
             // UtilFunctions::print("Update Eps Neg:");
