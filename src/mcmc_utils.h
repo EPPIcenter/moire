@@ -59,32 +59,39 @@ namespace UtilFunctions
     R_FlushConsole();
   };
 
-  template <class T1, class T2>
-  void print(T1 x1, T2 x2)
-  {
-    Rcpp::Rcout << x1 << " " << x2 << "\n";
-    R_FlushConsole();
-  }
+  // template <class T1, class T2>
+  // void print(T1 x1, T2 x2)
+  // {
+  //   Rcpp::Rcout << x1 << " " << x2 << "\n";
+  //   R_FlushConsole();
+  // }
 
-  template <class T1, class T2, class T3>
-  void print(T1 x1, T2 x2, T3 x3)
-  {
-    Rcpp::Rcout << x1 << " " << x2 << " " << x3 << "\n";
-    R_FlushConsole();
-  }
+  // template <class T1, class T2, class T3>
+  // void print(T1 x1, T2 x2, T3 x3)
+  // {
+  //   Rcpp::Rcout << x1 << " " << x2 << " " << x3 << "\n";
+  //   R_FlushConsole();
+  // }
 
-  template <class T1, class T2, class T3, class T4>
-  void print(T1 x1, T2 x2, T3 x3, T4 x4)
-  {
-    Rcpp::Rcout << x1 << " " << x2 << " " << x3 << " " << x4 << "\n";
-    R_FlushConsole();
-  }
+  // template <class T1, class T2, class T3, class T4>
+  // void print(T1 x1, T2 x2, T3 x3, T4 x4)
+  // {
+  //   Rcpp::Rcout << x1 << " " << x2 << " " << x3 << " " << x4 << "\n";
+  //   R_FlushConsole();
+  // }
 
-  template <class T1, class T2, class T3, class T4, class T5>
-  void print(T1 x1, T2 x2, T3 x3, T4 x4, T5 x5)
+  // template <class T1, class T2, class T3, class T4, class T5>
+  // void print(T1 x1, T2 x2, T3 x3, T4 x4, T5 x5)
+  // {
+  //   Rcpp::Rcout << x1 << " " << x2 << " " << x3 << " " << x4 << " " << x5 << "\n";
+  //   R_FlushConsole();
+  // }
+
+  template <class T, class... Args>
+  void print(T first, Args... args)
   {
-    Rcpp::Rcout << x1 << " " << x2 << " " << x3 << " " << x4 << " " << x5 << "\n";
-    R_FlushConsole();
+    Rcpp::Rcout << first << " ";
+    print(args...);
   }
 
   template <class T>

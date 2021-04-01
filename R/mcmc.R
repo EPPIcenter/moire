@@ -46,8 +46,6 @@ run_mcmc <-
            max_eps_pos = .2,
            max_eps_neg = .2) {
     args <- as.list(environment())
-    # multiple chains not yet implemented
-    args$num_chains = 1
     res <- run_mcmc_rcpp(args)
     res
   }
