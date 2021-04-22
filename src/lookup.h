@@ -3,23 +3,28 @@
 #ifndef LOOKUP_H_
 #define LOOKUP_H_
 
-#include <Rcpp.h>
 #include "parameters.h"
 
-class Lookup {
-    private:
-    static bool lgamma_initialized;
-    static bool sample_depth_initialized;
-    
-    public:
-    Lookup() {};
-    Lookup(int max_coi, int max_alleles);
-    static std::vector<double> lookup_lgamma;
-    static std::vector<std::vector<int > > lookup_sampling_depth;
+#include <Rcpp.h>
 
-    void init_lgamma(int max_coi, int max_alleles);
-    void init_sampling_depth(int max_coi, int max_alleles);
+class Lookup
+{
+   private:
+    bool lgamma_initialized;
+    bool sample_depth_initialized;
+    int max_coi;
+    int max_alleles;
+
+   public:
+    Lookup(){};
+    Lookup(int max_coi, int max_alleles);
+    std::vector<double> lookup_lgamma;
+    std::vector<long> lookup_sampling_depth;
+
+    void init_lgamma();
+    void init_sampling_depth();
+
+    long get_sampling_depth(int coi, int num_alleles);
 };
 
-
-#endif // LOOKUP_H_
+#endif  // LOOKUP_H_

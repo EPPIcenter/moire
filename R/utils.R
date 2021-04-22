@@ -1,17 +1,17 @@
 ### Convert alleles list strings to barcode datastructure, requires the set
 ### of all alleles observed a each locus
 .convert_to_barcode <- function(alleles, loci, all_alleles_list) {
-  alleles_lists <- str_split(alleles, ';')
+  alleles_lists <- str_split(alleles, ";")
   barcodes <- list()
   for (i in 1:length(alleles_lists)) {
     alleles_list <- unlist(alleles_lists[i])
     locus <- loci[i]
     all_alleles <- unlist(all_alleles_list[[locus]])
-    barcodes[[i]] = rep(0, length(all_alleles))
+    barcodes[[i]] <- rep(0, length(all_alleles))
     for (j in 1:length(alleles_list)) {
       allele <- alleles_list[j]
       if (!is.na(allele)) {
-        barcodes[[i]] = barcodes[[i]] + as.integer(all_alleles == allele)
+        barcodes[[i]] <- barcodes[[i]] + as.integer(all_alleles == allele)
       }
     }
   }
@@ -38,7 +38,9 @@ calculate_naive_coi_offset <- function(data, offset) {
       num_alleles_by_sample[[j]][[i]] <- num_alleles_by_locus[[i]][[j]]
     }
   }
-  sapply(num_alleles_by_sample, function(sample) {sort(unlist(sample), decreasing = T)[offset]})
+  sapply(num_alleles_by_sample, function(sample) {
+    sort(unlist(sample), decreasing = T)[offset]
+  })
 }
 
 
@@ -60,7 +62,9 @@ calculate_naive_coi <- function(data) {
       num_alleles_by_sample[[j]][[i]] <- num_alleles_by_locus[[i]][[j]]
     }
   }
-  sapply(num_alleles_by_sample, function(sample) {max(unlist(sample))})
+  sapply(num_alleles_by_sample, function(sample) {
+    max(unlist(sample))
+  })
 }
 
 

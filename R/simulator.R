@@ -20,7 +20,7 @@ rdirichlet <- function(n, alpha) {
 simulate_locus_allele_frequencies <- function(alpha, num_loci) {
   dists <- rdirichlet(num_loci, alpha)
   lapply(seq_len(num_loci), function(x) {
-    dists[x,]
+    dists[x, ]
   })
 }
 
@@ -51,8 +51,8 @@ simulate_sample_genotype <- function(sample_mois, locus_allele_dist) {
 #' @param epsilon_neg false negative rate
 simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg) {
   sapply(alleles, function(allele) {
-    if (allele) {
-      rbinom(1, 1, prob = 1 - (epsilon_neg ** allele))
+    if (allele > 0) {
+      rbinom(1, 1, prob = 1 - epsilon_neg)
     } else {
       rbinom(1, 1, epsilon_pos)
     }
@@ -101,7 +101,7 @@ simulate_data <- function(mean_moi, locus_freq_alphas, num_samples, epsilon_pos,
   })
 
   list(
-    data =  observed_sample_genotypes,
+    data = observed_sample_genotypes,
     allele_freq_dists = allele_freq_dists,
     sample_mois = sample_mois,
     true_genotypes = true_sample_genotypes,

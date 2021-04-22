@@ -1,4 +1,3 @@
-
 #include "chain.h"
 
 #include "mcmc_utils.h"
@@ -37,7 +36,7 @@ void Chain::initialize_p()
                 total_alleles[i] += sample_genotype[k];
             }
         }
-        for (size_t j = 0; j < genotyping_data.num_alleles[i]; j++)
+        for (int j = 0; j < genotyping_data.num_alleles[i]; j++)
         {
             p[i][j] = (total_locus_alleles[i][j] + 1) /
                       ((double)total_alleles[i] +
@@ -462,115 +461,85 @@ std::vector<double> Chain::reweight_allele_frequencies(
     return res;
 }
 
-std::vector<double> Chain::calc_genotype_log_pmf(
-    std::vector<std::vector<int>> const &genotypes, int coi,
-    std::vector<double> const &allele_frequencies, int num_genotypes)
+double Chain::calc_transmission_process(
+    std::vector<int> const &allele_index_vec,
+    std::vector<double> const &allele_frequencies, int coi)
 {
-    std::vector<double> res(num_genotypes, lookup.lookup_lgamma[coi + 1]);
-    for (size_t i = 0; i < allele_frequencies.size(); i++)
+    // transmission process - prob that after "coi" number of draws, all
+    // alleles are drawn at least once conditional on all draws come
+    // from the constrained set, where the constrained set is the set of
+    // positive alleles in the latent genotype
+
+    double constrained_set_total_prob = 0;
+    double res = 0;
+    prVec_.clear();
+    prVec_.reserve(allele_index_vec.size());
+
+    for (int j = 0; j < allele_index_vec.size(); j++)
     {
-        double log_prob = log(allele_frequencies[i] + 1e-12);
-        for (size_t j = 0; j < num_genotypes; j++)
-        {
-            if (genotypes[j][i] > 0)
-            {
-                res[j] += (genotypes[j][i] * log_prob) -
-                          lookup.lookup_lgamma[genotypes[j][i] + 1];
-            }
-        }
+        prVec_.push_back(allele_frequencies[allele_index_vec[j]]);
+        constrained_set_total_prob += prVec_.back();
     }
+
+    // normalize the vector
+    for (double &k : prVec_)
+    {
+        k = k / constrained_set_total_prob;
+    }
+
+    res = std::log(1 - probAnyMissing_(prVec_, coi)) +
+          log(constrained_set_total_prob) * coi;
+
+    return res;
+}
+
+double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
+                                       std::vector<int> const &obs_genotype,
+                                       int coi, double epsilon_neg,
+                                       double epsilon_pos)
+{
+    double res = 0;
+    int fp = 0;
+    int tp = 0;
+    int fn = 0;
+    int tn = 0;
+
+    int vec_pointer = 0;
+    int next_allele_index = allele_index_vec[vec_pointer];
+
+    for (int j = 0; j < obs_genotype.size(); j++)
+    {
+        fp += obs_genotype[j] == 1 and j != next_allele_index;
+        tp += obs_genotype[j] == 1 and j == next_allele_index;
+        fn += obs_genotype[j] == 0 and j == next_allele_index;
+        tn += obs_genotype[j] == 0 and j != next_allele_index;
+        vec_pointer += j == next_allele_index;
+        // if vec_pointer is in range get the value otherwise set to -1
+        next_allele_index =
+            (vec_pointer < coi) * allele_index_vec[vec_pointer] +
+            (vec_pointer >= coi) * -1;
+    }
+
+    res += std::log(epsilon_neg) * fn;
+    res += std::log(1 - epsilon_neg) * tn;
+    res += std::log(epsilon_pos) * fp;
+    res += std::log(1 - epsilon_pos) * tp;
 
     return res;
 };
 
-// std::vector<double>
-// Chain::calc_genotype_log_pmf(std::vector<std::vector<int>> const &genotypes,
-// int coi, std::vector<double> const &allele_frequencies, int num_genotypes)
-// {
-//     std::vector<double> res(num_genotypes);
-//     for (size_t i = 0; i < num_genotypes; i++)
-//     {
-//         res[i] = gsl_ran_multinomial_lnpdf(allele_frequencies.size(),
-//         allele_frequencies.data(), (unsigned int *)genotypes[i].data());
-//     }
-//     return res;
-// }
-
-std::vector<double> Chain::calc_obs_genotype_lliks(
-    std::vector<int> const &obs_genotype,
-    std::vector<std::vector<int>> const &true_genotypes, double epsilon_neg,
-    double epsilon_pos, int num_genotypes)
+double Chain::calc_genotype_log_pmf(
+    std::vector<int> const &allele_index_vec,
+    std::vector<int> const &obs_genotype, double epsilon_pos,
+    double epsilon_neg, int coi, std::vector<double> const &allele_frequencies)
 {
-    std::vector<double> lliks(true_genotypes.size(), 0);
+    double res = 0.0;
+    res += calc_transmission_process(allele_index_vec, allele_frequencies, coi);
 
-    double tp = log(1 - epsilon_neg);
-    double tn = log(1 - epsilon_pos);
-    double fp = log(epsilon_pos);
-    double fn = log(epsilon_neg);
+    res += calc_observation_process(allele_index_vec, obs_genotype, coi,
+                                    epsilon_neg, epsilon_pos);
 
-    for (size_t i = 0; i < num_genotypes; i++)  // Iterate over genotypes
-    {
-        for (size_t j = 0; j < true_genotypes[i].size();
-             j++)  // Iterate over alleles
-        {
-            if (obs_genotype[j])
-            {
-                if (true_genotypes[i][j])
-                {
-                    lliks[i] += true_genotypes[i][j] * tp;
-                }
-                else
-                {
-                    lliks[i] += fp;
-                }
-            }
-            else
-            {
-                if (true_genotypes[i][j])
-                {
-                    lliks[i] += true_genotypes[i][j] * fn;
-                }
-                else
-                {
-                    lliks[i] += tn;
-                }
-            }
-        }
-    }
-    return lliks;
-}
-
-void Chain::generate_possible_genotypes_helper(std::vector<int> &chosen,
-                                               std::vector<int> &arr, int index,
-                                               int r, int n, int start, int end)
-{
-    if (index == r)
-    {
-        std::vector<int> genotype(n);
-        for (size_t i = 0; i < r; i++)
-        {
-            genotype[arr[chosen[i]]] += 1;
-        }
-        Rcpp::checkUserInterrupt();
-        true_genotypes_cache[std::make_tuple(r, n)].push_back(genotype);
-        return;
-    }
-
-    for (int i = start; i <= end; i++)
-    {
-        chosen[index] = i;
-        generate_possible_genotypes_helper(chosen, arr, index + 1, r, n, i,
-                                           end);
-    }
-}
-
-void Chain::generate_possible_genotypes(int coi, int total_alleles)
-{
-    std::vector<int> chosen(coi + 1);
-    std::vector<int> arr(total_alleles);
-    std::iota(arr.begin(), arr.end(), 0);
-    generate_possible_genotypes_helper(chosen, arr, 0, coi, total_alleles, 0,
-                                       total_alleles - 1);
+    return res;
 }
 
 long double Chain::calc_exact_genotype_marginal_llik(
@@ -578,97 +547,50 @@ long double Chain::calc_exact_genotype_marginal_llik(
     std::vector<double> const &allele_frequencies, double epsilon_neg,
     double epsilon_pos)
 {
-    // UtilFunctions::print("----------------");
-    // UtilFunctions::print("Calculating Exact LLik");
-    // UtilFunctions::print("----------------");
-
-    std::get<0>(genotype_cache_key) = coi;
-    std::get<1>(genotype_cache_key) = obs_genotype.size();
-
-    const auto &true_genotypes_iter =
-        true_genotypes_cache.find(genotype_cache_key);
-
-    if (true_genotypes_iter == true_genotypes_cache.end())
-    {
-        generate_possible_genotypes(coi, obs_genotype.size());
-    }
-
-    const auto &genotypes = true_genotypes_cache[genotype_cache_key];
-    // UtilFunctions::print("Cached Genotypes --", coi);
-    // for (size_t i = 0; i < genotypes.size(); i++)
-    // {
-    //     UtilFunctions::print_vector(genotypes[i]);
-    // }
-    // UtilFunctions::print("-------------");
-
-    const auto &g_given_g_star_probabilities = calc_obs_genotype_lliks(
-        obs_genotype, genotypes, epsilon_neg, epsilon_pos, genotypes.size());
-    const auto &g_star_probabilities = calc_genotype_log_pmf(
-        genotypes, coi, allele_frequencies, genotypes.size());
-
     long double res = 0;
-    for (size_t i = 0; i < genotypes.size(); i++)
+    for (int i = 1; i <= coi; i++)
     {
-        res += exp(g_given_g_star_probabilities[i] + g_star_probabilities[i]);
+        // Check for the user interrupting the process because this may take
+        // awhile
+        Rcpp::checkUserInterrupt();
+        allele_index_generator_.reset(allele_frequencies.size(), i);
+        while (!allele_index_generator_.completed)
+        {
+            res += std::exp(calc_genotype_log_pmf(
+                allele_index_generator_.curr, obs_genotype, epsilon_pos,
+                epsilon_neg, coi, allele_frequencies));
+            allele_index_generator_.next();
+        }
     }
-    // UtilFunctions::print("Exact GT Llik: ", res);
     return log(res);
 }
 
 long double Chain::calc_estimated_genotype_marginal_llik(
     std::vector<int> const &obs_genotype, int coi,
     std::vector<double> const &allele_frequencies, double epsilon_neg,
-    double epsilon_pos)
+    double epsilon_pos, int sampling_depth)
 {
-    int importance_sampling_depth = params.importance_sampling_depth * coi;
-    const auto &importance_reweighted_frequencies = reweight_allele_frequencies(
-        allele_frequencies, obs_genotype, epsilon_neg, epsilon_pos, coi);
-
-    const auto &sample_true_genotypes = sampler.sample_genotype(
-        coi, importance_reweighted_frequencies, importance_sampling_depth);
-    const auto &importance_probabilities = calc_genotype_log_pmf(
-        sample_true_genotypes, coi, importance_reweighted_frequencies,
-        importance_sampling_depth);
-    const auto &g_star_probabilities =
-        calc_genotype_log_pmf(sample_true_genotypes, coi, allele_frequencies,
-                              importance_sampling_depth);
-    const auto &g_given_g_star_probabilities = calc_obs_genotype_lliks(
-        obs_genotype, sample_true_genotypes, epsilon_neg, epsilon_pos,
-        importance_sampling_depth);
-
-    long double res = 0;
-    // long double importance_prob = 0;
-    // long double target_prob = 0;
-    // long double divergence = 0;
-    for (size_t i = 0; i < importance_sampling_depth; i++)
+    int i = 0;
+    double importance_weight = 0;
+    std::vector<int> allele_index_vec;
+    std::vector<double> reweighted_allele_frequencies =
+        reweight_allele_frequencies(allele_frequencies, obs_genotype,
+                                    epsilon_neg, epsilon_pos, coi);
+    double est = 0.0;
+    while (i < sampling_depth)
     {
-        // divergence += exp(g_star_probabilities[i] -
-        // importance_probabilities[i]); importance_prob +=
-        // exp(importance_probabilities[i]); target_prob +=
-        // exp(g_given_g_star_probabilities[i] + g_star_probabilities[i]);
-        // UtilFunctions::print("importance reweighted: ",
-        // exp(g_given_g_star_probabilities[i] + g_star_probabilities[i] -
-        // importance_probabilities[i]));
-        res += exp(g_given_g_star_probabilities[i] + g_star_probabilities[i] -
-                   importance_probabilities[i]);
+        allele_index_vec =
+            sampler.sample_latent_genotype(coi, reweighted_allele_frequencies);
+        importance_weight = calc_transmission_process(
+            allele_index_vec, reweighted_allele_frequencies, coi);
+        est += std::exp(calc_genotype_log_pmf(allele_index_vec, obs_genotype,
+                                              epsilon_pos, epsilon_neg, coi,
+                                              allele_frequencies) -
+                        importance_weight);
+        i++;
     }
-
-    // UtilFunctions::print("---------------");
-    // UtilFunctions::print("Eps: ", epsilon_neg, epsilon_pos);
-    // UtilFunctions::print("Importance Depth:", importance_prob);
-    // UtilFunctions::print("True Depth:", target_prob);
-    // UtilFunctions::print("Importance Prob:", importance_prob);
-    // UtilFunctions::print("Divergence:", divergence /
-    // importance_sampling_depth); UtilFunctions::print_vector(obs_genotype);
-    // UtilFunctions::print("COI:", coi);
-
-    // UtilFunctions::print("Reweighted Freqs: ");
-    // UtilFunctions::print_vector(importance_reweighted_frequencies);
-    // UtilFunctions::print("---------------");
-
-    res = res / importance_sampling_depth;
-    // UtilFunctions::print("Approx GT Llik: ", res);
-    return log(res);
+    est = est / params.importance_sampling_depth;
+    return std::log(est);
 }
 
 long double Chain::calc_genotype_marginal_llik(
@@ -676,15 +598,10 @@ long double Chain::calc_genotype_marginal_llik(
     std::vector<double> const &allele_frequencies, double epsilon_neg,
     double epsilon_pos)
 {
-    // Implement a way to deal with missing data here --> could either
-    // completely ignore missing data, or bias towards low COI
-    double log_total_combinations =
-        lookup.lookup_lgamma[coi + allele_frequencies.size()] -
-        lookup.lookup_lgamma[coi + 1] -
-        lookup.lookup_lgamma[allele_frequencies.size()];
-    double log_importance_sampling =
-        log(params.importance_sampling_depth * coi * 10);
-    if (log_total_combinations <= log_importance_sampling)
+    long total_combinations =
+        lookup.get_sampling_depth(coi, allele_frequencies.size());
+
+    if (total_combinations <= params.importance_sampling_depth * coi)
     {
         return calc_exact_genotype_marginal_llik(
             obs_genotype, coi, allele_frequencies, epsilon_neg, epsilon_pos);
@@ -692,7 +609,8 @@ long double Chain::calc_genotype_marginal_llik(
     else
     {
         return calc_estimated_genotype_marginal_llik(
-            obs_genotype, coi, allele_frequencies, epsilon_neg, epsilon_pos);
+            obs_genotype, coi, allele_frequencies, epsilon_neg, epsilon_pos,
+            params.importance_sampling_depth * coi);
     }
 }
 
@@ -738,8 +656,6 @@ Chain::Chain(GenotypingData genotyping_data, Lookup lookup, Parameters params)
       sampler(params.importance_sampling_depth * params.max_coi,
               genotyping_data.num_alleles)
 {
-    genotype_cache_key = std::make_tuple(0, 0);
-
     llik = 0;
     eps_pos_var = params.eps_pos_var;
     eps_neg_var = params.eps_neg_var;

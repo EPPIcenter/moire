@@ -13,7 +13,7 @@ void MCMC::burnin()
     for (int j = 0; j < params.burnin; j++)
     {
         Rcpp::checkUserInterrupt();
-        if ((j + 1) % 10 == 0)
+        if ((j + 1) % 1 == 0)
         {
             UtilFunctions::print("Burnin iteration", j + 1);
             UtilFunctions::print("Log likelihood:", chain.get_llik());
