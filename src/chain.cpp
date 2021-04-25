@@ -36,7 +36,7 @@ void Chain::initialize_p()
                 total_alleles[i] += sample_genotype[k];
             }
         }
-        for (int j = 0; j < genotyping_data.num_alleles[i]; j++)
+        for (size_t j = 0; j < genotyping_data.num_alleles[i]; j++)
         {
             p[i][j] = (total_locus_alleles[i][j] + 1) /
                       ((double)total_alleles[i] +
@@ -86,19 +86,19 @@ void Chain::initialize_mean_coi()
 
 void Chain::update_m(int iteration)
 {
-    for (int i = 0; i < genotyping_data.num_samples; i++)
+    for (size_t i = 0; i < genotyping_data.num_samples; i++)
     {
-        int prop_m = m[i] + sampler.sample_coi_delta(m_prop_mean[i]);
-        // int prop_m = m[i] + sampler.sample_coi_delta(2);
+        // int prop_m = m[i] + sampler.sample_coi_delta();
+        int prop_m = m[i] + sampler.sample_coi_delta(2);
         // UtilFunctions::print("Update M: ", m[i], prop_m);
         // UtilFunctions::print("M mean: ", m_prop_mean[i]);
         // Accept automatically if COI is unchanged
-        if (prop_m == m[i])
-        {
-            m_prop_mean[i] += (1 - 0.23) / sqrt(double(iteration));
-            m_accept[i] += 1;
-            continue;
-        }
+        // if (prop_m == m[i])
+        // {
+        // m_prop_mean[i] += (1 - 0.23) / sqrt(double(iteration));
+        // m_accept[i] += 1;
+        // continue;
+        // }
 
         if (params.max_coi >= prop_m && prop_m > 0)
         {
@@ -126,19 +126,19 @@ void Chain::update_m(int iteration)
             // Accept
             if (sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig))
             {
-                m[i] = prop_m;
-                m_prop_mean[i] += (1 - 0.23) / sqrt(double(iteration));
-                m_accept[i] += 1;
+                // m[i] = prop_m;
+                // m_prop_mean[i] += (1 - 0.23) / sqrt(double(iteration));
+                // m_accept[i] += 1;
                 for (size_t j = 0; j < genotyping_data.num_loci; j++)
                 {
                     llik_old[j][i] = llik_new[j][i];
                 }
             }
-            else
-            {
-                m_prop_mean[i] -= 0.23 / sqrt(double(iteration));
-                m_prop_mean[i] = (m_prop_mean[i] < 0) ? 0 : m_prop_mean[i];
-            }
+            // else
+            // {
+            // m_prop_mean[i] -= 0.23 / sqrt(double(iteration));
+            // m_prop_mean[i] = (m_prop_mean[i] < 0) ? 0 : m_prop_mean[i];
+            // }
         }
     }
 }
@@ -475,7 +475,7 @@ double Chain::calc_transmission_process(
     prVec_.clear();
     prVec_.reserve(allele_index_vec.size());
 
-    for (int j = 0; j < allele_index_vec.size(); j++)
+    for (size_t j = 0; j < allele_index_vec.size(); j++)
     {
         prVec_.push_back(allele_frequencies[allele_index_vec[j]]);
         constrained_set_total_prob += prVec_.back();
@@ -507,7 +507,7 @@ double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
     int vec_pointer = 0;
     int next_allele_index = allele_index_vec[vec_pointer];
 
-    for (int j = 0; j < obs_genotype.size(); j++)
+    for (size_t j = 0; j < obs_genotype.size(); j++)
     {
         fp += obs_genotype[j] == 1 and j != next_allele_index;
         tp += obs_genotype[j] == 1 and j == next_allele_index;
@@ -589,8 +589,9 @@ long double Chain::calc_estimated_genotype_marginal_llik(
                         importance_weight);
         i++;
     }
-    est = est / params.importance_sampling_depth;
-    return std::log(est);
+    est = std::log(est / sampling_depth);
+    // UtilFunctions::print("Estimate: ", est, sampling_depth);
+    return est;
 }
 
 long double Chain::calc_genotype_marginal_llik(
@@ -640,6 +641,14 @@ void Chain::calculate_llik()
         {
             llik += llik_old[j][i];
         }
+    }
+
+    for (size_t i = 0; i < genotyping_data.num_samples; i++)
+    {
+        llik += sampler.get_epsilon_log_prior(eps_neg[i], params.eps_neg_alpha,
+                                              params.eps_neg_beta);
+        llik += sampler.get_epsilon_log_prior(eps_pos[i], params.eps_pos_alpha,
+                                              params.eps_pos_beta);
     }
 }
 

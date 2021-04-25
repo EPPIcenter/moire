@@ -43,6 +43,7 @@ class Sampler
     double sample_epsilon_neg(double curr_epsilon_neg, double variance);
     int sample_coi(int curr_coi, int delta, int max_coi);
     int sample_coi_delta(double coi_prop_mean);
+    int sample_coi_delta();
     double sample_mean_coi(double coi_mean_shape, double coi_mean_rate);
     std::vector<double> sample_allele_frequencies(
         std::vector<double> const &curr_allele_frequencies, double alpha);

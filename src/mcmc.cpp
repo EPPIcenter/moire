@@ -35,7 +35,7 @@ void MCMC::burnin()
         // chain.update_eps(j + 1);
         chain.update_p(j + 1);
         chain.update_m(j + 1);
-        // chain.update_individual_parameters(params.burnin + j + 1);
+        chain.update_individual_parameters(j + 1);
         // chain.update_mean_coi(j + 1);
         llik_burnin.push_back(chain.get_llik());
     }
@@ -70,7 +70,7 @@ void MCMC::sample()
         // chain.update_eps(j + 1);
         chain.update_p(params.burnin + j + 1);
         chain.update_m(params.burnin + j + 1);
-        // chain.update_individual_parameters(params.burnin + j + 1);
+        chain.update_individual_parameters(params.burnin + j + 1);
         // chain.update_mean_coi(j + 1);
 
         if (params.thin == 0 || j % params.thin == 0)

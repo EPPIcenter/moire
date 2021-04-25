@@ -120,13 +120,14 @@ double Sampler::get_coi_log_prior(int coi, double mean)
     return dpois(coi, mean, true);
 }
 
+int Sampler::sample_coi_delta() { return (2 * ber_distr(eng) - 1); }
+
 int Sampler::sample_coi_delta(double coi_prop_mean)
 {
     geom_distr.param(std::geometric_distribution<int>::param_type(
         1.0 / (1.0 + coi_prop_mean)));
     // abs delta >= 1
     return (2 * ber_distr(eng) - 1) * (geom_distr(eng));
-    // return (2 * ber_distr(eng) - 1);
 }
 
 double Sampler::get_epsilon_log_prior(double x, double alpha, double beta)
