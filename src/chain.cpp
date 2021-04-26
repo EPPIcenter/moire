@@ -602,7 +602,19 @@ long double Chain::calc_genotype_marginal_llik(
     long total_combinations =
         lookup.get_sampling_depth(coi, allele_frequencies.size());
 
-    if (total_combinations <= params.importance_sampling_depth * coi)
+    // double estimate = calc_estimated_genotype_marginal_llik(
+    //     obs_genotype, coi, allele_frequencies, epsilon_neg, epsilon_pos,
+    //     params.importance_sampling_depth * coi);
+
+    // double exact = calc_exact_genotype_marginal_llik(
+    //     obs_genotype, coi, allele_frequencies, epsilon_neg, epsilon_pos);
+
+    // UtilFunctions::print("Divergence: ", exact - estimate, exact, estimate,
+    //                      coi);
+
+    if (total_combinations <=
+        params.importance_sampling_depth +
+            coi * params.importance_sampling_scaling_factor)
     {
         return calc_exact_genotype_marginal_llik(
             obs_genotype, coi, allele_frequencies, epsilon_neg, epsilon_pos);
@@ -611,7 +623,8 @@ long double Chain::calc_genotype_marginal_llik(
     {
         return calc_estimated_genotype_marginal_llik(
             obs_genotype, coi, allele_frequencies, epsilon_neg, epsilon_pos,
-            params.importance_sampling_depth * coi);
+            params.importance_sampling_depth +
+                coi * params.importance_sampling_scaling_factor);
     }
 }
 
@@ -662,8 +675,8 @@ Chain::Chain(GenotypingData genotyping_data, Lookup lookup, Parameters params)
     : genotyping_data(genotyping_data),
       lookup(lookup),
       params(params),
-      sampler(params.importance_sampling_depth * params.max_coi,
-              genotyping_data.num_alleles)
+      sampler()
+
 {
     llik = 0;
     eps_pos_var = params.eps_pos_var;

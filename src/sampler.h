@@ -59,8 +59,8 @@ class Sampler
     double sample_log_mh_acceptance();
     double runif_0_1();
 
-    Sampler(){};
-    Sampler(int genotype_sample_depth, std::vector<int> const &num_alleles);
+    Sampler();
+    // Sampler(int genotype_sample_depth, std::vector<int> const &num_alleles);
     // Sampler(int seed);
 };
 

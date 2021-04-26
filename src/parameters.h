@@ -13,6 +13,7 @@ class Parameters
     int burnin;
     int samples;
     int importance_sampling_depth;
+    double importance_sampling_scaling_factor;
 
     // Model Parameters
     // Complexity of Infection

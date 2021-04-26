@@ -24,8 +24,9 @@ void CombinationIndicesGenerator::reset(int n, int r)
 void CombinationIndicesGenerator::next() noexcept
 {
     completed = true;
+    const int lim = n_ - r_;
     for (int i = r_ - 1; i >= 0; --i)
-        if (curr[i] < n_ - r_ + i)
+        if (curr[i] < lim + i)
         {
             int j = curr[i] + 1;
             while (i < r_)

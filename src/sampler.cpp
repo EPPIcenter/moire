@@ -9,8 +9,7 @@
 
 std::random_device Sampler::rd;
 
-Sampler::Sampler(int genotype_sampling_depth,
-                 std::vector<int> const &num_alleles)
+Sampler::Sampler()
 {
     eng = std::ranlux24_base(rd());
     // gsl_rd = gsl_rng_alloc(gsl_rng_mt19937);
@@ -18,16 +17,16 @@ Sampler::Sampler(int genotype_sampling_depth,
     unif_distr = std::uniform_real_distribution<double>(0, 1);
     ber_distr = std::bernoulli_distribution(.5);
 
-    for (size_t i = 0; i < num_alleles.size(); i++)
-    {
-        int allele_key = num_alleles[i];
-        auto search = genotype_samples.find(allele_key);
-        if (search == genotype_samples.end())
-        {
-            genotype_samples[allele_key] = std::vector<std::vector<int>>(
-                genotype_sampling_depth, std::vector<int>(allele_key));
-        }
-    }
+    // for (size_t i = 0; i < num_alleles.size(); i++)
+    // {
+    //     int allele_key = num_alleles[i];
+    //     auto search = genotype_samples.find(allele_key);
+    //     if (search == genotype_samples.end())
+    //     {
+    //         genotype_samples[allele_key] = std::vector<std::vector<int>>(
+    //             genotype_sampling_depth, std::vector<int>(allele_key));
+    //     }
+    // }
 }
 
 double Sampler::dbeta(double x, double alpha, double beta, bool return_log)
@@ -178,20 +177,21 @@ std::vector<double> Sampler::sample_allele_frequencies2(
     return rlogit_norm(curr_allele_frequencies, variance);
 };
 
-std::vector<std::vector<int>> &Sampler::sample_genotype(
-    int coi, std::vector<double> const &allele_frequencies, int num_samples)
-{
-    for (size_t i = 0; i < num_samples; i++)
-    {
-        std::fill(genotype_samples[allele_frequencies.size()][i].begin(),
-                  genotype_samples[allele_frequencies.size()][i].end(), 0);
-        gsl_ran_multinomial(
-            gsl_rd, allele_frequencies.size(), coi, allele_frequencies.data(),
-            (unsigned int *)genotype_samples[allele_frequencies.size()][i]
-                .data());
-    }
-    return genotype_samples[allele_frequencies.size()];
-}
+// std::vector<std::vector<int>> &Sampler::sample_genotype(
+//     int coi, std::vector<double> const &allele_frequencies, int num_samples)
+// {
+//     for (size_t i = 0; i < num_samples; i++)
+//     {
+//         std::fill(genotype_samples[allele_frequencies.size()][i].begin(),
+//                   genotype_samples[allele_frequencies.size()][i].end(), 0);
+//         gsl_ran_multinomial(
+//             gsl_rd, allele_frequencies.size(), coi,
+//             allele_frequencies.data(), (unsigned int
+//             *)genotype_samples[allele_frequencies.size()][i]
+//                 .data());
+//     }
+//     return genotype_samples[allele_frequencies.size()];
+// }
 
 std::vector<int> Sampler::sample_latent_genotype(
     int coi, std::vector<double> const &allele_frequencies)
