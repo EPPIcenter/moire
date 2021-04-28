@@ -6,6 +6,7 @@
 Parameters::Parameters(const Rcpp::List &args)
 {
     // MCMC
+    verbose = UtilFunctions::r_to_bool(args["verbose"]);
     thin = UtilFunctions::r_to_int(args["thin"]);
     burnin = UtilFunctions::r_to_int(args["burnin"]);
     samples = UtilFunctions::r_to_int(args["samples"]);

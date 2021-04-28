@@ -10,17 +10,12 @@
 // [[Rcpp::export(name='run_mcmc_rcpp')]]
 Rcpp::List run_mcmc(Rcpp::List args)
 {
-    UtilFunctions::print("Starting Run MCMC");
-    UtilFunctions::print("Loading Parameters...");
     Parameters params(args);
-    UtilFunctions::print("Loading Genotyping Data...");
     GenotypingData genotyping_data(args);
-    UtilFunctions::print("Generating Lookup Tables...");
     Lookup lookup(params.max_coi, genotyping_data.max_alleles);
 
     MCMC mcmc(genotyping_data, lookup, params);
 
-    // UtilFunctions::print("Running Chains:", params.num_chains);
     if (params.burnin > 0)
     {
         mcmc.burnin();

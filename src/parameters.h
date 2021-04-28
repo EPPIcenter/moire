@@ -9,6 +9,7 @@ class Parameters
 {
    public:
     // MCMC Parameters
+    bool verbose;
     int thin;
     int burnin;
     int samples;

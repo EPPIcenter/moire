@@ -33,16 +33,7 @@ double probAnyMissingFunctor::operator()(const std::vector<double> &eventProbs,
                 eventCombo += eventProbs[j];
             }
 
-            // r = 1.0;
             r = sign;
-
-            // step 2 at a time for a little bit of loop unrolling
-            // while (multCounter > 1)
-            // {
-            // r *= (1 - eventCombo) * (1 - eventCombo);
-            // multCounter -= 2;
-            // }
-            // r *= (1 - eventCombo) * (multCounter == 1) + (multCounter == 0);
 
             while (multCounter > 0)
             {
@@ -50,7 +41,6 @@ double probAnyMissingFunctor::operator()(const std::vector<double> &eventProbs,
                 --multCounter;
             }
 
-            // prob += r * sign;
             prob += r;
             c.next();
         }

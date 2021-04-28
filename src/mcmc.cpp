@@ -8,30 +8,23 @@
 
 void MCMC::burnin()
 {
-    UtilFunctions::print("Beginning burnin");
-    UtilFunctions::print("Running burnin over", params.burnin, "samples");
+    if (params.verbose)
+    {
+        UtilFunctions::print("Beginning burnin");
+        UtilFunctions::print("Running burnin over", params.burnin, "samples");
+    }
+
     for (int j = 0; j < params.burnin; j++)
     {
         Rcpp::checkUserInterrupt();
-        if ((j + 1) % 1 == 0)
+        if (params.verbose)
         {
             UtilFunctions::print("Burnin iteration", j + 1);
             UtilFunctions::print("Log likelihood:", chain.get_llik());
-            // UtilFunctions::print("Update P: ");
-            // UtilFunctions::print_vector(chains[i].p_accept);
-            // UtilFunctions::print("Update M: ");
-            // UtilFunctions::print_vector(chain.m_accept);
-            // UtilFunctions::print("Update Eps Pos:");
-            // UtilFunctions::print_vector(chain.eps_pos_accept);
-            // UtilFunctions::print("Update Eps Neg:");
-            // UtilFunctions::print_vector(chain.eps_neg_accept);
-            // UtilFunctions::print("Update Individuals:");
-            // UtilFunctions::print_vector(chain.individual_accept);
         }
+
         chain.update_eps_neg(j + 1);
         chain.update_eps_pos(j + 1);
-        // UtilFunctions::print("Eps Pos: ", chain.eps_pos);
-        // UtilFunctions::print("Eps Neg: ", chain.eps_neg);
         // chain.update_eps(j + 1);
         chain.update_p(j + 1);
         chain.update_m(j + 1);
@@ -43,30 +36,21 @@ void MCMC::burnin()
 
 void MCMC::sample()
 {
-    UtilFunctions::print("Beginning sampling");
-    UtilFunctions::print("Sampling for ", params.samples, "samples");
+    if (params.verbose)
+    {
+        UtilFunctions::print("Beginning sampling");
+        UtilFunctions::print("Sampling for ", params.samples, "samples");
+    }
     for (int j = 0; j < params.samples; j++)
     {
         Rcpp::checkUserInterrupt();
-        if ((j + 1) % 10 == 0)
+        if (params.verbose)
         {
             UtilFunctions::print("Sampling Iteration", j + 1);
             UtilFunctions::print("Log Likelihood:", chain.get_llik());
-            // UtilFunctions::print("Update P: ");
-            // UtilFunctions::print_vector(chain.p_accept);
-            // UtilFunctions::print("Update M: ");
-            // UtilFunctions::print_vector(chain.m_accept);
-            // UtilFunctions::print("Update Eps Pos:");
-            // UtilFunctions::print_vector(chain.eps_pos_accept);
-            // UtilFunctions::print("Update Eps Neg:");
-            // UtilFunctions::print_vector(chain.eps_neg_accept);
-            // UtilFunctions::print("Update Individuals:");
-            // UtilFunctions::print_vector(chain.individual_accept);
         }
         chain.update_eps_neg(params.burnin + j + 1);
         chain.update_eps_pos(params.burnin + j + 1);
-        // UtilFunctions::print("Eps Pos: ", chain.eps_pos);
-        // UtilFunctions::print("Eps Neg: ", chain.eps_neg);
         // chain.update_eps(j + 1);
         chain.update_p(params.burnin + j + 1);
         chain.update_m(params.burnin + j + 1);
@@ -88,6 +72,5 @@ void MCMC::sample()
 MCMC::MCMC(GenotypingData genotyping_data, Lookup lookup, Parameters params)
     : genotyping_data(genotyping_data), lookup(lookup), params(params)
 {
-    UtilFunctions::print("Starting MCMC...");
     chain = Chain(genotyping_data, lookup, params);
 };
