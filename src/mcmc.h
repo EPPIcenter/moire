@@ -9,6 +9,7 @@
 #include "parameters.h"
 
 #include <Rcpp.h>
+#include <progress.hpp>
 
 class MCMC
 {
@@ -29,8 +30,8 @@ class MCMC
     std::vector<double> llik_burnin{};
     std::vector<double> llik_sample{};
 
-    void burnin();
-    void sample();
+    void burnin(int step);
+    void sample(int step);
 
     MCMC(GenotypingData genotyping_data, Lookup lookup, Parameters params);
 };

@@ -3,9 +3,11 @@
 
 #include "genotyping_data.h"
 #include "lookup.h"
+#include "mcmc_progress_bar.h"
 #include "mcmc_utils.h"
 #include "parameters.h"
 
+#include <progress.hpp>
 //----------------------------------------------
 // [[Rcpp::export(name='run_mcmc_rcpp')]]
 Rcpp::List run_mcmc(Rcpp::List args)
@@ -15,15 +17,25 @@ Rcpp::List run_mcmc(Rcpp::List args)
     Lookup lookup(params.max_coi, genotyping_data.max_alleles);
 
     MCMC mcmc(genotyping_data, lookup, params);
+    MCMCProgressBar pb(params.burnin, params.samples);
+    Progress p(params.burnin + params.samples, params.verbose, pb);
 
-    if (params.burnin > 0)
+    int step = 0;
+    while (step < params.burnin)
     {
-        mcmc.burnin();
+        Rcpp::checkUserInterrupt();
+        mcmc.burnin(step);
+        ++step;
+        p.increment();
     }
 
-    if (params.samples > 0)
+    step = 0;
+    while (step < params.samples)
     {
-        mcmc.sample();
+        Rcpp::checkUserInterrupt();
+        mcmc.sample(step);
+        ++step;
+        p.increment();
     }
 
     Rcpp::List res;
