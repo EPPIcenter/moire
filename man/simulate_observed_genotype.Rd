@@ -2,17 +2,22 @@
 % Please edit documentation in R/simulator.R
 \name{simulate_observed_genotype}
 \alias{simulate_observed_genotype}
-\title{Simulate the observation process across a list of observation vectors}
+\title{Simulate observed genotypes}
 \usage{
 simulate_observed_genotype(true_genotypes, epsilon_pos, epsilon_neg)
 }
 \arguments{
-\item{true_genotypes}{a list of numeric vectors that are input to sim_observed_allele}
+\item{true_genotypes}{a list of numeric vectors that are input
+to sim_observed_allele}
 
 \item{epsilon_pos}{false positive rate}
 
 \item{epsilon_neg}{false negative rate}
 }
 \description{
-Simulate the observation process across a list of observation vectors
+Simulate observed genotypes
+}
+\details{
+Simulate the observation process across a list of observation
+vectors
 }

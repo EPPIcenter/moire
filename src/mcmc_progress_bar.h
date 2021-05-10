@@ -16,16 +16,19 @@ class MCMCProgressBar : public ProgressBar
     void display();
     void update(float progress);
     void end_display();
+    void set_llik(double llik);
 
    private:
     std::string time_remaining_string_(double dur, float progress);
     std::string current_ticks_string_(float progress);
+    std::string current_llik_string_();
     std::string construct_ticks_display_string_(int ticks);
     void finalize_display_();
 
     int max_ticks_ = 50;
     int burnin_;
     int sample_;
+    double llik_;
     Timer<> clock_;
     bool finalized_ = false;
     bool timer_flag_ = false;

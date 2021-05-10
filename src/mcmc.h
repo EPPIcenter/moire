@@ -32,6 +32,7 @@ class MCMC
 
     void burnin(int step);
     void sample(int step);
+    double get_llik();
 
     MCMC(GenotypingData genotyping_data, Lookup lookup, Parameters params);
 };

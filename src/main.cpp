@@ -16,6 +16,14 @@ Rcpp::List run_mcmc(Rcpp::List args)
     GenotypingData genotyping_data(args);
     Lookup lookup(params.max_coi, genotyping_data.max_alleles);
 
+    if (params.verbose)
+    {
+        UtilFunctions::print("Starting MCMC");
+        UtilFunctions::print("Total Burnin:", params.burnin);
+        UtilFunctions::print("Total Samples:", params.samples);
+        UtilFunctions::print("Thinning:", params.thin);
+    }
+
     MCMC mcmc(genotyping_data, lookup, params);
     MCMCProgressBar pb(params.burnin, params.samples);
     Progress p(params.burnin + params.samples, params.verbose, pb);
@@ -26,6 +34,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
         Rcpp::checkUserInterrupt();
         mcmc.burnin(step);
         ++step;
+        pb.set_llik(mcmc.get_llik());
         p.increment();
     }
 
@@ -35,6 +44,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
         Rcpp::checkUserInterrupt();
         mcmc.sample(step);
         ++step;
+        pb.set_llik(mcmc.get_llik());
         p.increment();
     }
 

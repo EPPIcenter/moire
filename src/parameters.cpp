@@ -16,7 +16,7 @@ Parameters::Parameters(const Rcpp::List &args)
         UtilFunctions::r_to_double(args["importance_sampling_scaling_factor"]);
 
     // Model
-    max_coi = UtilFunctions::r_to_int(args["max_coi"]);
+    mean_coi = UtilFunctions::r_to_int(args["mean_coi"]);
     eps_pos_0 = UtilFunctions::r_to_double(args["eps_pos_0"]);
     max_eps_pos = UtilFunctions::r_to_double(args["max_eps_pos"]);
     eps_pos_alpha = UtilFunctions::r_to_double(args["eps_pos_alpha"]);
@@ -27,4 +27,5 @@ Parameters::Parameters(const Rcpp::List &args)
     eps_neg_alpha = UtilFunctions::r_to_double(args["eps_neg_alpha"]);
     eps_neg_beta = UtilFunctions::r_to_double(args["eps_neg_beta"]);
     eps_neg_var = UtilFunctions::r_to_double(args["eps_neg_var"]);
+    allele_freq_var = UtilFunctions::r_to_double(args["allele_freq_var"]);
 };

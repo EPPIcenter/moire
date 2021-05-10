@@ -5,6 +5,18 @@
 
 #include <Rcpp.h>
 
+MCMC::MCMC(GenotypingData genotyping_data, Lookup lookup, Parameters params)
+    : genotyping_data(genotyping_data),
+      lookup(lookup),
+      params(params),
+      chain(genotyping_data, lookup, params)
+{
+    p_store.resize(genotyping_data.num_loci);
+    m_store.resize(genotyping_data.num_samples);
+    eps_neg_store.resize(genotyping_data.num_samples);
+    eps_pos_store.resize(genotyping_data.num_samples);
+};
+
 void MCMC::burnin(int step)
 {
     chain.update_eps_neg(step);
@@ -25,17 +37,19 @@ void MCMC::sample(int step)
 
     if (params.thin == 0 || step % params.thin == 0)
     {
-        m_store.push_back(chain.m);
-        p_store.push_back(chain.p);
-        eps_neg_store.push_back(chain.eps_neg);
-        eps_pos_store.push_back(chain.eps_pos);
-        mean_coi_store.push_back(chain.mean_coi);
+        for (size_t ii = 0; ii < genotyping_data.num_loci; ++ii)
+        {
+            p_store[ii].push_back(chain.p[ii]);
+        }
+
+        for (size_t jj = 0; jj < genotyping_data.num_samples; ++jj)
+        {
+            m_store[jj].push_back(chain.m[jj]);
+            eps_neg_store[jj].push_back(chain.eps_neg[jj]);
+            eps_pos_store[jj].push_back(chain.eps_pos[jj]);
+        }
         llik_sample.push_back(chain.get_llik());
     }
 }
 
-MCMC::MCMC(GenotypingData genotyping_data, Lookup lookup, Parameters params)
-    : genotyping_data(genotyping_data), lookup(lookup), params(params)
-{
-    chain = Chain(genotyping_data, lookup, params);
-};
+double MCMC::get_llik() { return chain.get_llik(); }

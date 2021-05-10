@@ -31,12 +31,13 @@ void MCMCProgressBar::update(float progress)
 
         std::string time_string =
             time_remaining_string_(duration.count(), progress);
-
         std::string ticks_string = current_ticks_string_(progress);
+        std::string llik_string = current_llik_string_();
         std::string empty_space = std::string(time_string.length(), ' ');
 
         std::stringstream ss;
-        ss << "|" << ticks_string << "| " << time_string << empty_space;
+        ss << "|" << ticks_string << "| " << time_string << llik_string
+           << empty_space;
 
         // clear console line and update
         UtilFunctions::rewrite_line(ss.str());
@@ -68,7 +69,7 @@ std::string MCMCProgressBar::time_remaining_string_(double dur, float progress)
     std::stringstream ss;
     if (hour != 0) ss << hour << "h ";
     if (min != 0 or hour != 0) ss << min << "m ";
-    ss << sec << "s";
+    ss << sec << "s ";
     std::string time_str = ss.str();
     return time_str;
 };
@@ -101,8 +102,14 @@ std::string MCMCProgressBar::construct_ticks_display_string_(int ticks)
             ss << " ";
         }
     }
-    std::string tick_str = ss.str();
-    return tick_str;
+    return ss.str();
+}
+
+std::string MCMCProgressBar::current_llik_string_()
+{
+    std::stringstream ss;
+    ss << "(Llik: " << llik_ << ")";
+    return ss.str();
 }
 
 void MCMCProgressBar::finalize_display_()
@@ -112,3 +119,5 @@ void MCMCProgressBar::finalize_display_()
     UtilFunctions::print("");
     finalized_ = true;
 }
+
+void MCMCProgressBar::set_llik(double llik) { llik_ = llik; }

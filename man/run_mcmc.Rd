@@ -6,33 +6,63 @@
 \usage{
 run_mcmc(
   data,
-  thin = 0,
+  sample_ids,
+  loci,
+  is_missing = FALSE,
+  thin = 1,
   burnin = 10000,
   samples = 10000,
-  importance_sampling_depth = 100,
+  importance_sampling_depth = 10,
+  importance_sampling_scaling_factor = 10,
+  verbose = TRUE,
   max_coi = 30,
   eps_pos_0 = 0.01,
-  eps_pos_var = 0.25,
-  eps_pos_alpha = 2,
-  eps_pos_beta = 100,
-  eps_neg_0 = 0.05,
-  eps_neg_var = 0.25,
-  eps_neg_alpha = 6,
-  eps_neg_beta = 96,
-  max_eps_pos = 0.2,
-  max_eps_neg = 0.2
+  eps_pos_var = 0.001,
+  eps_pos_alpha = 1,
+  eps_pos_beta = 99,
+  eps_neg_0 = 0.1,
+  eps_neg_var = 0.005,
+  eps_neg_alpha = 10,
+  eps_neg_beta = 90,
+  max_eps_pos = 0.5,
+  max_eps_neg = 0.5
 )
 }
 \arguments{
-\item{data}{Data to be used in MCMC, expected input is a list of lists of numeric vectors, where each list element is a collection of observations across samples at a single genetic locus.}
+\item{data}{Data to be used in MCMC, expected input is a list
+of lists of numeric vectors, where each list element is a
+collection of observations across samples at a single genetic locus.}
 
-\item{thin}{Positive Integer. How often to sample from mcmc, 0 means do not thin}
+\item{sample_ids}{Vector containing the ordered unique identifier for samples}
 
-\item{burnin}{Positive Integer. Number of MCMC samples to discard as burnin}
+\item{loci}{Vector containing the ordered unique identifer for loci}
 
-\item{samples}{Positive Integer. Number of samples to take after burnin}
+\item{is_missing}{Boolean matrix indicating whether the observation
+should be treated as missing data and ignored. Number of rows equals the
+number of loci, number of columns equals the number samples. Alternatively,
+the user may pass in FALSE if no data should be considered missing.}
 
-\item{importance_sampling_depth}{Positive Integer. How many samples to take during importance sampling. Larger values result in longer computation time, too small of values will result in poor mixing.}
+\item{thin}{Positive Integer. How often to sample from mcmc,
+1 means do not thin}
+
+\item{burnin}{Positive Integer. Number of MCMC samples to
+discard as burnin}
+
+\item{samples}{Positive Integer. Number of samples to take
+after burnin}
+
+\item{importance_sampling_depth}{Positive Integer. Min number
+of samples to take during importance sampling. Larger values
+result in longer computation time, too small of values will
+result in poor mixing.}
+
+\item{importance_sampling_scaling_factor}{Positive Ingeter.
+Total additional importance samples taken per increase in
+complexity of infection. Total number of
+samples = importance_sampling_depth + coi * importance_sampling_scaling_
+factor}
+
+\item{verbose}{Logical indicating if progress is printed}
 
 \item{max_coi}{Integer. Maximum allowed complexity of infection}
 
@@ -40,17 +70,21 @@ run_mcmc(
 
 \item{eps_pos_var}{0-1 Numeric. Variance used in sampling eps_pos}
 
-\item{eps_pos_alpha}{Positive Numeric. Alpha parameter in Beta distribution for eps_pos prior}
+\item{eps_pos_alpha}{Positive Numeric. Alpha parameter in
+Beta distribution for eps_pos prior}
 
-\item{eps_pos_beta}{Positive Numeric. Beta parameter in Beta distribution for eps_pos prior}
+\item{eps_pos_beta}{Positive Numeric. Beta parameter in
+Beta distribution for eps_pos prior}
 
 \item{eps_neg_0}{0-1 Numeric. Initial eps_neg value}
 
 \item{eps_neg_var}{0-1 Numeric. Variance used in sampling eps_neg}
 
-\item{eps_neg_alpha}{Positive Numeric. Alpha parameter in Beta distribution for eps_neg prior}
+\item{eps_neg_alpha}{Positive Numeric. Alpha parameter in
+Beta distribution for eps_neg prior}
 
-\item{eps_neg_beta}{Positive Numeric. Beta parameter in Beta distribution for eps_neg prior}
+\item{eps_neg_beta}{Positive Numeric. Beta parameter in
+Beta distribution for eps_neg prior}
 
 \item{max_eps_pos}{0-1 Numeric. Maximum allowed value for eps_pos}
 

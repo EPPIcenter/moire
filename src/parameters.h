@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef PARAMETERS_H_
 #define PARAMETERS_H_
 
@@ -18,7 +16,7 @@ class Parameters
 
     // Model Parameters
     // Complexity of Infection
-    int max_coi;  // Max allowed value
+    int mean_coi;
 
     // False Positive Rate
     double eps_pos_0;      // Initial eps pos
@@ -33,6 +31,8 @@ class Parameters
     double eps_neg_var;    // Variance of sampler
     double eps_neg_alpha;  // Alpha parameter prior on beta distribution
     double eps_neg_beta;   // Beta parameter prior on beta distribution
+
+    double allele_freq_var;
 
     // constructors
     Parameters(){};

@@ -28,7 +28,7 @@ class Chain
 
     void initialize_p();
     void initialize_m();
-    void initialize_mean_coi();
+    // void initialize_mean_coi();
     void initialize_eps_neg();
     void initialize_eps_pos();
     void initialize_likelihood();
@@ -88,7 +88,7 @@ class Chain
     // TODO: Allow for other priors on complexity of infection
     // std::string prior;
     // double poisson_prior_lambda;
-    double mean_coi;
+    // double mean_coi;
 
     // COI
     std::vector<int> m{};
@@ -118,11 +118,9 @@ class Chain
 
     std::vector<int> individual_accept{};
 
-    Chain(){};
     Chain(GenotypingData genotyping_data, Lookup lookup, Parameters params);
-
     void update_m(int iteration);
-    void update_mean_coi(int iteration);
+    // void update_mean_coi(int iteration);
     void update_p(int iteration);
     void update_eps(int iteration);
     void update_eps_pos(int iteration);

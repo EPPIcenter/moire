@@ -2,17 +2,23 @@
 % Please edit documentation in R/simulator.R
 \name{simulate_observed_allele}
 \alias{simulate_observed_allele}
-\title{Simulates the observation process. Takes a numeric value representing the number of strains contributing an allele and returns a binary vector indicating the presence or absence of the allele.}
+\title{Simulates the observation process}
 \usage{
 simulate_observed_allele(alleles, epsilon_pos, epsilon_neg)
 }
 \arguments{
-\item{alleles}{A numeric vector representing the number of strains contributing each allele}
+\item{alleles}{A numeric vector representing the number of strains
+contributing each allele}
 
 \item{epsilon_pos}{false positive rate}
 
 \item{epsilon_neg}{false negative rate}
 }
 \description{
-Simulates the observation process. Takes a numeric value representing the number of strains contributing an allele and returns a binary vector indicating the presence or absence of the allele.
+Simulates the observation process
+}
+\details{
+Takes a numeric value representing
+the number of strains contributing an allele and returns a binary vector
+indicating the presence or absence of the allele.
 }

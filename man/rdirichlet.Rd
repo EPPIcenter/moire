@@ -2,7 +2,7 @@
 % Please edit documentation in R/simulator.R
 \name{rdirichlet}
 \alias{rdirichlet}
-\title{Implementation of random sampling from a Dirichlet distribution}
+\title{Dirichlet distribution}
 \usage{
 rdirichlet(n, alpha)
 }
@@ -12,5 +12,8 @@ rdirichlet(n, alpha)
 \item{alpha}{vector controlling the concentration of simplex}
 }
 \description{
+Dirichlet distribution
+}
+\details{
 Implementation of random sampling from a Dirichlet distribution
 }

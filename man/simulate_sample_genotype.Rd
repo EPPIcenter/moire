@@ -2,15 +2,21 @@
 % Please edit documentation in R/simulator.R
 \name{simulate_sample_genotype}
 \alias{simulate_sample_genotype}
-\title{Simulates sampling the genetics at a single locus given an allele frequency distribution and a vector of sample MOIs}
+\title{Simulate sample genotype}
 \usage{
-simulate_sample_genotype(sample_mois, locus_allele_dist)
+simulate_sample_genotype(sample_cois, locus_allele_dist)
 }
 \arguments{
-\item{sample_mois}{Numeric vector indicating the multiplicity of infection for each biological sample}
+\item{sample_cois}{Numeric vector indicating the multiplicity of infection
+for each biological sample}
 
-\item{locus_allele_dist}{Allele frequencies -- simplex parameter of a multinomial distribution}
+\item{locus_allele_dist}{Allele frequencies -- simplex parameter of a
+multinomial distribution}
 }
 \description{
-Simulates sampling the genetics at a single locus given an allele frequency distribution and a vector of sample MOIs
+Simulate sample genotype
+}
+\details{
+Simulates sampling the genetics at a single locus given an allele
+frequency distribution and a vector of sample COIs
 }

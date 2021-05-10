@@ -4,6 +4,11 @@
 #define MCMC_UTILS_H_
 
 #include <Rcpp.h>
+#include <algorithm>
+
+#include <boost/math/distributions.hpp>
+#include <boost/random.hpp>
+#include <boost/range/algorithm.hpp>
 
 #if !defined(WIN32) && !defined(__WIN32) && !defined(__WIN32__)
 #include <Rinterface.h>
@@ -125,6 +130,188 @@ void print_vector(std::vector<T> v)
     Rcpp::Rcout << v[v.size() - 1] << "]"
                 << "\n";
 }
+
+template <class T>
+inline double logit(const T x)
+{
+    if (x < .5)
+    {
+        return std::log(x) - std::log1p(-x);
+    }
+    else
+    {
+        return std::log(x / (1 - x));
+    }
+}
+
+template <class T>
+inline std::vector<double> logitVec(const std::vector<T> &x)
+{
+    std::vector<double> res;
+    std::transform(x.begin(), x.end(), std::back_inserter(res),
+                   UtilFunctions::logit<T>);
+    return res;
+}
+
+template <class T>
+inline std::pair<std::vector<double>, std::vector<double>> log_pq(
+    const std::vector<T> &x)
+{
+    std::vector<double> logp;
+    logp.reserve(x.size());
+    std::vector<double> logq;
+    logq.reserve(x.size());
+
+    for (const auto el : x)
+    {
+        double ex = std::exp(el);
+        if (el < 0)
+        {
+            logq.push_back(-std::log1p(ex));
+            logp.push_back(logq.back() + el);
+        }
+        else
+        {
+            logp.push_back(-std::log1p(1 / ex));
+            logq.push_back(logp.back() - el);
+        }
+    }
+
+    return std::pair<std::vector<double>, std::vector<double>>(logp, logq);
+}
+
+template <class T>
+inline std::pair<double, double> log_pq(const T x)
+{
+    double ex = std::exp(x);
+    double logp;
+    double logq;
+    if (x < 0)
+    {
+        logq = -std::log1p(ex);
+        logp = logq + x;
+    }
+    else
+    {
+        logp = -std::log1p(1 / ex);
+        logq = logp - x;
+    }
+
+    return std::pair<double, double>(logp, logq);
+}
+
+inline double logitSum(const std::vector<double> &x)
+{
+    auto x_sorted = x;
+    std::sort(x_sorted.rbegin(), x_sorted.rend());
+    auto lpq = log_pq(x_sorted);
+
+    double out;
+    double cumsum = 0;
+
+    if (x_sorted[0] < 0)
+    {
+        double lp1 = lpq.first[0];
+        for (int i = 1; i < lpq.first.size(); ++i)
+        {
+            cumsum += std::exp(lpq.first[i] - lp1);
+        }
+        out = lp1 + std::log1p(cumsum);
+    }
+    else
+    {
+        double lq1 = lpq.second[0];
+        for (int i = 1; i < lpq.first.size(); ++i)
+        {
+            cumsum += std::exp(lpq.first[i]);
+        }
+        out = std::log1p(-std::exp(lq1) + cumsum);
+    }
+
+    return out;
+}
+
+inline std::vector<double> logitScale(std::vector<double> &x, double scale)
+{
+    std::vector<double> out;
+    out.reserve(x.size());
+    std::vector<double> l2;
+    l2.reserve(x.size());
+
+    std::vector<double> u;
+    u.reserve(x.size());
+    std::vector<double> v;
+    v.reserve(x.size());
+    std::vector<double> ev;
+    ev.reserve(x.size());
+    std::vector<double> eumo;
+    eumo.reserve(x.size());
+
+    bool ok;
+    for (int ii = 0; ii < x.size(); ++ii)
+    {
+        ok = (scale < std::log(2)) and
+             (std::abs(scale) < std::abs(x[ii] + scale));
+        u.push_back(-scale - (!ok) * x[ii]);
+        v.push_back(-scale - ok * x[ii]);
+        ev.push_back(std::exp(v.back()));
+        eumo.push_back(std::expm1(u.back()));
+
+        if (std::isinf(eumo.back()))
+        {
+            l2.push_back(std::max(u.back(), v.back()) +
+                         std::log1p(std::exp(-std::abs(u.back() - v.back()))));
+        }
+        else
+        {
+            l2.push_back(std::log(eumo.back() + ev.back()));
+        }
+
+        if (v.back() > std::log(2 * std::abs(eumo.back())))
+        {
+            out.push_back(-(v.back() + std::log1p(eumo.back() / ev.back())));
+        }
+        else
+        {
+            out.push_back(-l2.back());
+        }
+    }
+
+    return out;
+}
+
+template <class T>
+inline double expit(const T x)
+{
+    return 1 / (1 + std::exp(-x));
+}
+
+template <class T>
+inline std::vector<T> expitVec(std::vector<T> x)
+{
+    std::vector<double> out;
+    out.reserve(x.size());
+    std::transform(x.begin(), x.end(), std::back_inserter(out),
+                   UtilFunctions::expit<T>);
+    return out;
+}
+
+template <typename Engine>
+std::vector<int> randomSequence(int min, int max, Engine rng)
+{
+    assert(min < max);
+    std::vector<int> indices(max - min);
+    std::iota(std::begin(indices), std::end(indices), min);
+
+    auto int_generator = [=](int max_val) {
+        boost::random::uniform_int_distribution<> dist_{0, max_val - 1};
+        return dist_(*rng);
+    };
+
+    boost::range::random_shuffle(indices, int_generator);
+    return indices;
+}
+
 }  // namespace UtilFunctions
 
 #endif  // MCMC_UTILS_H_
