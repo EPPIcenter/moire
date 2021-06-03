@@ -617,9 +617,7 @@ long double Chain::calc_estimated_genotype_marginal_llik(
                            importance_weight);
             memo[allele_index_vec] = val;
         }
-
         est += val;
-        ++i;
     }
 
     est = std::log(est / sampling_depth);
