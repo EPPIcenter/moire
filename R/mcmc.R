@@ -59,7 +59,7 @@ run_mcmc <-
            thin = 1,
            burnin = 1e4,
            samples = 1e4,
-           complexity_limit = 100000,
+           complexity_limit = 10000,
            importance_sampling_depth = 10,
            importance_sampling_scaling_factor = 10,
            verbose = TRUE,

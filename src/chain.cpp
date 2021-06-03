@@ -177,7 +177,7 @@ void Chain::update_p(int iteration)
             // check to make sure the proposed simplex is within a bounded range
             for (const auto &el : prop_p)
             {
-                if (el < .00001)
+                if (el < 1e-12)
                 {
                     return;
                 }
@@ -588,15 +588,17 @@ long double Chain::calc_estimated_genotype_marginal_llik(
 {
     int i = sampling_depth;
     double importance_weight = 0;
+
     std::vector<int> allele_index_vec;
     std::vector<double> reweighted_allele_frequencies =
         reweight_allele_frequencies(allele_frequencies, emphasized_alleles,
                                     epsilon_neg, epsilon_pos, coi);
+
     double est = 0.0;
     double val = 0.0;
     std::map<std::vector<int>, double> memo{};
 
-    while (--i <= 0)
+    while (--i >= 0)
     {
         allele_index_vec =
             sampler.sample_latent_genotype(coi, reweighted_allele_frequencies);
