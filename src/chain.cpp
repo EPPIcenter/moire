@@ -630,10 +630,10 @@ long double Chain::calc_genotype_marginal_llik(
     std::vector<double> const &allele_frequencies, double epsilon_neg,
     double epsilon_pos)
 {
-    long total_combinations =
+    double log_total_combinations =
         lookup.get_sampling_depth(coi, allele_frequencies.size());
 
-    if (total_combinations <= params.complexity_limit)
+    if (log_total_combinations <= std::log(params.complexity_limit))
     {
         return calc_exact_genotype_marginal_llik(
             obs_genotype, coi, allele_frequencies, epsilon_neg, epsilon_pos);

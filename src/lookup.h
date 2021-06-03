@@ -19,7 +19,7 @@ class Lookup
     Lookup(){};
     Lookup(int max_coi, int max_alleles);
     std::vector<double> lookup_lgamma;
-    std::vector<long> lookup_sampling_depth;
+    std::vector<double> lookup_sampling_depth;
 
     void init_lgamma();
     void init_sampling_depth();
