@@ -24,6 +24,7 @@ class Sampler
     double dbeta(double x, double alpha, double beta, bool return_log);
     double dpois(int x, double mean, bool return_log);
     double dztpois(int x, double mean);
+    double dgamma(double x, double shape, double scale, bool return_log);
     double rgamma(double alpha, double beta);
     double rgamma2(double shape, double rate);
 
@@ -39,7 +40,8 @@ class Sampler
     boost::random::mt19937 r;
 
     double get_epsilon_log_prior(double x, double alpha, double beta);
-    double get_coi_log_prior(int coi, double mean);
+    double get_coi_log_prob(int coi, double mean);
+    double get_coi_mean_log_prior(double mean, double shape, double scale);
 
     double sample_epsilon(double curr_epsilon, double variance);
     double sample_epsilon_pos(double curr_epsilon_pos, double variance);

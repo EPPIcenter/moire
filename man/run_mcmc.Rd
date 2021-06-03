@@ -8,14 +8,15 @@ run_mcmc(
   data,
   sample_ids,
   loci,
+  mean_coi,
   is_missing = FALSE,
   thin = 1,
   burnin = 10000,
   samples = 10000,
+  complexity_limit = 1e+05,
   importance_sampling_depth = 10,
   importance_sampling_scaling_factor = 10,
   verbose = TRUE,
-  max_coi = 30,
   eps_pos_0 = 0.01,
   eps_pos_var = 0.001,
   eps_pos_alpha = 1,
@@ -25,7 +26,11 @@ run_mcmc(
   eps_neg_alpha = 10,
   eps_neg_beta = 90,
   max_eps_pos = 0.5,
-  max_eps_neg = 0.5
+  max_eps_neg = 0.5,
+  mean_coi_prior_shape = 1.5,
+  mean_coi_prior_scale = 0.5,
+  mean_coi_var = 1,
+  allele_freq_var = 1
 )
 }
 \arguments{
@@ -51,6 +56,9 @@ discard as burnin}
 \item{samples}{Positive Integer. Number of samples to take
 after burnin}
 
+\item{complexity_limit}{Limit on the total number of computations before
+resorting to an importance sampling based approach of the integral.}
+
 \item{importance_sampling_depth}{Positive Integer. Min number
 of samples to take during importance sampling. Larger values
 result in longer computation time, too small of values will
@@ -63,8 +71,6 @@ samples = importance_sampling_depth + coi * importance_sampling_scaling_
 factor}
 
 \item{verbose}{Logical indicating if progress is printed}
-
-\item{max_coi}{Integer. Maximum allowed complexity of infection}
 
 \item{eps_pos_0}{0-1 Numeric. Initial eps_pos value}
 
@@ -89,6 +95,17 @@ Beta distribution for eps_neg prior}
 \item{max_eps_pos}{0-1 Numeric. Maximum allowed value for eps_pos}
 
 \item{max_eps_neg}{0-1 Numeric. Maximum allowed value for eps_neg}
+
+\item{mean_coi_prior_shape}{Positive Numeric. Shape parameter for gamma
+prior on mean complexity of infection.}
+
+\item{mean_coi_prior_scale}{Positive Numeric. Scale parameter for gamma
+prior on mean complexity of infection.}
+
+\item{mean_coi_var}{Positive Numeric. Variance used in sampling mean_coi}
+
+\item{allele_freq_var}{Positive Numeric. Variance used in sampling allele
+frequencies}
 }
 \description{
 Sample from the target distribution using MCMC

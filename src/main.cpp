@@ -14,7 +14,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
 {
     Parameters params(args);
     GenotypingData genotyping_data(args);
-    Lookup lookup(params.max_coi, genotyping_data.max_alleles);
+    Lookup lookup(40, genotyping_data.max_alleles);
 
     if (params.verbose)
     {
@@ -48,6 +48,19 @@ Rcpp::List run_mcmc(Rcpp::List args)
         p.increment();
     }
 
+    Rcpp::List debug;
+    debug.push_back(Rcpp::wrap(mcmc.chain.p_accept));
+    debug.push_back(Rcpp::wrap(mcmc.chain.m_accept));
+    debug.push_back(Rcpp::wrap(mcmc.chain.eps_neg_accept));
+    debug.push_back(Rcpp::wrap(mcmc.chain.eps_pos_accept));
+
+    Rcpp::StringVector debug_names;
+    debug_names.push_back("allele_freq_accept");
+    debug_names.push_back("coi_accept");
+    debug_names.push_back("eps_neg_accept");
+    debug_names.push_back("eps_pos_accept");
+    debug.names() = debug_names;
+
     Rcpp::List res;
     res.push_back(Rcpp::wrap(mcmc.llik_burnin));
     res.push_back(Rcpp::wrap(mcmc.llik_sample));
@@ -55,8 +68,9 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res.push_back(Rcpp::wrap(mcmc.p_store));
     res.push_back(Rcpp::wrap(mcmc.eps_neg_store));
     res.push_back(Rcpp::wrap(mcmc.eps_pos_store));
-    // res.push_back(Rcpp::wrap(mcmc.mean_coi_store));
+    res.push_back(Rcpp::wrap(mcmc.mean_coi_store));
     res.push_back(Rcpp::wrap(mcmc.genotyping_data.observed_coi));
+    res.push_back(Rcpp::wrap(debug));
 
     Rcpp::StringVector res_names;
     res_names.push_back("llik_burnin");
@@ -65,8 +79,9 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("allele_freqs");
     res_names.push_back("eps_neg");
     res_names.push_back("eps_pos");
-    // res_names.push_back("mean_coi");
+    res_names.push_back("mean_coi");
     res_names.push_back("observed_coi");
+    res_names.push_back("acceptance_rates");
 
     res.names() = res_names;
     return res;

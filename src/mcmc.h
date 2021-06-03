@@ -14,12 +14,11 @@
 class MCMC
 {
    private:
-    Chain chain;
-
    public:
     GenotypingData genotyping_data;
     Lookup lookup;
     Parameters params;
+    Chain chain;
 
     std::vector<std::vector<int>> m_store{};
     std::vector<std::vector<std::vector<double>>> p_store{};

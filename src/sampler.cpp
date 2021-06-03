@@ -27,6 +27,17 @@ double Sampler::dpois(int x, double mean, bool return_log)
     return R::dpois(x, mean, return_log);
 }
 
+double Sampler::dztpois(int x, double lambda)
+{
+    return x * std::log(lambda) - std::log(std::exp(lambda) - 1) -
+           lookup.lookup_lgamma[x + 1];
+}
+
+double Sampler::dgamma(double x, double shape, double scale, bool return_log)
+{
+    return R::dgamma(x, shape, scale, return_log);
+}
+
 double Sampler::rgamma(double alpha, double beta)
 {
     gamma_distr.param(std::gamma_distribution<double>::param_type(alpha, beta));
@@ -109,15 +120,14 @@ int Sampler::sample_random_int(int lower, int upper)
     return unif_int_distr(eng);
 }
 
-double Sampler::get_coi_log_prior(int coi, double mean)
+double Sampler::get_coi_log_prob(int coi, double mean)
 {
     return dztpois(coi, mean);
 }
 
-double Sampler::dztpois(int x, double lambda)
+double Sampler::get_coi_mean_log_prior(double mean, double shape, double scale)
 {
-    return x * std::log(lambda) - std::log(std::exp(lambda) - 1) -
-           lookup.lookup_lgamma[x + 1];
+    return dgamma(mean, shape, scale, true);
 }
 
 int Sampler::sample_coi_delta() { return (2 * ber_distr(eng) - 1); }

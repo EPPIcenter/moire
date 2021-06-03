@@ -5,7 +5,7 @@
 \alias{simulated_data}
 \title{Simulated genotyping data}
 \format{
-An object of class \code{list} of length 5.
+An object of class \code{list} of length 7.
 }
 \usage{
 simulated_data

@@ -9,13 +9,12 @@ double probAnyMissingFunctor::operator()(const std::vector<double> &eventProbs,
     int totalEvents = eventProbs.size();
     int multCounter;
     double r;
+    double prob = 0.0;
 
     if (numEvents < totalEvents)
     {
         return 1.0;
     }
-
-    prob = 0.0;
 
     // Calculate via inclusion-exclusion principle
     int sign = -1;
@@ -28,17 +27,16 @@ double probAnyMissingFunctor::operator()(const std::vector<double> &eventProbs,
             eventCombo = 0.0;
             multCounter = numEvents;
 
-            for (const auto j : c.curr)
+            for (const auto &j : c.curr)
             {
                 eventCombo += eventProbs[j];
             }
 
             r = sign;
 
-            while (multCounter > 0)
+            while (--multCounter >= 0)
             {
                 r *= (1 - eventCombo);
-                --multCounter;
             }
 
             prob += r;

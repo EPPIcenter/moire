@@ -11,12 +11,16 @@ class Parameters
     int thin;
     int burnin;
     int samples;
+    int complexity_limit;
     int importance_sampling_depth;
     double importance_sampling_scaling_factor;
 
     // Model Parameters
     // Complexity of Infection
-    int mean_coi;
+    // int mean_coi;
+    double mean_coi_var;
+    double mean_coi_prior_shape;
+    double mean_coi_prior_scale;
 
     // False Positive Rate
     double eps_pos_0;      // Initial eps pos

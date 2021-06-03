@@ -24,11 +24,9 @@ class Chain
 
     CombinationIndicesGenerator allele_index_generator_;
 
-    std::vector<std::vector<int>> importance_sample;
-
     void initialize_p();
     void initialize_m();
-    // void initialize_mean_coi();
+    void initialize_mean_coi();
     void initialize_eps_neg();
     void initialize_eps_pos();
     void initialize_likelihood();
@@ -63,6 +61,12 @@ class Chain
         double epsilon_pos, int num_genotypes);
 
     long double calc_genotype_marginal_llik(
+        std::vector<int> const &obs_genotype,
+        std::vector<int> const &emphasized_alleles, int coi,
+        std::vector<double> const &allele_frequencies, double epsilon_neg,
+        double epsilon_pos);
+
+    long double calc_genotype_marginal_llik(
         std::vector<int> const &obs_genotype, int coi,
         std::vector<double> const &allele_frequencies, double epsilon_neg,
         double epsilon_pos);
@@ -73,13 +77,12 @@ class Chain
         double epsilon_pos);
 
     long double calc_estimated_genotype_marginal_llik(
-        std::vector<int> const &obs_genotype, int coi,
+        std::vector<int> const &obs_genotype,
+        std::vector<int> const &emphasized_alleles, int coi,
         std::vector<double> const &allele_frequencies, double epsilon_neg,
         double epsilon_pos, int sampling_depth);
 
    public:
-    std::map<std::tuple<int, int>, std::vector<std::vector<int>>>
-        true_genotypes_cache{};
     std::vector<std::vector<double>> llik_old{};
     std::vector<std::vector<double>> llik_new{};
     double llik;
@@ -88,7 +91,7 @@ class Chain
     // TODO: Allow for other priors on complexity of infection
     // std::string prior;
     // double poisson_prior_lambda;
-    // double mean_coi;
+    double mean_coi;
 
     // COI
     std::vector<int> m{};
@@ -120,7 +123,7 @@ class Chain
 
     Chain(GenotypingData genotyping_data, Lookup lookup, Parameters params);
     void update_m(int iteration);
-    // void update_mean_coi(int iteration);
+    void update_mean_coi(int iteration);
     void update_p(int iteration);
     void update_eps(int iteration);
     void update_eps_pos(int iteration);
