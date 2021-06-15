@@ -25,106 +25,171 @@ library(tidyr)
 To demonstrate the usage of the package, we can simulate some genotyping data according to our model.
 
 ```{r simulate_data, eval=FALSE, include=TRUE}
+set.seed(17327)
+
 mean_moi <- 4
-num_loci <- 10
 num_biological_samples <- 100
-epsilon_pos <- .03
-epsilon_neg <- .15
+epsilon_pos <- .01
+epsilon_neg <- .03
 
 # Generate the number of alleles at each locus
-allele_counts = rnbinom(num_loci, size = 15, mu = 10) + 2
+allele_counts <- c(rep(5, 10), rep(10, 10), rep(15, 10))
 
 # We'll use flat alpha vectors for our draws from the Dirichlet
-locus_freq_alphas = lapply(allele_counts, function(allele) { rep(1, allele) })
+locus_freq_alphas <- lapply(allele_counts, function(allele) rep(1, allele))
 
-simulated_data <- moire::simulate_data(mean_moi, locus_freq_alphas, num_biological_samples, 
-                                       epsilon_pos, epsilon_neg)
+simulated_data <- moire::simulate_data(
+  mean_moi, locus_freq_alphas,
+  num_biological_samples,
+  epsilon_pos, epsilon_neg
+  )
 ```
 
 ```{r load_simulated_data, eval=TRUE, include=FALSE}
+set.seed(17327)
+
 mean_moi <- 4
-num_loci <- 10
 num_biological_samples <- 100
-epsilon_pos <- .03
-epsilon_neg <- .15
+epsilon_pos <- .01
+epsilon_neg <- .03
 simulated_data <- moire::simulated_data
 ```
 
-Now that we have our data, let's go ahead and run the MCMC 
+Now that we have our data, let's go ahead and run the MCMC with strong priors on the error distributions. 
 
 ```{r run_mcmc, eval=FALSE, include=TRUE}
-burnin = 1e3
-num_samples = 1e3
-res <- run_mcmc(simulated_data$data, burnin = burnin, samples = num_samples, eps_pos_0 = .05, eps_neg_0 = .1,
-                eps_pos_var = .1, eps_neg_var = .1, max_coi = 20, importance_sampling_depth = 100,
-                eps_pos_alpha = 1, eps_pos_beta = 1, eps_neg_alpha = 1, eps_neg_beta = 1)
+burnin <- 1e3
+num_samples <- 1e3
+
+res <- moire::run_mcmc(
+  simulated_data$data, simulated_data$sample_ids, simulated_data$loci, 
+  verbose = T, burnin = burnin, samples = num_samples, thin = 1,
+  eps_pos_alpha = 10, eps_pos_beta = 990,
+  eps_neg_alpha = 30, eps_neg_beta = 970, allele_freq_var = .1
+)
 ```
 
-```{r run_mcmc_load, include = FALSE}
+```{r run_mcmc_load, eval = TRUE, include = FALSE}
 res <- moire::mcmc_results
-burnin <- length(res$loglike_burnin)
-num_samples <- length(res$loglike_sample)
 ```
 
 After running the MCMC, we can access the draws from the posterior distribution and analyze.
 
 ```{r analyze_mcmc}
 # Estimate the COI for each sample
-est_cois = matrix(unlist(res$m_store), ncol = num_samples)
-est_coi_025 = apply(est_cois, 1, function(x) { quantile(x, .025) })
-est_coi_50 = apply(est_cois, 1, function(x) { quantile(x, .5) })
-est_coi_975 = apply(est_cois, 1, function(x) { quantile(x, .975) })
-est_coi_mean = apply(est_cois, 1, mean)
+coi_summary <- moire::summarize_coi(res)
 
+# We can also summarize statistics about the allele frequency distribution
+he_summary <- moire::summarize_he(res)
+allele_freq_summary <- moire::summarize_allele_freqs(res)
 
-# Calculate naive COI for comparison
-naive_cois <- moire::calculate_naive_coi(simulated_data$data)
-offset_naive_cois <- moire::calculate_naive_coi_offset(simulated_data$data, 2)
-coi_data <- data.frame(est_coi_025, est_coi_50, est_coi_975, est_coi_mean,
-                       naive_coi = naive_cois, offset_naive_coi = offset_naive_cois)
+# Let's append the true values for use later
+coi_data <- data.frame(coi_summary,
+  true_coi = simulated_data$sample_cois
+  )
 
+he_data <- data.frame(
+  he_summary,
+  true_he = sapply(
+    moire::calculate_naive_allele_frequencies(simulated_data$true_genotypes),
+    function(x) moire::calculate_he(x)
+  ),
+  naive_he = sapply(
+    moire::calculate_naive_allele_frequencies(simulated_data$data),
+    function(x) moire::calculate_he(x)
+  )
+)
 
-# Calculate allele frequencies from MCMC model
-est_allele_freqs = matrix(unlist(res$p_store), ncol = num_samples)
-est_allele_freq_025 = apply(est_allele_freqs, 1, function(x) { quantile(x, .025)})
-est_allele_freq_50 = apply(est_allele_freqs, 1, function(x) { quantile(x, .5)})
-est_allele_freq_975 = apply(est_allele_freqs, 1, function(x) { quantile(x, .975)})
-est_allele_freq_mean = apply(est_allele_freqs, 1, mean)
-
-
-# Calculate Heterozygosity for each locus from model
-he_matrix <- matrix(unlist(lapply(res$p_store, function(run) {
-  sapply(run, moire::calculate_he)
-  })), ncol = num_samples)
-
-est_he_025 <- apply(he_matrix, 1, function(x) { quantile(x, .025)})
-est_he_50 <- apply(he_matrix, 1, function(x) { quantile(x, .5)})
-est_he_975 <- apply(he_matrix, 1, function(x) { quantile(x, .975)})
-est_he_mean <- apply(he_matrix, 2, mean)
-est_he_mean_quantiles <- quantile(est_he_mean, c(.025, .5, .975))
+allele_freq_data <- data.frame(
+  allele_freq_summary,
+  # true_allele_frequency = unlist(simulated_data$allele_freqs)
+  naive_allele_frequency = unlist(moire::calculate_naive_allele_frequencies(simulated_data$data)),
+  true_allele_frequency = unlist(moire::calculate_naive_allele_frequencies(simulated_data$true_genotypes))
+)
 ```
 
 Here we demonstrate the difference in distribution of the estimate of MOI using our approach vs the naive method of taking the maximum number of alleles observed or the second highest number of alleles observed
 
-```{r plot_analysis}
+```{r plot_distribution}
 coi_estimates <- coi_data %>%
-  select(est_coi_50, naive_coi, offset_naive_coi) %>%
-  gather(key = "estimator", value = "estimate") %>%
-  mutate(estimator_pretty = case_when(
-    estimator == 'est_coi_50' ~ "Mean Posterior Est.",
-    estimator == 'naive_coi' ~ "Naive Estimate",
-    estimator == 'offset_naive_coi' ~ "Offset Naive Estimate"
-  )) %>%
-  transform(estimator_pretty = factor(estimator_pretty, levels = c("Mean Posterior Est.", 
-                                                                   "Offset Naive Estimate", 
-                                                                   "Naive Estimate")))
+  dplyr::select(post_coi_med, naive_coi, offset_naive_coi, true_coi) %>%
+  tidyr::pivot_longer(tidyr::everything(),
+                      names_to = "estimator",
+                      values_to = "estimate") %>%
+  dplyr::mutate(estimator_pretty = case_when(
+    estimator == "post_coi_med" ~ "Median Posterior Est.",
+    estimator == "naive_coi" ~ "Naive Estimate",
+    estimator == "offset_naive_coi" ~ "Offset Naive Estimate",
+    estimator == "true_coi" ~ "True COI")) %>%
+  transform(estimator_pretty = factor(estimator_pretty, levels = c(
+    "Median Posterior Est.",
+    "Offset Naive Estimate",
+    "Naive Estimate",
+    "True COI"
+  )))
 
 ggplot(coi_estimates, aes(x = estimate, stat(count))) +
-  facet_wrap(~ estimator_pretty) +
+  facet_wrap(~estimator_pretty, nrow = 1) +
   geom_bar() +
-  xlab("Multiplicity of Infection") +
+  xlab("Complexity of Infection") +
   ylab("Total Count") +
-  theme_classic(base_size = 16)
-
+  theme_classic(base_size = 12)
 ```
 
+Since we simulated data, we know the true complexity of infection and heterozygosity and can compare
+
+```{r plot_coi_concordance}
+ggplot(coi_data, aes(x = true_coi, y = post_coi_mean)) +
+  geom_boxplot(aes(group = true_coi), color = "black", alpha = .1) +
+  geom_jitter(shape = 1, alpha = .5, color = "black", width = .1, height = .1) +
+  geom_jitter(aes(y = naive_coi), color = "red",
+              alpha = .25, width = .1, height = .1) +
+  geom_jitter(aes(y = offset_naive_coi), color = "green",
+              alpha = .25, width = .1, height = .1) +
+  geom_abline(slope = 1, intercept = 0) +
+  ylab("Mean Posterior COI") +
+  xlab("True COI") +
+  theme_classic(base_size = 12) +
+  expand_limits(x = 0, y = 0) +
+  ggtitle("Estimates of COI vs Truth")
+```
+
+```{r plot_he_concordance}
+ggplot(he_data, aes(x = loci)) +
+  geom_errorbar(aes(y = post_stat_mean,
+                    ymax = post_stat_upper,
+                    ymin = post_stat_lower)) +
+  geom_point(aes(y = post_stat_mean), color = "blue") +
+  geom_point(aes(y = true_he), color = "red") +
+  geom_point(aes(y = naive_he), color = "green") +
+  theme_classic() +
+  ggtitle("Estimate of Heterozygosity") +
+  xlab("Locus") +
+  ylab("Mean Posterior Heterozygosity") +
+  expand_limits(y = .5)
+
+ggplot(he_data, aes(x = true_he)) +
+  geom_point(aes(y = post_stat_mean), color = "blue") +
+  geom_point(aes(y = naive_he), color = "green") +
+  theme_classic() +
+  geom_abline(slope = 1, intercept = 0)
+```
+
+```{r plot_allele_freq_concordance}
+ggplot(allele_freq_data) +
+  geom_errorbar(aes(
+    y = post_allele_freqs_mean,
+    x = true_allele_frequency,
+    # ymax = post_allele_freqs_mean,
+    # ymin = post_allele_freqs_mean)) +
+    ymax = post_allele_freqs_upper,
+    ymin = post_allele_freqs_lower)) +
+  geom_point(aes(y = post_allele_freqs_mean, x = true_allele_frequency)) +
+  geom_point(aes(y = naive_allele_frequency, x = true_allele_frequency), color = "red") +
+  geom_abline(slope = 1, intercept = 0) +
+  ylab("Mean Posterior Freqeuncy") +
+  xlab("True Frequency") +
+  theme_classic(base_size = 12) +
+  expand_limits(x = 0, y = 0) +
+  ggtitle("Estimates of Allele Frequencies vs Truth")
+```
