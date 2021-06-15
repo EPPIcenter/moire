@@ -185,7 +185,7 @@ ggplot(allele_freq_data) +
     ymax = post_allele_freqs_upper,
     ymin = post_allele_freqs_lower)) +
   geom_point(aes(y = post_allele_freqs_mean, x = true_allele_frequency)) +
-  geom_point(aes(y = naive_allele_frequency, x = true_allele_frequency), color = "red") +
+  geom_point(aes(y = naive_allele_frequency, x = true_allele_frequency), color = "red", alpha = .3) +
   geom_abline(slope = 1, intercept = 0) +
   ylab("Mean Posterior Freqeuncy") +
   xlab("True Frequency") +

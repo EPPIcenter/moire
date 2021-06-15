@@ -1,12 +1,28 @@
 
 # moire <img src="man/figures/logo.svg" align="right" alt="" height="139" />
 
-moire is a package implementing an MCMC based approach to estimating
+`moire` is a package implementing an MCMC based approach to estimating
 complexity of infection and population allele frequencies from
-polyallelic genomics data. Details of the method may be found
-[here](https://github.com/m-murphy/moire/raw/master/refs/thesis.pdf).
+polyallelic genomics data.
 
 ## Installation
+
+`moire` requires the Gnu Scientific Library (GSL).
+
+``` bash
+# Linux
+sudo apt-get install libgsl-dev
+```
+
+``` bash
+# MacOS
+brew install gsl
+```
+
+For Windows, follow instructions found
+[here](https://stackoverflow.com/questions/26939683/linking-gsl-library-to-rcppgsl-on-windows-machine)
+
+After installing GSL, install moire as follows
 
 ``` r
 # Install development version from Github

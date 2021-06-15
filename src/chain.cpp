@@ -647,11 +647,6 @@ long double Chain::calc_genotype_marginal_llik(
                 coi * params.importance_sampling_scaling_factor);
 
         return approx;
-        // return calc_estimated_genotype_marginal_llik(
-        //     obs_genotype, emphasized_alleles, coi, allele_frequencies,
-        //     epsilon_neg, epsilon_pos,
-        //     params.importance_sampling_depth +
-        //         coi * params.importance_sampling_scaling_factor);
     }
 }
 

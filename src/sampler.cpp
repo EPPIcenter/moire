@@ -4,6 +4,7 @@
 #include "mcmc_utils.h"
 
 #include <Rcpp.h>
+#include <Rmath.h>
 #include <algorithm>
 #include <random>
 
@@ -189,7 +190,7 @@ std::vector<double> Sampler::sample_allele_frequencies2(
 };
 
 std::vector<int> Sampler::sample_latent_genotype(
-    int coi, std::vector<double> const &allele_frequencies)
+    int coi, std::vector<double> &allele_frequencies)
 {
     std::vector<int> tmp_alleles(allele_frequencies.size(), 0);
     std::vector<int> allele_index_vec{};

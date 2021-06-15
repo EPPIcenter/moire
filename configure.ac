@@ -1,4 +1,4 @@
-AC_INIT([moire], 1.0.0)
+AC_INIT([moire], 1.1.0)
 
 ## Use gsl-config to find arguments for compiler and linker flags
 ##

@@ -12,7 +12,7 @@ Description: An MCMC based approach to Bayesian estimation of individual level m
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
-SystemRequirements: C++14
+SystemRequirements: C++14, GNU GSL   
 LinkingTo: 
     Rcpp,
     RcppGSL,
