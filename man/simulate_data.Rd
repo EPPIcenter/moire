@@ -2,10 +2,10 @@
 % Please edit documentation in R/simulator.R
 \name{simulate_data}
 \alias{simulate_data}
-\title{Simulate data that is compatible with run_mcmc and generated according to the assumed model}
+\title{Simulate data generated according to the assumed model}
 \usage{
 simulate_data(
-  mean_moi,
+  mean_coi,
   locus_freq_alphas,
   num_samples,
   epsilon_pos,
@@ -13,9 +13,10 @@ simulate_data(
 )
 }
 \arguments{
-\item{mean_moi}{Mean multiplicity of infection drawn from a Poisson}
+\item{mean_coi}{Mean multiplicity of infection drawn from a Poisson}
 
-\item{locus_freq_alphas}{List of alpha vectors to be used to simulate from a Dirichlet distribution to generate allele frequencies.}
+\item{locus_freq_alphas}{List of alpha vectors to be used to simulate
+from a Dirichlet distribution to generate allele frequencies.}
 
 \item{num_samples}{Total number of biological samples to simulate}
 
@@ -27,5 +28,5 @@ simulate_data(
 Simulated data that is structured to go into the MCMC sampler
 }
 \description{
-Simulate data that is compatible with run_mcmc and generated according to the assumed model
+Simulate data generated according to the assumed model
 }

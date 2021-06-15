@@ -18,10 +18,12 @@ remotes::install_github("m-murphy/moire")
 ```
 
 ## Usage
-
-moire takes as input a list of lists of numeric vectors, where each list element is a collection of observations across samples at a single genetic locus. A single observation is a vector of 1's and 0's indicating presence or absence of the allele unique to that index. Consequently, each vector within a locus collection must be the same length, the order of samples must be the same across locus collections, and missing data is represented as a vector of 0's.
+moire supports loading data from either a long format `data.frame` using `load_long_form_data()` or from a wide format `data.frame` using `load_delimited_data()`.
 
 ```{r, eval = FALSE}
+df <- read.csv("your_data.csv")
+data <- load_long_form_data(df)
+
 # With data in appropriate format, run MCMC as follows
-mcmc_results <- moire::run_mcmc(data)
+mcmc_results <- moire::run_mcmc(data$data, data$sample_ids, data$loci, data$is_missing)
 ```

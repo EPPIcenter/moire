@@ -11,3 +11,17 @@
 *.so
 docs
 inst/doc
+
+config.log
+
+autom4te.cache/
+
+config.status
+
+configure
+
+src/Makevars
+
+.ccls-cache
+
+*.tmp

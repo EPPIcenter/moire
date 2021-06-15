@@ -5,12 +5,12 @@
 \alias{simulated_data}
 \title{Simulated genotyping data}
 \format{
-A list of lists where each list is a collection of genomic data observations at a single locus.
+An object of class \code{list} of length 7.
 }
 \usage{
 simulated_data
 }
 \description{
-A simulated dataset created using simulate_data()
+A simulated dataset created using \code{simulate_data()}
 }
 \keyword{datasets}

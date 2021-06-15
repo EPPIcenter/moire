@@ -24,11 +24,13 @@ reference:
 - contents:
   - starts_with("simulate_")
   - rdirichlet
+- title: Summaries
+- contents:
+  - starts_with("summarize_")
+  - starts_with("calculate_") 
 - title: Utilities
 - contents:
-  - calculate_he
-  - calculate_naive_coi
-  - calculate_naive_coi_offset
+  - starts_with("load_")
 - title: Data
 - contents:
   - simulated_data

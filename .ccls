@@ -1,0 +1,8 @@
+clang
+-std=c++14
+%h -x c++-header
+-I/usr/local/opt/r/lib/R/include
+-I/Library/Frameworks/R.framework/Resources/library/Rcpp/include
+-I/Library/Frameworks/R.framework/Resources/library/RcppGSL/include
+-I/Library/Frameworks/R.framework/Resources/library/RcppProgress/include
+-I/Library/Frameworks/R.framework/Resources/library/BH/include

@@ -15,8 +15,17 @@ LazyData: true
 SystemRequirements: C++14
 LinkingTo: 
     Rcpp,
+    RcppGSL,
+    RcppProgress,
+    BH
 Imports: 
-    Rcpp
+    Rcpp,
+    RcppGSL,
+    RcppProgress,
+    magrittr,
+    dplyr,
+    tidyr,
+    purrr
 URL: https://github.com/m-murphy/moire
 BugReports: https://github.com/m-murphy/moire/issues
 Roxygen: list(markdown = TRUE)
@@ -24,10 +33,9 @@ RoxygenNote: 7.1.1
 Suggests: 
     knitr,
     rmarkdown,
-    magrittr,
     ggplot2,
-    dplyr,
-    tidyr
+    testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Depends: 
-    R (>= 2.10)
+    R (>= 3.5.0)
+Config/testthat/edition: 3
