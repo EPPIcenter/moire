@@ -157,29 +157,28 @@
   <span class='va'>data</span>,
   <span class='va'>sample_ids</span>,
   <span class='va'>loci</span>,
-  <span class='va'>mean_coi</span>,
   is_missing <span class='op'>=</span> <span class='cn'>FALSE</span>,
   thin <span class='op'>=</span> <span class='fl'>1</span>,
   burnin <span class='op'>=</span> <span class='fl'>10000</span>,
   samples <span class='op'>=</span> <span class='fl'>10000</span>,
-  complexity_limit <span class='op'>=</span> <span class='fl'>1e+05</span>,
-  importance_sampling_depth <span class='op'>=</span> <span class='fl'>10</span>,
-  importance_sampling_scaling_factor <span class='op'>=</span> <span class='fl'>10</span>,
+  complexity_limit <span class='op'>=</span> <span class='fl'>2050</span>,
+  importance_sampling_depth <span class='op'>=</span> <span class='fl'>300</span>,
+  importance_sampling_scaling_factor <span class='op'>=</span> <span class='fl'>100</span>,
   verbose <span class='op'>=</span> <span class='cn'>TRUE</span>,
   eps_pos_0 <span class='op'>=</span> <span class='fl'>0.01</span>,
   eps_pos_var <span class='op'>=</span> <span class='fl'>0.001</span>,
   eps_pos_alpha <span class='op'>=</span> <span class='fl'>1</span>,
   eps_pos_beta <span class='op'>=</span> <span class='fl'>99</span>,
-  eps_neg_0 <span class='op'>=</span> <span class='fl'>0.1</span>,
+  eps_neg_0 <span class='op'>=</span> <span class='fl'>0.05</span>,
   eps_neg_var <span class='op'>=</span> <span class='fl'>0.005</span>,
-  eps_neg_alpha <span class='op'>=</span> <span class='fl'>10</span>,
-  eps_neg_beta <span class='op'>=</span> <span class='fl'>90</span>,
+  eps_neg_alpha <span class='op'>=</span> <span class='fl'>5</span>,
+  eps_neg_beta <span class='op'>=</span> <span class='fl'>95</span>,
   max_eps_pos <span class='op'>=</span> <span class='fl'>0.5</span>,
   max_eps_neg <span class='op'>=</span> <span class='fl'>0.5</span>,
   mean_coi_prior_shape <span class='op'>=</span> <span class='fl'>1.5</span>,
   mean_coi_prior_scale <span class='op'>=</span> <span class='fl'>0.5</span>,
   mean_coi_var <span class='op'>=</span> <span class='fl'>1</span>,
-  allele_freq_var <span class='op'>=</span> <span class='fl'>1</span>
+  allele_freq_var <span class='op'>=</span> <span class='fl'>0.1</span>
 <span class='op'>)</span></pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
@@ -224,7 +223,8 @@ after burnin</p></td>
     <tr>
       <th>complexity_limit</th>
       <td><p>Limit on the total number of computations before
-resorting to an importance sampling based approach of the integral.</p></td>
+resorting to an importance sampling based approach of the integral. Total
+number of computations is approximately</p></td>
     </tr>
     <tr>
       <th>importance_sampling_depth</th>
