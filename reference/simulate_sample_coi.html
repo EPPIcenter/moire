@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Simulated genotyping data — simulated_data • moire</title>
+<title>Simulate sample COI — simulate_sample_coi • moire</title>
 
 <!-- favicons -->
 <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
@@ -46,8 +46,8 @@
 
 
 
-<meta property="og:title" content="Simulated genotyping data — simulated_data" />
-<meta property="og:description" content="A simulated dataset created using simulate_data()" />
+<meta property="og:title" content="Simulate sample COI — simulate_sample_coi" />
+<meta property="og:description" content="Simulate sample COI" />
 <meta property="og:image" content="https://m-murphy.github.io/moire/reference/figures/logo.png" />
 <meta name="twitter:card" content="summary" />
 <meta name="twitter:creator" content="@MxMrphy" />
@@ -144,21 +144,33 @@
 <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>Simulated genotyping data</h1>
-    <small class="dont-index">Source: <a href='https://github.com/m-murphy/moire/blob/master/R/data.R'><code>R/data.R</code></a></small>
-    <div class="hidden name"><code>simulated_data.Rd</code></div>
+    <h1>Simulate sample COI</h1>
+    <small class="dont-index">Source: <a href='https://github.com/m-murphy/moire/blob/master/R/simulator.R'><code>R/simulator.R</code></a></small>
+    <div class="hidden name"><code>simulate_sample_coi.Rd</code></div>
     </div>
 
     <div class="ref-description">
-    <p>A simulated dataset created using <code><a href='simulate_data.html'>simulate_data()</a></code></p>
+    <p>Simulate sample COI</p>
     </div>
 
-    <pre class="usage"><span class='va'>simulated_data</span></pre>
+    <pre class="usage"><span class='fu'>simulate_sample_coi</span><span class='op'>(</span><span class='va'>num_samples</span>, <span class='va'>mean_coi</span><span class='op'>)</span></pre>
 
+    <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
+    <table class="ref-arguments">
+    <colgroup><col class="name" /><col class="desc" /></colgroup>
+    <tr>
+      <th>num_samples</th>
+      <td><p>the total number of biological samples to simulate</p></td>
+    </tr>
+    <tr>
+      <th>mean_coi</th>
+      <td><p>mean multiplicity of infection</p></td>
+    </tr>
+    </table>
 
-    <h2 class="hasAnchor" id="format"><a class="anchor" href="#format"></a>Format</h2>
+    <h2 class="hasAnchor" id="details"><a class="anchor" href="#details"></a>Details</h2>
 
-    <p>An object of class <code>list</code> of length 7.</p>
+    <p>Simulate sample COIs from a zero-truncated Poisson distribution</p>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">

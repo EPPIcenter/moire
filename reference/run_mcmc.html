@@ -93,7 +93,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">moire</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.0</span>
       </span>
     </div>
 
@@ -101,7 +101,7 @@
       <ul class="nav navbar-nav">
         <li>
   <a href="../index.html">
-    <span class="fas fa fas fa-home fa-lg"></span>
+    <span class="fas fa-home fa-lg"></span>
      
   </a>
 </li>
@@ -127,7 +127,7 @@
       <ul class="nav navbar-nav navbar-right">
         <li>
   <a href="https://github.com/m-murphy/moire/">
-    <span class="fab fa fab fa-github fa-lg"></span>
+    <span class="fab fa-github fa-lg"></span>
      
   </a>
 </li>
@@ -153,51 +153,97 @@
     <p>Sample from the target distribution using MCMC</p>
     </div>
 
-    <pre class="usage"><span class='fu'>run_mcmc</span>(
-  <span class='no'>data</span>,
-  <span class='kw'>thin</span> <span class='kw'>=</span> <span class='fl'>0</span>,
-  <span class='kw'>burnin</span> <span class='kw'>=</span> <span class='fl'>10000</span>,
-  <span class='kw'>samples</span> <span class='kw'>=</span> <span class='fl'>10000</span>,
-  <span class='kw'>importance_sampling_depth</span> <span class='kw'>=</span> <span class='fl'>100</span>,
-  <span class='kw'>max_coi</span> <span class='kw'>=</span> <span class='fl'>30</span>,
-  <span class='kw'>eps_pos_0</span> <span class='kw'>=</span> <span class='fl'>0.01</span>,
-  <span class='kw'>eps_pos_var</span> <span class='kw'>=</span> <span class='fl'>0.25</span>,
-  <span class='kw'>eps_pos_alpha</span> <span class='kw'>=</span> <span class='fl'>2</span>,
-  <span class='kw'>eps_pos_beta</span> <span class='kw'>=</span> <span class='fl'>100</span>,
-  <span class='kw'>eps_neg_0</span> <span class='kw'>=</span> <span class='fl'>0.05</span>,
-  <span class='kw'>eps_neg_var</span> <span class='kw'>=</span> <span class='fl'>0.25</span>,
-  <span class='kw'>eps_neg_alpha</span> <span class='kw'>=</span> <span class='fl'>6</span>,
-  <span class='kw'>eps_neg_beta</span> <span class='kw'>=</span> <span class='fl'>96</span>,
-  <span class='kw'>max_eps_pos</span> <span class='kw'>=</span> <span class='fl'>0.2</span>,
-  <span class='kw'>max_eps_neg</span> <span class='kw'>=</span> <span class='fl'>0.2</span>
-)</pre>
+    <pre class="usage"><span class='fu'>run_mcmc</span><span class='op'>(</span>
+  <span class='va'>data</span>,
+  <span class='va'>sample_ids</span>,
+  <span class='va'>loci</span>,
+  <span class='va'>mean_coi</span>,
+  is_missing <span class='op'>=</span> <span class='cn'>FALSE</span>,
+  thin <span class='op'>=</span> <span class='fl'>1</span>,
+  burnin <span class='op'>=</span> <span class='fl'>10000</span>,
+  samples <span class='op'>=</span> <span class='fl'>10000</span>,
+  complexity_limit <span class='op'>=</span> <span class='fl'>1e+05</span>,
+  importance_sampling_depth <span class='op'>=</span> <span class='fl'>10</span>,
+  importance_sampling_scaling_factor <span class='op'>=</span> <span class='fl'>10</span>,
+  verbose <span class='op'>=</span> <span class='cn'>TRUE</span>,
+  eps_pos_0 <span class='op'>=</span> <span class='fl'>0.01</span>,
+  eps_pos_var <span class='op'>=</span> <span class='fl'>0.001</span>,
+  eps_pos_alpha <span class='op'>=</span> <span class='fl'>1</span>,
+  eps_pos_beta <span class='op'>=</span> <span class='fl'>99</span>,
+  eps_neg_0 <span class='op'>=</span> <span class='fl'>0.1</span>,
+  eps_neg_var <span class='op'>=</span> <span class='fl'>0.005</span>,
+  eps_neg_alpha <span class='op'>=</span> <span class='fl'>10</span>,
+  eps_neg_beta <span class='op'>=</span> <span class='fl'>90</span>,
+  max_eps_pos <span class='op'>=</span> <span class='fl'>0.5</span>,
+  max_eps_neg <span class='op'>=</span> <span class='fl'>0.5</span>,
+  mean_coi_prior_shape <span class='op'>=</span> <span class='fl'>1.5</span>,
+  mean_coi_prior_scale <span class='op'>=</span> <span class='fl'>0.5</span>,
+  mean_coi_var <span class='op'>=</span> <span class='fl'>1</span>,
+  allele_freq_var <span class='op'>=</span> <span class='fl'>1</span>
+<span class='op'>)</span></pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
     <colgroup><col class="name" /><col class="desc" /></colgroup>
     <tr>
       <th>data</th>
-      <td><p>Data to be used in MCMC, expected input is a list of lists of numeric vectors, where each list element is a collection of observations across samples at a single genetic locus.</p></td>
+      <td><p>Data to be used in MCMC, expected input is a list
+of lists of numeric vectors, where each list element is a
+collection of observations across samples at a single genetic locus.</p></td>
+    </tr>
+    <tr>
+      <th>sample_ids</th>
+      <td><p>Vector containing the ordered unique identifier for samples</p></td>
+    </tr>
+    <tr>
+      <th>loci</th>
+      <td><p>Vector containing the ordered unique identifer for loci</p></td>
+    </tr>
+    <tr>
+      <th>is_missing</th>
+      <td><p>Boolean matrix indicating whether the observation
+should be treated as missing data and ignored. Number of rows equals the
+number of loci, number of columns equals the number samples. Alternatively,
+the user may pass in FALSE if no data should be considered missing.</p></td>
     </tr>
     <tr>
       <th>thin</th>
-      <td><p>Positive Integer. How often to sample from mcmc, 0 means do not thin</p></td>
+      <td><p>Positive Integer. How often to sample from mcmc,
+1 means do not thin</p></td>
     </tr>
     <tr>
       <th>burnin</th>
-      <td><p>Positive Integer. Number of MCMC samples to discard as burnin</p></td>
+      <td><p>Positive Integer. Number of MCMC samples to
+discard as burnin</p></td>
     </tr>
     <tr>
       <th>samples</th>
-      <td><p>Positive Integer. Number of samples to take after burnin</p></td>
+      <td><p>Positive Integer. Number of samples to take
+after burnin</p></td>
+    </tr>
+    <tr>
+      <th>complexity_limit</th>
+      <td><p>Limit on the total number of computations before
+resorting to an importance sampling based approach of the integral.</p></td>
     </tr>
     <tr>
       <th>importance_sampling_depth</th>
-      <td><p>Positive Integer. How many samples to take during importance sampling. Larger values result in longer computation time, too small of values will result in poor mixing.</p></td>
+      <td><p>Positive Integer. Min number
+of samples to take during importance sampling. Larger values
+result in longer computation time, too small of values will
+result in poor mixing.</p></td>
     </tr>
     <tr>
-      <th>max_coi</th>
-      <td><p>Integer. Maximum allowed complexity of infection</p></td>
+      <th>importance_sampling_scaling_factor</th>
+      <td><p>Positive Ingeter.
+Total additional importance samples taken per increase in
+complexity of infection. Total number of
+samples = importance_sampling_depth + coi * importance_sampling_scaling_
+factor</p></td>
+    </tr>
+    <tr>
+      <th>verbose</th>
+      <td><p>Logical indicating if progress is printed</p></td>
     </tr>
     <tr>
       <th>eps_pos_0</th>
@@ -209,11 +255,13 @@
     </tr>
     <tr>
       <th>eps_pos_alpha</th>
-      <td><p>Positive Numeric. Alpha parameter in Beta distribution for eps_pos prior</p></td>
+      <td><p>Positive Numeric. Alpha parameter in
+Beta distribution for eps_pos prior</p></td>
     </tr>
     <tr>
       <th>eps_pos_beta</th>
-      <td><p>Positive Numeric. Beta parameter in Beta distribution for eps_pos prior</p></td>
+      <td><p>Positive Numeric. Beta parameter in
+Beta distribution for eps_pos prior</p></td>
     </tr>
     <tr>
       <th>eps_neg_0</th>
@@ -225,11 +273,13 @@
     </tr>
     <tr>
       <th>eps_neg_alpha</th>
-      <td><p>Positive Numeric. Alpha parameter in Beta distribution for eps_neg prior</p></td>
+      <td><p>Positive Numeric. Alpha parameter in
+Beta distribution for eps_neg prior</p></td>
     </tr>
     <tr>
       <th>eps_neg_beta</th>
-      <td><p>Positive Numeric. Beta parameter in Beta distribution for eps_neg prior</p></td>
+      <td><p>Positive Numeric. Beta parameter in
+Beta distribution for eps_neg prior</p></td>
     </tr>
     <tr>
       <th>max_eps_pos</th>
@@ -238,6 +288,25 @@
     <tr>
       <th>max_eps_neg</th>
       <td><p>0-1 Numeric. Maximum allowed value for eps_neg</p></td>
+    </tr>
+    <tr>
+      <th>mean_coi_prior_shape</th>
+      <td><p>Positive Numeric. Shape parameter for gamma
+prior on mean complexity of infection.</p></td>
+    </tr>
+    <tr>
+      <th>mean_coi_prior_scale</th>
+      <td><p>Positive Numeric. Scale parameter for gamma
+prior on mean complexity of infection.</p></td>
+    </tr>
+    <tr>
+      <th>mean_coi_var</th>
+      <td><p>Positive Numeric. Variance used in sampling mean_coi</p></td>
+    </tr>
+    <tr>
+      <th>allele_freq_var</th>
+      <td><p>Positive Numeric. Variance used in sampling allele
+frequencies</p></td>
     </tr>
     </table>
 
@@ -257,7 +326,7 @@
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.5.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
 </div>
 
       </footer>

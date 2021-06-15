@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Simulated genotyping data — simulated_data • moire</title>
+<title>Load delimited data — load_delimited_data • moire</title>
 
 <!-- favicons -->
 <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
@@ -46,8 +46,8 @@
 
 
 
-<meta property="og:title" content="Simulated genotyping data — simulated_data" />
-<meta property="og:description" content="A simulated dataset created using simulate_data()" />
+<meta property="og:title" content="Load delimited data — load_delimited_data" />
+<meta property="og:description" content="Load delimited data" />
 <meta property="og:image" content="https://m-murphy.github.io/moire/reference/figures/logo.png" />
 <meta name="twitter:card" content="summary" />
 <meta name="twitter:creator" content="@MxMrphy" />
@@ -144,21 +144,37 @@
 <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>Simulated genotyping data</h1>
-    <small class="dont-index">Source: <a href='https://github.com/m-murphy/moire/blob/master/R/data.R'><code>R/data.R</code></a></small>
-    <div class="hidden name"><code>simulated_data.Rd</code></div>
+    <h1>Load delimited data</h1>
+    <small class="dont-index">Source: <a href='https://github.com/m-murphy/moire/blob/master/R/utils.R'><code>R/utils.R</code></a></small>
+    <div class="hidden name"><code>load_delimited_data.Rd</code></div>
     </div>
 
     <div class="ref-description">
-    <p>A simulated dataset created using <code><a href='simulate_data.html'>simulate_data()</a></code></p>
+    <p>Load delimited data</p>
     </div>
 
-    <pre class="usage"><span class='va'>simulated_data</span></pre>
+    <pre class="usage"><span class='fu'>load_delimited_data</span><span class='op'>(</span><span class='va'>data</span>, sep <span class='op'>=</span> <span class='st'>";"</span><span class='op'>)</span></pre>
 
+    <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
+    <table class="ref-arguments">
+    <colgroup><col class="name" /><col class="desc" /></colgroup>
+    <tr>
+      <th>data</th>
+      <td><p>data.frame containing the described data</p></td>
+    </tr>
+    <tr>
+      <th>sep</th>
+      <td><p>string used to separate alleles</p></td>
+    </tr>
+    </table>
 
-    <h2 class="hasAnchor" id="format"><a class="anchor" href="#format"></a>Format</h2>
+    <h2 class="hasAnchor" id="details"><a class="anchor" href="#details"></a>Details</h2>
 
-    <p>An object of class <code>list</code> of length 7.</p>
+    <p>Load <code>data.frame</code> with a <code>sample_id</code> column and the remaining
+columns are <code>loci</code>. Each cell contains a separator delimited string
+representing the observed alleles at that locus for that sample.
+Returned data contains vectors <code>sample_ids</code> and <code>loci</code> that are ordered
+as the results will be ordered from running the MCMC algorithm.</p>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">

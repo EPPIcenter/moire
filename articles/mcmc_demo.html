@@ -47,7 +47,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">moire</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.0</span>
       </span>
     </div>
 
@@ -55,7 +55,7 @@
       <ul class="nav navbar-nav">
 <li>
   <a href="../index.html">
-    <span class="fas fa fas fa-home fa-lg"></span>
+    <span class="fas fa-home fa-lg"></span>
      
   </a>
 </li>
@@ -81,7 +81,7 @@
 <ul class="nav navbar-nav navbar-right">
 <li>
   <a href="https://github.com/m-murphy/moire/">
-    <span class="fab fa fab fa-github fa-lg"></span>
+    <span class="fab fa-github fa-lg"></span>
      
   </a>
 </li>
@@ -108,86 +108,157 @@
 
     
     
-<div class="sourceCode" id="cb1"><html><body><pre class="r"><span class="fu"><a href="https://rdrr.io/r/base/library.html">library</a></span>(<span class="no">moire</span>)
-<span class="fu"><a href="https://rdrr.io/r/base/library.html">library</a></span>(<span class="no">magrittr</span>)
-<span class="fu"><a href="https://rdrr.io/r/base/library.html">library</a></span>(<span class="no">ggplot2</span>)
-<span class="fu"><a href="https://rdrr.io/r/base/library.html">library</a></span>(<span class="no">dplyr</span>)
-<span class="fu"><a href="https://rdrr.io/r/base/library.html">library</a></span>(<span class="no">tidyr</span>)</pre></body></html></div>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/m-murphy/moire">moire</a></span><span class="op">)</span>
+<span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va"><a href="https://magrittr.tidyverse.org">magrittr</a></span><span class="op">)</span>
+<span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org">ggplot2</a></span><span class="op">)</span>
+<span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org">dplyr</a></span><span class="op">)</span>
+<span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va"><a href="https://tidyr.tidyverse.org">tidyr</a></span><span class="op">)</span></code></pre></div>
 <p>To demonstrate the usage of the package, we can simulate some genotyping data according to our model.</p>
-<div class="sourceCode" id="cb2"><html><body><pre class="r"><span class="no">mean_moi</span> <span class="kw">&lt;-</span> <span class="fl">4</span>
-<span class="no">num_loci</span> <span class="kw">&lt;-</span> <span class="fl">10</span>
-<span class="no">num_biological_samples</span> <span class="kw">&lt;-</span> <span class="fl">100</span>
-<span class="no">epsilon_pos</span> <span class="kw">&lt;-</span> <span class="fl">.03</span>
-<span class="no">epsilon_neg</span> <span class="kw">&lt;-</span> <span class="fl">.15</span>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/base/Random.html">set.seed</a></span><span class="op">(</span><span class="fl">17327</span><span class="op">)</span>
+
+<span class="va">mean_moi</span> <span class="op">&lt;-</span> <span class="fl">4</span>
+<span class="va">num_biological_samples</span> <span class="op">&lt;-</span> <span class="fl">100</span>
+<span class="va">epsilon_pos</span> <span class="op">&lt;-</span> <span class="fl">.01</span>
+<span class="va">epsilon_neg</span> <span class="op">&lt;-</span> <span class="fl">.03</span>
 
 <span class="co"># Generate the number of alleles at each locus</span>
-<span class="no">allele_counts</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/NegBinomial.html">rnbinom</a></span>(<span class="no">num_loci</span>, <span class="kw">size</span> <span class="kw">=</span> <span class="fl">15</span>, <span class="kw">mu</span> <span class="kw">=</span> <span class="fl">10</span>) + <span class="fl">2</span>
+<span class="va">allele_counts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">10</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">10</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">15</span>, <span class="fl">10</span><span class="op">)</span><span class="op">)</span>
 
 <span class="co"># We'll use flat alpha vectors for our draws from the Dirichlet</span>
-<span class="no">locus_freq_alphas</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html">lapply</a></span>(<span class="no">allele_counts</span>, <span class="kw">function</span>(<span class="no">allele</span>) { <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span>(<span class="fl">1</span>, <span class="no">allele</span>) })
+<span class="va">locus_freq_alphas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html">lapply</a></span><span class="op">(</span><span class="va">allele_counts</span>, <span class="kw">function</span><span class="op">(</span><span class="va">allele</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">1</span>, <span class="va">allele</span><span class="op">)</span><span class="op">)</span>
 
-<span class="no">simulated_data</span> <span class="kw">&lt;-</span> <span class="kw pkg">moire</span><span class="kw ns">::</span><span class="fu"><a href="../reference/simulate_data.html">simulate_data</a></span>(<span class="no">mean_moi</span>, <span class="no">locus_freq_alphas</span>, <span class="no">num_biological_samples</span>,
-                                       <span class="no">epsilon_pos</span>, <span class="no">epsilon_neg</span>)</pre></body></html></div>
-<p>Now that we have our data, let’s go ahead and run the MCMC</p>
-<div class="sourceCode" id="cb3"><html><body><pre class="r"><span class="no">burnin</span> <span class="kw">=</span> <span class="fl">1e3</span>
-<span class="no">num_samples</span> <span class="kw">=</span> <span class="fl">1e3</span>
-<span class="no">res</span> <span class="kw">&lt;-</span> <span class="fu"><a href="../reference/run_mcmc.html">run_mcmc</a></span>(<span class="no">simulated_data</span>$<span class="no">data</span>, <span class="kw">burnin</span> <span class="kw">=</span> <span class="no">burnin</span>, <span class="kw">samples</span> <span class="kw">=</span> <span class="no">num_samples</span>, <span class="kw">eps_pos_0</span> <span class="kw">=</span> <span class="fl">.05</span>, <span class="kw">eps_neg_0</span> <span class="kw">=</span> <span class="fl">.1</span>,
-                <span class="kw">eps_pos_var</span> <span class="kw">=</span> <span class="fl">.1</span>, <span class="kw">eps_neg_var</span> <span class="kw">=</span> <span class="fl">.1</span>, <span class="kw">max_coi</span> <span class="kw">=</span> <span class="fl">20</span>, <span class="kw">importance_sampling_depth</span> <span class="kw">=</span> <span class="fl">100</span>,
-                <span class="kw">eps_pos_alpha</span> <span class="kw">=</span> <span class="fl">1</span>, <span class="kw">eps_pos_beta</span> <span class="kw">=</span> <span class="fl">1</span>, <span class="kw">eps_neg_alpha</span> <span class="kw">=</span> <span class="fl">1</span>, <span class="kw">eps_neg_beta</span> <span class="kw">=</span> <span class="fl">1</span>)</pre></body></html></div>
+<span class="va">simulated_data</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/simulate_data.html">simulate_data</a></span><span class="op">(</span>
+  <span class="va">mean_moi</span>, <span class="va">locus_freq_alphas</span>,
+  <span class="va">num_biological_samples</span>,
+  <span class="va">epsilon_pos</span>, <span class="va">epsilon_neg</span>
+  <span class="op">)</span></code></pre></div>
+<p>Now that we have our data, let’s go ahead and run the MCMC with strong priors on the error distributions.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span class="va">burnin</span> <span class="op">&lt;-</span> <span class="fl">1e3</span>
+<span class="va">num_samples</span> <span class="op">&lt;-</span> <span class="fl">1e3</span>
+
+<span class="va">res</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/run_mcmc.html">run_mcmc</a></span><span class="op">(</span>
+  <span class="va">simulated_data</span><span class="op">$</span><span class="va">data</span>, <span class="va">simulated_data</span><span class="op">$</span><span class="va">sample_ids</span>, <span class="va">simulated_data</span><span class="op">$</span><span class="va">loci</span>, 
+  verbose <span class="op">=</span> <span class="cn">T</span>, burnin <span class="op">=</span> <span class="va">burnin</span>, samples <span class="op">=</span> <span class="va">num_samples</span>, thin <span class="op">=</span> <span class="fl">1</span>,
+  eps_pos_alpha <span class="op">=</span> <span class="fl">10</span>, eps_pos_beta <span class="op">=</span> <span class="fl">990</span>,
+  eps_neg_alpha <span class="op">=</span> <span class="fl">30</span>, eps_neg_beta <span class="op">=</span> <span class="fl">970</span>, allele_freq_var <span class="op">=</span> <span class="fl">.1</span>
+<span class="op">)</span></code></pre></div>
 <p>After running the MCMC, we can access the draws from the posterior distribution and analyze.</p>
-<div class="sourceCode" id="cb4"><html><body><pre class="r"><span class="co"># Estimate the COI for each sample</span>
-<span class="no">est_cois</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html">matrix</a></span>(<span class="fu"><a href="https://rdrr.io/r/base/unlist.html">unlist</a></span>(<span class="no">res</span>$<span class="no">m_store</span>), <span class="kw">ncol</span> <span class="kw">=</span> <span class="no">num_samples</span>)
-<span class="no">est_coi_025</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span>(<span class="no">est_cois</span>, <span class="fl">1</span>, <span class="kw">function</span>(<span class="no">x</span>) { <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span>(<span class="no">x</span>, <span class="fl">.025</span>) })
-<span class="no">est_coi_50</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span>(<span class="no">est_cois</span>, <span class="fl">1</span>, <span class="kw">function</span>(<span class="no">x</span>) { <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span>(<span class="no">x</span>, <span class="fl">.5</span>) })
-<span class="no">est_coi_975</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span>(<span class="no">est_cois</span>, <span class="fl">1</span>, <span class="kw">function</span>(<span class="no">x</span>) { <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span>(<span class="no">x</span>, <span class="fl">.975</span>) })
-<span class="no">est_coi_mean</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span>(<span class="no">est_cois</span>, <span class="fl">1</span>, <span class="no">mean</span>)
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span class="co"># Estimate the COI for each sample</span>
+<span class="va">coi_summary</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/summarize_coi.html">summarize_coi</a></span><span class="op">(</span><span class="va">res</span><span class="op">)</span>
 
+<span class="co"># We can also summarize statistics about the allele frequency distribution</span>
+<span class="va">he_summary</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/summarize_he.html">summarize_he</a></span><span class="op">(</span><span class="va">res</span><span class="op">)</span>
+<span class="va">allele_freq_summary</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/summarize_allele_freqs.html">summarize_allele_freqs</a></span><span class="op">(</span><span class="va">res</span><span class="op">)</span>
 
-<span class="co"># Calculate naive COI for comparison</span>
-<span class="no">naive_cois</span> <span class="kw">&lt;-</span> <span class="kw pkg">moire</span><span class="kw ns">::</span><span class="fu"><a href="../reference/calculate_naive_coi.html">calculate_naive_coi</a></span>(<span class="no">simulated_data</span>$<span class="no">data</span>)
-<span class="no">offset_naive_cois</span> <span class="kw">&lt;-</span> <span class="kw pkg">moire</span><span class="kw ns">::</span><span class="fu"><a href="../reference/calculate_naive_coi_offset.html">calculate_naive_coi_offset</a></span>(<span class="no">simulated_data</span>$<span class="no">data</span>, <span class="fl">2</span>)
-<span class="no">coi_data</span> <span class="kw">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html">data.frame</a></span>(<span class="no">est_coi_025</span>, <span class="no">est_coi_50</span>, <span class="no">est_coi_975</span>, <span class="no">est_coi_mean</span>,
-                       <span class="kw">naive_coi</span> <span class="kw">=</span> <span class="no">naive_cois</span>, <span class="kw">offset_naive_coi</span> <span class="kw">=</span> <span class="no">offset_naive_cois</span>)
+<span class="co"># Let's append the true values for use later</span>
+<span class="va">coi_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html">data.frame</a></span><span class="op">(</span><span class="va">coi_summary</span>,
+  true_coi <span class="op">=</span> <span class="va">simulated_data</span><span class="op">$</span><span class="va">sample_cois</span>
+  <span class="op">)</span>
 
+<span class="va">he_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html">data.frame</a></span><span class="op">(</span>
+  <span class="va">he_summary</span>,
+  true_he <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html">sapply</a></span><span class="op">(</span>
+    <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/calculate_naive_allele_frequencies.html">calculate_naive_allele_frequencies</a></span><span class="op">(</span><span class="va">simulated_data</span><span class="op">$</span><span class="va">true_genotypes</span><span class="op">)</span>,
+    <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/calculate_he.html">calculate_he</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span>
+  <span class="op">)</span>,
+  naive_he <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html">sapply</a></span><span class="op">(</span>
+    <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/calculate_naive_allele_frequencies.html">calculate_naive_allele_frequencies</a></span><span class="op">(</span><span class="va">simulated_data</span><span class="op">$</span><span class="va">data</span><span class="op">)</span>,
+    <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/calculate_he.html">calculate_he</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span>
+  <span class="op">)</span>
+<span class="op">)</span>
 
-<span class="co"># Calculate allele frequencies from MCMC model</span>
-<span class="no">est_allele_freqs</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html">matrix</a></span>(<span class="fu"><a href="https://rdrr.io/r/base/unlist.html">unlist</a></span>(<span class="no">res</span>$<span class="no">p_store</span>), <span class="kw">ncol</span> <span class="kw">=</span> <span class="no">num_samples</span>)
-<span class="no">est_allele_freq_025</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span>(<span class="no">est_allele_freqs</span>, <span class="fl">1</span>, <span class="kw">function</span>(<span class="no">x</span>) { <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span>(<span class="no">x</span>, <span class="fl">.025</span>)})
-<span class="no">est_allele_freq_50</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span>(<span class="no">est_allele_freqs</span>, <span class="fl">1</span>, <span class="kw">function</span>(<span class="no">x</span>) { <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span>(<span class="no">x</span>, <span class="fl">.5</span>)})
-<span class="no">est_allele_freq_975</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span>(<span class="no">est_allele_freqs</span>, <span class="fl">1</span>, <span class="kw">function</span>(<span class="no">x</span>) { <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span>(<span class="no">x</span>, <span class="fl">.975</span>)})
-<span class="no">est_allele_freq_mean</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span>(<span class="no">est_allele_freqs</span>, <span class="fl">1</span>, <span class="no">mean</span>)
-
-
-<span class="co"># Calculate Heterozygosity for each locus from model</span>
-<span class="no">he_matrix</span> <span class="kw">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html">matrix</a></span>(<span class="fu"><a href="https://rdrr.io/r/base/unlist.html">unlist</a></span>(<span class="fu"><a href="https://rdrr.io/r/base/lapply.html">lapply</a></span>(<span class="no">res</span>$<span class="no">p_store</span>, <span class="kw">function</span>(<span class="no">run</span>) {
-  <span class="fu"><a href="https://rdrr.io/r/base/lapply.html">sapply</a></span>(<span class="no">run</span>, <span class="kw pkg">moire</span><span class="kw ns">::</span><span class="no"><a href="../reference/calculate_he.html">calculate_he</a></span>)
-  })), <span class="kw">ncol</span> <span class="kw">=</span> <span class="no">num_samples</span>)
-
-<span class="no">est_he_025</span> <span class="kw">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span>(<span class="no">he_matrix</span>, <span class="fl">1</span>, <span class="kw">function</span>(<span class="no">x</span>) { <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span>(<span class="no">x</span>, <span class="fl">.025</span>)})
-<span class="no">est_he_50</span> <span class="kw">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span>(<span class="no">he_matrix</span>, <span class="fl">1</span>, <span class="kw">function</span>(<span class="no">x</span>) { <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span>(<span class="no">x</span>, <span class="fl">.5</span>)})
-<span class="no">est_he_975</span> <span class="kw">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span>(<span class="no">he_matrix</span>, <span class="fl">1</span>, <span class="kw">function</span>(<span class="no">x</span>) { <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span>(<span class="no">x</span>, <span class="fl">.975</span>)})
-<span class="no">est_he_mean</span> <span class="kw">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html">apply</a></span>(<span class="no">he_matrix</span>, <span class="fl">2</span>, <span class="no">mean</span>)
-<span class="no">est_he_mean_quantiles</span> <span class="kw">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/quantile.html">quantile</a></span>(<span class="no">est_he_mean</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span>(<span class="fl">.025</span>, <span class="fl">.5</span>, <span class="fl">.975</span>))</pre></body></html></div>
+<span class="va">allele_freq_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html">data.frame</a></span><span class="op">(</span>
+  <span class="va">allele_freq_summary</span>,
+  <span class="co"># true_allele_frequency = unlist(simulated_data$allele_freqs)</span>
+  naive_allele_frequency <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/unlist.html">unlist</a></span><span class="op">(</span><span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/calculate_naive_allele_frequencies.html">calculate_naive_allele_frequencies</a></span><span class="op">(</span><span class="va">simulated_data</span><span class="op">$</span><span class="va">data</span><span class="op">)</span><span class="op">)</span>,
+  true_allele_frequency <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/unlist.html">unlist</a></span><span class="op">(</span><span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/calculate_naive_allele_frequencies.html">calculate_naive_allele_frequencies</a></span><span class="op">(</span><span class="va">simulated_data</span><span class="op">$</span><span class="va">true_genotypes</span><span class="op">)</span><span class="op">)</span>
+<span class="op">)</span></code></pre></div>
 <p>Here we demonstrate the difference in distribution of the estimate of MOI using our approach vs the naive method of taking the maximum number of alleles observed or the second highest number of alleles observed</p>
-<div class="sourceCode" id="cb5"><html><body><pre class="r"><span class="no">coi_estimates</span> <span class="kw">&lt;-</span> <span class="no">coi_data</span> <span class="kw">%&gt;%</span>
-  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html">select</a></span>(<span class="no">est_coi_50</span>, <span class="no">naive_coi</span>, <span class="no">offset_naive_coi</span>) <span class="kw">%&gt;%</span>
-  <span class="fu"><a href="https://tidyr.tidyverse.org/reference/gather.html">gather</a></span>(<span class="kw">key</span> <span class="kw">=</span> <span class="st">"estimator"</span>, <span class="kw">value</span> <span class="kw">=</span> <span class="st">"estimate"</span>) <span class="kw">%&gt;%</span>
-  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html">mutate</a></span>(<span class="kw">estimator_pretty</span> <span class="kw">=</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/case_when.html">case_when</a></span>(
-    <span class="no">estimator</span> <span class="kw">==</span> <span class="st">'est_coi_50'</span> ~ <span class="st">"Mean Posterior Est."</span>,
-    <span class="no">estimator</span> <span class="kw">==</span> <span class="st">'naive_coi'</span> ~ <span class="st">"Naive Estimate"</span>,
-    <span class="no">estimator</span> <span class="kw">==</span> <span class="st">'offset_naive_coi'</span> ~ <span class="st">"Offset Naive Estimate"</span>
-  )) <span class="kw">%&gt;%</span>
-  <span class="fu"><a href="https://rdrr.io/r/base/transform.html">transform</a></span>(<span class="kw">estimator_pretty</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html">factor</a></span>(<span class="no">estimator_pretty</span>, <span class="kw">levels</span> <span class="kw">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span>(<span class="st">"Mean Posterior Est."</span>,
-                                                                   <span class="st">"Offset Naive Estimate"</span>,
-                                                                   <span class="st">"Naive Estimate"</span>)))
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span class="va">coi_estimates</span> <span class="op">&lt;-</span> <span class="va">coi_data</span> <span class="op">%&gt;%</span>
+  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html">select</a></span><span class="op">(</span><span class="va">post_coi_med</span>, <span class="va">naive_coi</span>, <span class="va">offset_naive_coi</span>, <span class="va">true_coi</span><span class="op">)</span> <span class="op">%&gt;%</span>
+  <span class="fu">tidyr</span><span class="fu">::</span><span class="fu"><a href="https://tidyr.tidyverse.org/reference/pivot_longer.html">pivot_longer</a></span><span class="op">(</span><span class="fu">tidyr</span><span class="fu">::</span><span class="fu"><a href="https://tidyselect.r-lib.org/reference/everything.html">everything</a></span><span class="op">(</span><span class="op">)</span>,
+                      names_to <span class="op">=</span> <span class="st">"estimator"</span>,
+                      values_to <span class="op">=</span> <span class="st">"estimate"</span><span class="op">)</span> <span class="op">%&gt;%</span>
+  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html">mutate</a></span><span class="op">(</span>estimator_pretty <span class="op">=</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/case_when.html">case_when</a></span><span class="op">(</span>
+    <span class="va">estimator</span> <span class="op">==</span> <span class="st">"post_coi_med"</span> <span class="op">~</span> <span class="st">"Median Posterior Est."</span>,
+    <span class="va">estimator</span> <span class="op">==</span> <span class="st">"naive_coi"</span> <span class="op">~</span> <span class="st">"Naive Estimate"</span>,
+    <span class="va">estimator</span> <span class="op">==</span> <span class="st">"offset_naive_coi"</span> <span class="op">~</span> <span class="st">"Offset Naive Estimate"</span>,
+    <span class="va">estimator</span> <span class="op">==</span> <span class="st">"true_coi"</span> <span class="op">~</span> <span class="st">"True COI"</span><span class="op">)</span><span class="op">)</span> <span class="op">%&gt;%</span>
+  <span class="fu"><a href="https://rdrr.io/r/base/transform.html">transform</a></span><span class="op">(</span>estimator_pretty <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html">factor</a></span><span class="op">(</span><span class="va">estimator_pretty</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span>
+    <span class="st">"Median Posterior Est."</span>,
+    <span class="st">"Offset Naive Estimate"</span>,
+    <span class="st">"Naive Estimate"</span>,
+    <span class="st">"True COI"</span>
+  <span class="op">)</span><span class="op">)</span><span class="op">)</span>
 
-<span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html">ggplot</a></span>(<span class="no">coi_estimates</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span>(<span class="kw">x</span> <span class="kw">=</span> <span class="no">estimate</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html">stat</a></span>(<span class="no">count</span>))) +
-  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html">facet_wrap</a></span>(~ <span class="no">estimator_pretty</span>) +
-  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_bar.html">geom_bar</a></span>() +
-  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">xlab</a></span>(<span class="st">"Multiplicity of Infection"</span>) +
-  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">ylab</a></span>(<span class="st">"Total Count"</span>) +
-  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html">theme_classic</a></span>(<span class="kw">base_size</span> <span class="kw">=</span> <span class="fl">16</span>)</pre></body></html></div>
-<p><img src="mcmc_demo_files/figure-html/plot_analysis-1.png" width="700"></p>
+<span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html">ggplot</a></span><span class="op">(</span><span class="va">coi_estimates</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">estimate</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html">stat</a></span><span class="op">(</span><span class="va">count</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">estimator_pretty</span>, nrow <span class="op">=</span> <span class="fl">1</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_bar.html">geom_bar</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">xlab</a></span><span class="op">(</span><span class="st">"Complexity of Infection"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">ylab</a></span><span class="op">(</span><span class="st">"Total Count"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html">theme_classic</a></span><span class="op">(</span>base_size <span class="op">=</span> <span class="fl">12</span><span class="op">)</span></code></pre></div>
+<p><img src="mcmc_demo_files/figure-html/plot_distribution-1.png" width="700"></p>
+<p>Since we simulated data, we know the true complexity of infection and heterozygosity and can compare</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html">ggplot</a></span><span class="op">(</span><span class="va">coi_data</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">true_coi</span>, y <span class="op">=</span> <span class="va">post_coi_mean</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_boxplot.html">geom_boxplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>group <span class="op">=</span> <span class="va">true_coi</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"black"</span>, alpha <span class="op">=</span> <span class="fl">.1</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_jitter.html">geom_jitter</a></span><span class="op">(</span>shape <span class="op">=</span> <span class="fl">1</span>, alpha <span class="op">=</span> <span class="fl">.5</span>, color <span class="op">=</span> <span class="st">"black"</span>, width <span class="op">=</span> <span class="fl">.1</span>, height <span class="op">=</span> <span class="fl">.1</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_jitter.html">geom_jitter</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">naive_coi</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"red"</span>,
+              alpha <span class="op">=</span> <span class="fl">.25</span>, width <span class="op">=</span> <span class="fl">.1</span>, height <span class="op">=</span> <span class="fl">.1</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_jitter.html">geom_jitter</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">offset_naive_coi</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"green"</span>,
+              alpha <span class="op">=</span> <span class="fl">.25</span>, width <span class="op">=</span> <span class="fl">.1</span>, height <span class="op">=</span> <span class="fl">.1</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html">geom_abline</a></span><span class="op">(</span>slope <span class="op">=</span> <span class="fl">1</span>, intercept <span class="op">=</span> <span class="fl">0</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">ylab</a></span><span class="op">(</span><span class="st">"Mean Posterior COI"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">xlab</a></span><span class="op">(</span><span class="st">"True COI"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html">theme_classic</a></span><span class="op">(</span>base_size <span class="op">=</span> <span class="fl">12</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/expand_limits.html">expand_limits</a></span><span class="op">(</span>x <span class="op">=</span> <span class="fl">0</span>, y <span class="op">=</span> <span class="fl">0</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">ggtitle</a></span><span class="op">(</span><span class="st">"Estimates of COI vs Truth"</span><span class="op">)</span></code></pre></div>
+<p><img src="mcmc_demo_files/figure-html/plot_coi_concordance-1.png" width="700"></p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html">ggplot</a></span><span class="op">(</span><span class="va">he_data</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">loci</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_linerange.html">geom_errorbar</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">post_stat_mean</span>,
+                    ymax <span class="op">=</span> <span class="va">post_stat_upper</span>,
+                    ymin <span class="op">=</span> <span class="va">post_stat_lower</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">post_stat_mean</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"blue"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">true_he</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"red"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">naive_he</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"green"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html">theme_classic</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">ggtitle</a></span><span class="op">(</span><span class="st">"Estimate of Heterozygosity"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">xlab</a></span><span class="op">(</span><span class="st">"Locus"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">ylab</a></span><span class="op">(</span><span class="st">"Mean Posterior Heterozygosity"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/expand_limits.html">expand_limits</a></span><span class="op">(</span>y <span class="op">=</span> <span class="fl">.5</span><span class="op">)</span></code></pre></div>
+<p><img src="mcmc_demo_files/figure-html/plot_he_concordance-1.png" width="700"></p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R">
+<span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html">ggplot</a></span><span class="op">(</span><span class="va">he_data</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">true_he</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">post_stat_mean</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"blue"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">naive_he</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"green"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html">theme_classic</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html">geom_abline</a></span><span class="op">(</span>slope <span class="op">=</span> <span class="fl">1</span>, intercept <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></code></pre></div>
+<p><img src="mcmc_demo_files/figure-html/plot_he_concordance-2.png" width="700"></p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html">ggplot</a></span><span class="op">(</span><span class="va">allele_freq_data</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_linerange.html">geom_errorbar</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>
+    y <span class="op">=</span> <span class="va">post_allele_freqs_mean</span>,
+    x <span class="op">=</span> <span class="va">true_allele_frequency</span>,
+    <span class="co"># ymax = post_allele_freqs_mean,</span>
+    <span class="co"># ymin = post_allele_freqs_mean)) +</span>
+    ymax <span class="op">=</span> <span class="va">post_allele_freqs_upper</span>,
+    ymin <span class="op">=</span> <span class="va">post_allele_freqs_lower</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">post_allele_freqs_mean</span>, x <span class="op">=</span> <span class="va">true_allele_frequency</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">naive_allele_frequency</span>, x <span class="op">=</span> <span class="va">true_allele_frequency</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"red"</span>, alpha <span class="op">=</span> <span class="fl">.3</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html">geom_abline</a></span><span class="op">(</span>slope <span class="op">=</span> <span class="fl">1</span>, intercept <span class="op">=</span> <span class="fl">0</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">ylab</a></span><span class="op">(</span><span class="st">"Mean Posterior Freqeuncy"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">xlab</a></span><span class="op">(</span><span class="st">"True Frequency"</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html">theme_classic</a></span><span class="op">(</span>base_size <span class="op">=</span> <span class="fl">12</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/expand_limits.html">expand_limits</a></span><span class="op">(</span>x <span class="op">=</span> <span class="fl">0</span>, y <span class="op">=</span> <span class="fl">0</span><span class="op">)</span> <span class="op">+</span>
+  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html">ggtitle</a></span><span class="op">(</span><span class="st">"Estimates of Allele Frequencies vs Truth"</span><span class="op">)</span></code></pre></div>
+<p><img src="mcmc_demo_files/figure-html/plot_allele_freq_concordance-1.png" width="700"></p>
   </div>
 
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
@@ -203,7 +274,7 @@
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.5.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
 </div>
 
       </footer>

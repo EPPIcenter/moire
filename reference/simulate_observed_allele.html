@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Simulates the observation process. Takes a numeric value representing the number of strains contributing an allele and returns a binary vector indicating the presence or absence of the allele. — simulate_observed_allele • moire</title>
+<title>Simulates the observation process — simulate_observed_allele • moire</title>
 
 <!-- favicons -->
 <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
@@ -46,8 +46,8 @@
 
 
 
-<meta property="og:title" content="Simulates the observation process. Takes a numeric value representing the number of strains contributing an allele and returns a binary vector indicating the presence or absence of the allele. — simulate_observed_allele" />
-<meta property="og:description" content="Simulates the observation process. Takes a numeric value representing the number of strains contributing an allele and returns a binary vector indicating the presence or absence of the allele." />
+<meta property="og:title" content="Simulates the observation process — simulate_observed_allele" />
+<meta property="og:description" content="Simulates the observation process" />
 <meta property="og:image" content="https://m-murphy.github.io/moire/reference/figures/logo.png" />
 <meta name="twitter:card" content="summary" />
 <meta name="twitter:creator" content="@MxMrphy" />
@@ -93,7 +93,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">moire</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.0</span>
       </span>
     </div>
 
@@ -101,7 +101,7 @@
       <ul class="nav navbar-nav">
         <li>
   <a href="../index.html">
-    <span class="fas fa fas fa-home fa-lg"></span>
+    <span class="fas fa-home fa-lg"></span>
      
   </a>
 </li>
@@ -127,7 +127,7 @@
       <ul class="nav navbar-nav navbar-right">
         <li>
   <a href="https://github.com/m-murphy/moire/">
-    <span class="fab fa fab fa-github fa-lg"></span>
+    <span class="fab fa-github fa-lg"></span>
      
   </a>
 </li>
@@ -144,23 +144,24 @@
 <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>Simulates the observation process. Takes a numeric value representing the number of strains contributing an allele and returns a binary vector indicating the presence or absence of the allele.</h1>
+    <h1>Simulates the observation process</h1>
     <small class="dont-index">Source: <a href='https://github.com/m-murphy/moire/blob/master/R/simulator.R'><code>R/simulator.R</code></a></small>
     <div class="hidden name"><code>simulate_observed_allele.Rd</code></div>
     </div>
 
     <div class="ref-description">
-    <p>Simulates the observation process. Takes a numeric value representing the number of strains contributing an allele and returns a binary vector indicating the presence or absence of the allele.</p>
+    <p>Simulates the observation process</p>
     </div>
 
-    <pre class="usage"><span class='fu'>simulate_observed_allele</span>(<span class='no'>alleles</span>, <span class='no'>epsilon_pos</span>, <span class='no'>epsilon_neg</span>)</pre>
+    <pre class="usage"><span class='fu'>simulate_observed_allele</span><span class='op'>(</span><span class='va'>alleles</span>, <span class='va'>epsilon_pos</span>, <span class='va'>epsilon_neg</span><span class='op'>)</span></pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
     <colgroup><col class="name" /><col class="desc" /></colgroup>
     <tr>
       <th>alleles</th>
-      <td><p>A numeric vector representing the number of strains contributing each allele</p></td>
+      <td><p>A numeric vector representing the number of strains
+contributing each allele</p></td>
     </tr>
     <tr>
       <th>epsilon_pos</th>
@@ -172,6 +173,11 @@
     </tr>
     </table>
 
+    <h2 class="hasAnchor" id="details"><a class="anchor" href="#details"></a>Details</h2>
+
+    <p>Takes a numeric value representing
+the number of strains contributing an allele and returns a binary vector
+indicating the presence or absence of the allele.</p>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
@@ -188,7 +194,7 @@
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.5.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
 </div>
 
       </footer>

@@ -92,7 +92,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">moire</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.0.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.0</span>
       </span>
     </div>
 
@@ -100,7 +100,7 @@
       <ul class="nav navbar-nav">
         <li>
   <a href="../index.html">
-    <span class="fas fa fas fa-home fa-lg"></span>
+    <span class="fas fa-home fa-lg"></span>
      
   </a>
 </li>
@@ -126,7 +126,7 @@
       <ul class="nav navbar-nav navbar-right">
         <li>
   <a href="https://github.com/m-murphy/moire/">
-    <span class="fab fa fab fa-github fa-lg"></span>
+    <span class="fab fa-github fa-lg"></span>
      
   </a>
 </li>
@@ -188,45 +188,106 @@
       <tr>
         
         <td>
-          <p><code><a href="simulate_data.html">simulate_data()</a></code> </p>
+          <p><code><a href="simulate_allele_frequencies.html">simulate_allele_frequencies()</a></code> </p>
         </td>
-        <td><p>Simulate data that is compatible with run_mcmc and generated according to the assumed model</p></td>
+        <td><p>Simulate allele frequencies</p></td>
       </tr><tr>
         
         <td>
-          <p><code><a href="simulate_locus_allele_frequencies.html">simulate_locus_allele_frequencies()</a></code> </p>
+          <p><code><a href="simulate_data.html">simulate_data()</a></code> </p>
         </td>
-        <td><p>Simulate allele frequency vectors as a draw from a Dirichlet distribution</p></td>
+        <td><p>Simulate data generated according to the assumed model</p></td>
       </tr><tr>
         
         <td>
           <p><code><a href="simulate_observed_allele.html">simulate_observed_allele()</a></code> </p>
         </td>
-        <td><p>Simulates the observation process. Takes a numeric value representing the number of strains contributing an allele and returns a binary vector indicating the presence or absence of the allele.</p></td>
+        <td><p>Simulates the observation process</p></td>
       </tr><tr>
         
         <td>
           <p><code><a href="simulate_observed_genotype.html">simulate_observed_genotype()</a></code> </p>
         </td>
-        <td><p>Simulate the observation process across a list of observation vectors</p></td>
+        <td><p>Simulate observed genotypes</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="simulate_sample_coi.html">simulate_sample_coi()</a></code> </p>
+        </td>
+        <td><p>Simulate sample COI</p></td>
       </tr><tr>
         
         <td>
           <p><code><a href="simulate_sample_genotype.html">simulate_sample_genotype()</a></code> </p>
         </td>
-        <td><p>Simulates sampling the genetics at a single locus given an allele frequency distribution and a vector of sample MOIs</p></td>
-      </tr><tr>
-        
-        <td>
-          <p><code><a href="simulate_sample_moi.html">simulate_sample_moi()</a></code> </p>
-        </td>
-        <td><p>Simulate sample MOIs from a zero-truncated Poisson distribution</p></td>
+        <td><p>Simulate sample genotype</p></td>
       </tr><tr>
         
         <td>
           <p><code><a href="rdirichlet.html">rdirichlet()</a></code> </p>
         </td>
-        <td><p>Implementation of random sampling from a Dirichlet distribution</p></td>
+        <td><p>Dirichlet distribution</p></td>
+      </tr>
+    </tbody><tbody>
+      <tr>
+        <th colspan="2">
+          <h2 id="section-summaries" class="hasAnchor"><a href="#section-summaries" class="anchor"></a>Summaries</h2>
+          <p class="section-desc"></p>
+        </th>
+      </tr>
+      
+      
+    </tbody><tbody>
+      
+      
+      <tr>
+        
+        <td>
+          <p><code><a href="summarize_allele_freq_fn.html">summarize_allele_freq_fn()</a></code> </p>
+        </td>
+        <td><p>Summarize Function of Allele Frequencies</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="summarize_allele_freqs.html">summarize_allele_freqs()</a></code> </p>
+        </td>
+        <td><p>Summarize allele frequencies</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="summarize_coi.html">summarize_coi()</a></code> </p>
+        </td>
+        <td><p>Summarize COI</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="summarize_he.html">summarize_he()</a></code> </p>
+        </td>
+        <td><p>Summarize locus heterozygosity</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="calculate_he.html">calculate_he()</a></code> </p>
+        </td>
+        <td><p>Calculate the expected heterozygosity from allele frequencies</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="calculate_naive_allele_frequencies.html">calculate_naive_allele_frequencies()</a></code> </p>
+        </td>
+        <td><p>Calculate naive allele frequencies</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="calculate_naive_coi.html">calculate_naive_coi()</a></code> </p>
+        </td>
+        <td><p>Calculate naive COI</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="calculate_naive_coi_offset.html">calculate_naive_coi_offset()</a></code> </p>
+        </td>
+        <td><p>Calculate naive COI offset</p></td>
       </tr>
     </tbody><tbody>
       <tr>
@@ -243,21 +304,15 @@
       <tr>
         
         <td>
-          <p><code><a href="calculate_he.html">calculate_he()</a></code> </p>
+          <p><code><a href="load_delimited_data.html">load_delimited_data()</a></code> </p>
         </td>
-        <td><p>Calculate the expected heterozygosity from allele frequencies</p></td>
+        <td><p>Load delimited data</p></td>
       </tr><tr>
         
         <td>
-          <p><code><a href="calculate_naive_coi.html">calculate_naive_coi()</a></code> </p>
+          <p><code><a href="load_long_form_data.html">load_long_form_data()</a></code> </p>
         </td>
-        <td><p>Estimates the complexity of infection using a naive approach that chooses the highest number of observed alleles.</p></td>
-      </tr><tr>
-        
-        <td>
-          <p><code><a href="calculate_naive_coi_offset.html">calculate_naive_coi_offset()</a></code> </p>
-        </td>
-        <td><p>Estimates the complexity of infection using a naive approach that chooses the n'th highest number of observed alleles.</p></td>
+        <td><p>Load long form data</p></td>
       </tr>
     </tbody><tbody>
       <tr>
@@ -282,7 +337,7 @@
         <td>
           <p><code><a href="mcmc_results.html">mcmc_results</a></code> </p>
         </td>
-        <td><p>MCMC results from using the packaged simulated data and calling run_mcmc()</p></td>
+        <td><p>MCMC results from using the packaged simulated data and calling <code>run_mcmc()</code></p></td>
       </tr>
     </tbody>
     </table>
@@ -302,7 +357,7 @@
 </div>
 
 <div class="pkgdown">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.5.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/">pkgdown</a> 1.6.1.</p>
 </div>
 
       </footer>

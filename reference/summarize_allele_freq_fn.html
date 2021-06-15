@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Simulated genotyping data — simulated_data • moire</title>
+<title>Summarize Function of Allele Frequencies — summarize_allele_freq_fn • moire</title>
 
 <!-- favicons -->
 <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
@@ -46,8 +46,8 @@
 
 
 
-<meta property="og:title" content="Simulated genotyping data — simulated_data" />
-<meta property="og:description" content="A simulated dataset created using simulate_data()" />
+<meta property="og:title" content="Summarize Function of Allele Frequencies — summarize_allele_freq_fn" />
+<meta property="og:description" content="Summarize Function of Allele Frequencies" />
 <meta property="og:image" content="https://m-murphy.github.io/moire/reference/figures/logo.png" />
 <meta name="twitter:card" content="summary" />
 <meta name="twitter:creator" content="@MxMrphy" />
@@ -144,21 +144,50 @@
 <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>Simulated genotyping data</h1>
-    <small class="dont-index">Source: <a href='https://github.com/m-murphy/moire/blob/master/R/data.R'><code>R/data.R</code></a></small>
-    <div class="hidden name"><code>simulated_data.Rd</code></div>
+    <h1>Summarize Function of Allele Frequencies</h1>
+    <small class="dont-index">Source: <a href='https://github.com/m-murphy/moire/blob/master/R/summary.R'><code>R/summary.R</code></a></small>
+    <div class="hidden name"><code>summarize_allele_freq_fn.Rd</code></div>
     </div>
 
     <div class="ref-description">
-    <p>A simulated dataset created using <code><a href='simulate_data.html'>simulate_data()</a></code></p>
+    <p>Summarize Function of Allele Frequencies</p>
     </div>
 
-    <pre class="usage"><span class='va'>simulated_data</span></pre>
+    <pre class="usage"><span class='fu'>summarize_allele_freq_fn</span><span class='op'>(</span>
+  <span class='va'>mcmc_results</span>,
+  <span class='va'>fn</span>,
+  lower_quantile <span class='op'>=</span> <span class='fl'>0.025</span>,
+  upper_quantile <span class='op'>=</span> <span class='fl'>0.975</span>
+<span class='op'>)</span></pre>
 
+    <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
+    <table class="ref-arguments">
+    <colgroup><col class="name" /><col class="desc" /></colgroup>
+    <tr>
+      <th>mcmc_results</th>
+      <td><p>Result of calling run_mcmc()</p></td>
+    </tr>
+    <tr>
+      <th>fn</th>
+      <td><p>Function that takes as input a simplex to apply to each
+allele frequency vector</p></td>
+    </tr>
+    <tr>
+      <th>lower_quantile</th>
+      <td><p>The lower quantile of the posterior distribution
+to return</p></td>
+    </tr>
+    <tr>
+      <th>upper_quantile</th>
+      <td><p>The upper quantile of the posterior distribution
+to return</p></td>
+    </tr>
+    </table>
 
-    <h2 class="hasAnchor" id="format"><a class="anchor" href="#format"></a>Format</h2>
+    <h2 class="hasAnchor" id="details"><a class="anchor" href="#details"></a>Details</h2>
 
-    <p>An object of class <code>list</code> of length 7.</p>
+    <p>General function to summarize the posterior distribution of
+functions of the sampled allele frequencies</p>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">

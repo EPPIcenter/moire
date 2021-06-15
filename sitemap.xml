@@ -7,13 +7,25 @@
     <loc>https://m-murphy.github.io/moire//reference/calculate_he.html</loc>
   </url>
   <url>
+    <loc>https://m-murphy.github.io/moire//reference/calculate_naive_allele_frequencies.html</loc>
+  </url>
+  <url>
     <loc>https://m-murphy.github.io/moire//reference/calculate_naive_coi.html</loc>
   </url>
   <url>
     <loc>https://m-murphy.github.io/moire//reference/calculate_naive_coi_offset.html</loc>
   </url>
   <url>
+    <loc>https://m-murphy.github.io/moire//reference/load_delimited_data.html</loc>
+  </url>
+  <url>
+    <loc>https://m-murphy.github.io/moire//reference/load_long_form_data.html</loc>
+  </url>
+  <url>
     <loc>https://m-murphy.github.io/moire//reference/mcmc_results.html</loc>
+  </url>
+  <url>
+    <loc>https://m-murphy.github.io/moire//reference/pipe.html</loc>
   </url>
   <url>
     <loc>https://m-murphy.github.io/moire//reference/rdirichlet.html</loc>
@@ -22,10 +34,10 @@
     <loc>https://m-murphy.github.io/moire//reference/run_mcmc.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire//reference/simulate_data.html</loc>
+    <loc>https://m-murphy.github.io/moire//reference/simulate_allele_frequencies.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire//reference/simulate_locus_allele_frequencies.html</loc>
+    <loc>https://m-murphy.github.io/moire//reference/simulate_data.html</loc>
   </url>
   <url>
     <loc>https://m-murphy.github.io/moire//reference/simulate_observed_allele.html</loc>
@@ -34,13 +46,25 @@
     <loc>https://m-murphy.github.io/moire//reference/simulate_observed_genotype.html</loc>
   </url>
   <url>
+    <loc>https://m-murphy.github.io/moire//reference/simulate_sample_coi.html</loc>
+  </url>
+  <url>
     <loc>https://m-murphy.github.io/moire//reference/simulate_sample_genotype.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire//reference/simulate_sample_moi.html</loc>
+    <loc>https://m-murphy.github.io/moire//reference/simulated_data.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire//reference/simulated_data.html</loc>
+    <loc>https://m-murphy.github.io/moire//reference/summarize_allele_freq_fn.html</loc>
+  </url>
+  <url>
+    <loc>https://m-murphy.github.io/moire//reference/summarize_allele_freqs.html</loc>
+  </url>
+  <url>
+    <loc>https://m-murphy.github.io/moire//reference/summarize_coi.html</loc>
+  </url>
+  <url>
+    <loc>https://m-murphy.github.io/moire//reference/summarize_he.html</loc>
   </url>
   <url>
     <loc>https://m-murphy.github.io/moire//articles/mcmc_demo.html</loc>
