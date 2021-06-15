@@ -16,6 +16,9 @@ jobs:
 
       - uses: r-lib/actions/setup-pandoc@master
 
+      - name: Install GSL
+        run: brew install gsl
+
       - name: Query dependencies
         run: |
           install.packages('remotes')
