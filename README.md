@@ -7,7 +7,7 @@ polyallelic genomics data.
 
 ## Installation
 
-`moire` requires the Gnu Scientific Library (GSL).
+`moire` requires the GNU Scientific Library (GSL).
 
 ``` bash
 # Linux

@@ -8,29 +8,28 @@ run_mcmc(
   data,
   sample_ids,
   loci,
-  mean_coi,
   is_missing = FALSE,
   thin = 1,
   burnin = 10000,
   samples = 10000,
-  complexity_limit = 1e+05,
-  importance_sampling_depth = 10,
-  importance_sampling_scaling_factor = 10,
+  complexity_limit = 2050,
+  importance_sampling_depth = 300,
+  importance_sampling_scaling_factor = 100,
   verbose = TRUE,
   eps_pos_0 = 0.01,
   eps_pos_var = 0.001,
   eps_pos_alpha = 1,
   eps_pos_beta = 99,
-  eps_neg_0 = 0.1,
+  eps_neg_0 = 0.05,
   eps_neg_var = 0.005,
-  eps_neg_alpha = 10,
-  eps_neg_beta = 90,
+  eps_neg_alpha = 5,
+  eps_neg_beta = 95,
   max_eps_pos = 0.5,
   max_eps_neg = 0.5,
   mean_coi_prior_shape = 1.5,
   mean_coi_prior_scale = 0.5,
   mean_coi_var = 1,
-  allele_freq_var = 1
+  allele_freq_var = 0.1
 )
 }
 \arguments{
@@ -57,7 +56,8 @@ discard as burnin}
 after burnin}
 
 \item{complexity_limit}{Limit on the total number of computations before
-resorting to an importance sampling based approach of the integral.}
+resorting to an importance sampling based approach of the integral. Total
+number of computations is approximately}
 
 \item{importance_sampling_depth}{Positive Integer. Min number
 of samples to take during importance sampling. Larger values
