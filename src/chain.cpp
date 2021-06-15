@@ -83,10 +83,6 @@ void Chain::update_mean_coi(int iteration)
             sum_orig += sampler.get_coi_log_prob(m[ii], mean_coi);
         }
 
-        double tmp = sampler.get_coi_mean_log_prior(
-            prop_mean_coi, params.mean_coi_prior_shape,
-            params.mean_coi_prior_scale);
-
         sum_can += sampler.get_coi_mean_log_prior(prop_mean_coi,
                                                   params.mean_coi_prior_shape,
                                                   params.mean_coi_prior_scale);
