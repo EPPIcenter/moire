@@ -90,6 +90,13 @@ run_mcmc <-
       )
     }
 
+    total_alleles <- lapply(data, function(x) {
+      return(length(x[[1]]))
+    })
+    if (any(total_alleles < 2)) {
+      stop("Loci with less than 2 alleles present, remove these loci")
+    }
+
     res <- run_mcmc_rcpp(args)
     res$args <- args
     res$total_samples <- args$samples / args$thin
