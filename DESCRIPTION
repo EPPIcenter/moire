@@ -1,6 +1,6 @@
 Package: moire
 Title: MOI and Allele Frequency Recovery from Noisy Polyallelic Genetics Data
-Version: 1.1.0
+Version: 1.1.1
 Authors@R: 
     person(given = "Maxwell",
            family = "Murphy",
