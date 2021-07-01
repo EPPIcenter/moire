@@ -190,7 +190,7 @@ std::vector<double> Sampler::sample_allele_frequencies2(
 };
 
 std::vector<int> Sampler::sample_latent_genotype(
-    int coi, std::vector<double> &allele_frequencies)
+    int coi, const std::vector<double> &allele_frequencies)
 {
     std::vector<int> tmp_alleles(allele_frequencies.size(), 0);
     std::vector<int> allele_index_vec{};

@@ -35,7 +35,7 @@ void MCMC::sample(int step)
     chain.update_p(params.burnin + step);
     chain.update_m(params.burnin + step);
     chain.update_individual_parameters(params.burnin + step);
-    chain.update_mean_coi(step);
+    chain.update_mean_coi(params.burnin + step);
 
     if (params.thin == 0 || step % params.thin == 0)
     {

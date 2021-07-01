@@ -14,7 +14,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
 {
     Parameters params(args);
     GenotypingData genotyping_data(args);
-    Lookup lookup(40, genotyping_data.max_alleles);
+    Lookup lookup(genotyping_data.max_alleles);
 
     if (params.verbose)
     {

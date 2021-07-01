@@ -62,7 +62,7 @@ class Sampler
         int num_samples);
 
     std::vector<int> sample_latent_genotype(
-        int coi, std::vector<double> &allele_frequencies);
+        int coi, const std::vector<double> &allele_frequencies);
 
     double sample_log_mh_acceptance();
     double runif_0_1();
