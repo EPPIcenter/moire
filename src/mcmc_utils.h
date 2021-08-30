@@ -27,6 +27,8 @@ int r_to_bool(SEXP x);
 
 int r_to_int(SEXP x);
 
+long int r_to_long_int(SEXP x);
+
 double r_to_double(SEXP x);
 
 std::string r_to_string(SEXP x);

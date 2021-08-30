@@ -31,7 +31,7 @@ double Sampler::dpois(int x, double mean, bool return_log)
 double Sampler::dztpois(int x, double lambda)
 {
     return x * std::log(lambda) - std::log(std::exp(lambda) - 1) -
-           lookup.lookup_lgamma[x + 1];
+           std::lgamma(x + 1);
 }
 
 double Sampler::dgamma(double x, double shape, double scale, bool return_log)
@@ -209,5 +209,11 @@ std::vector<int> Sampler::sample_latent_genotype(
     }
     return allele_index_vec;
 }
+
+void Sampler::shuffle_vec(std::vector<int> &vec) {
+    std::shuffle(vec.begin(), vec.end(), eng);
+}
+
+double Sampler::sample_unif() { return unif_distr(eng); };
 
 double Sampler::sample_log_mh_acceptance() { return log(unif_distr(eng)); };

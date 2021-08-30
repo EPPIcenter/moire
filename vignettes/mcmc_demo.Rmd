@@ -28,12 +28,12 @@ To demonstrate the usage of the package, we can simulate some genotyping data ac
 set.seed(17327)
 
 mean_moi <- 4
-num_biological_samples <- 100
+num_biological_samples <- 50
 epsilon_pos <- .01
 epsilon_neg <- .03
 
 # Generate the number of alleles at each locus
-allele_counts <- c(rep(5, 10), rep(10, 10), rep(15, 10))
+allele_counts <- c(rep(5, 5), rep(10, 5), rep(15, 5), rep(25, 5))
 
 # We'll use flat alpha vectors for our draws from the Dirichlet
 locus_freq_alphas <- lapply(allele_counts, function(allele) rep(1, allele))
@@ -64,7 +64,7 @@ num_samples <- 1e3
 res <- moire::run_mcmc(
   simulated_data$data, simulated_data$sample_ids, simulated_data$loci, 
   verbose = T, burnin = burnin, samples = num_samples, thin = 1,
-  eps_pos_alpha = 10, eps_pos_beta = 990,
+  eps_pos_alpha = 10, eps_pos_beta = 990, complexity_limit = 2^12, importance_sampling_depth = 1000,
   eps_neg_alpha = 30, eps_neg_beta = 970, allele_freq_var = .1
 )
 ```
@@ -192,4 +192,26 @@ ggplot(allele_freq_data) +
   theme_classic(base_size = 12) +
   expand_limits(x = 0, y = 0) +
   ggtitle("Estimates of Allele Frequencies vs Truth")
+```
+
+```{r plot_allele_freq_concordance_log}
+ggplot(allele_freq_data) +
+  geom_errorbar(aes(
+    y = log(post_allele_freqs_mean),
+    x = log(true_allele_frequency),
+    # ymax = post_allele_freqs_mean,
+    # ymin = post_allele_freqs_mean)) +
+    ymax = log(post_allele_freqs_upper),
+    ymin = log(post_allele_freqs_lower))) +
+  geom_point(aes(y = log(post_allele_freqs_mean), x = log(true_allele_frequency))) +
+  geom_point(aes(y = log(naive_allele_frequency), x = log(true_allele_frequency)), color = "red", alpha = .3) +
+  geom_abline(slope = 1, intercept = 0) +
+  ylab("Mean Posterior Freqeuncy") +
+  xlab("True Frequency") +
+  theme_classic(base_size = 12) +
+  expand_limits(x = 0, y = 0) +
+  ggtitle("Estimates of Allele Frequencies vs Truth")
+
+mean(abs(allele_freq_data$post_allele_freqs_med - allele_freq_data$true_allele_frequency))
+mean(abs(allele_freq_data$naive_allele_frequency - allele_freq_data$true_allele_frequency))
 ```

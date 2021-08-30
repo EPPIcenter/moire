@@ -61,26 +61,36 @@ class Chain
         double epsilon_pos, int num_genotypes);
 
     long double calc_genotype_marginal_llik(
-        std::vector<int> const &obs_genotype,
-        std::vector<int> const &emphasized_alleles, int coi,
-        std::vector<double> const &allele_frequencies, double epsilon_neg,
-        double epsilon_pos);
-
-    long double calc_genotype_marginal_llik(
         std::vector<int> const &obs_genotype, int coi,
         std::vector<double> const &allele_frequencies, double epsilon_neg,
-        double epsilon_pos);
+        double epsilon_pos, bool importance_sample = false);
 
     long double calc_exact_genotype_marginal_llik(
         std::vector<int> const &obs_genotype, int coi,
         std::vector<double> const &allele_frequencies, double epsilon_neg,
         double epsilon_pos);
 
+    long double importance_sample(std::vector<int> const &obs_genotype, int coi,
+                                  double epsilon_neg, double epsilon_pos,
+                                  std::vector<double> const &allele_frequencies,
+                                  int sampling_depth);
+
+    long double importance_sample2(
+        std::vector<int> const &obs_genotype, int coi, double epsilon_neg,
+        double epsilon_pos, std::vector<double> const &allele_frequencies,
+        int sampling_depth
+    );
+
+    long double monte_carlo_sample(std::vector<int> const &obs_genotype,
+                                   int coi, double epsilon_neg,
+                                   double epsilon_pos,
+                                   std::vector<double> const &true_distribution,
+                                   int sampling_depth);
+
     long double calc_estimated_genotype_marginal_llik(
-        std::vector<int> const &obs_genotype,
-        std::vector<int> const &emphasized_alleles, int coi,
+        std::vector<int> const &obs_genotype, int coi,
         std::vector<double> const &allele_frequencies, double epsilon_neg,
-        double epsilon_pos, int sampling_depth);
+        double epsilon_pos, int sampling_depth, bool imp_sample);
 
    public:
     std::vector<std::vector<double>> llik_old{};

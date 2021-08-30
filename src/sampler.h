@@ -4,6 +4,7 @@
 #include "lookup.h"
 
 #include <RcppGSL.h>
+#include <algorithm>
 
 #include <boost/random.hpp>
 #include <gsl/gsl_randist.h>
@@ -65,7 +66,8 @@ class Sampler
         int coi, const std::vector<double> &allele_frequencies);
 
     double sample_log_mh_acceptance();
-    double runif_0_1();
+    double sample_unif();
+    void shuffle_vec(std::vector<int> &vec);
 
     Sampler(Lookup lookup);
 };
