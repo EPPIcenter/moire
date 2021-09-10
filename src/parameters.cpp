@@ -13,8 +13,8 @@ Parameters::Parameters(const Rcpp::List &args)
     complexity_limit = UtilFunctions::r_to_long_int(args["complexity_limit"]);
     importance_sampling_depth =
         UtilFunctions::r_to_long_int(args["importance_sampling_depth"]);
-    importance_sampling_scaling_factor =
-        UtilFunctions::r_to_long_int(args["importance_sampling_scaling_factor"]);
+    importance_sampling_scaling_factor = UtilFunctions::r_to_long_int(
+        args["importance_sampling_scaling_factor"]);
 
     // Model
     // mean_coi = UtilFunctions::r_to_int(args["mean_coi"]);
@@ -33,5 +33,10 @@ Parameters::Parameters(const Rcpp::List &args)
     eps_neg_alpha = UtilFunctions::r_to_double(args["eps_neg_alpha"]);
     eps_neg_beta = UtilFunctions::r_to_double(args["eps_neg_beta"]);
     eps_neg_var = UtilFunctions::r_to_double(args["eps_neg_var"]);
-    allele_freq_var = UtilFunctions::r_to_double(args["allele_freq_var"]);
+
+    allele_freq_vars =
+        UtilFunctions::r_to_vector_double(args["allele_freq_vars"]);
+    adapt_allele_freq_vars =
+        UtilFunctions::r_to_bool(args["adapt_allele_freq_vars"]);
+    // allele_freq_var = UtilFunctions::r_to_double(args["allele_freq_var"]);
 };

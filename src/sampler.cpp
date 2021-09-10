@@ -210,10 +210,14 @@ std::vector<int> Sampler::sample_latent_genotype(
     return allele_index_vec;
 }
 
-void Sampler::shuffle_vec(std::vector<int> &vec) {
+void Sampler::shuffle_vec(std::vector<int> &vec)
+{
     std::shuffle(vec.begin(), vec.end(), eng);
 }
 
 double Sampler::sample_unif() { return unif_distr(eng); };
 
-double Sampler::sample_log_mh_acceptance() { return log(unif_distr(eng)); };
+double Sampler::sample_log_mh_acceptance()
+{
+    return std::log(unif_distr(eng));
+};

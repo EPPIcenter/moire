@@ -49,8 +49,10 @@
 #' @param mean_coi_prior_scale Positive Numeric. Scale parameter for gamma
 #'  prior on mean complexity of infection.
 #' @param mean_coi_var Positive Numeric. Variance used in sampling mean_coi
-#' @param allele_freq_var Positive Numeric. Variance used in sampling allele
+#' @param allele_freq_vars Positive Numeric. Variance used in sampling allele
 #'  frequencies
+#' @param adapt_allele_freq_vars Logical indicating whether to adapt variance
+#'  to achieve an acceptance rate of .27
 run_mcmc <-
   function(data,
            sample_ids,
@@ -76,7 +78,8 @@ run_mcmc <-
            mean_coi_prior_shape = 1.5,
            mean_coi_prior_scale = .5,
            mean_coi_var = 1,
-           allele_freq_var = .1) {
+           allele_freq_vars = .1,
+           adapt_allele_freq_vars = FALSE) {
     args <- as.list(environment())
 
     ## if is_missing == FALSE, then generate a default FALSE matrix
@@ -90,6 +93,11 @@ run_mcmc <-
       )
     }
 
+    if (length(args$allele_freq_vars)) {
+      args$allele_freq_vars <- rep(args$allele_freq_vars, length(loci))
+    }
+
+
     total_alleles <- lapply(data, function(x) {
       return(length(x[[1]]))
     })
@@ -97,7 +105,7 @@ run_mcmc <-
       stop("Loci with less than 2 alleles present, remove these loci")
     }
 
-    res <- run_mcmc_rcpp(args)
+    res <- run_mcmc_rcpp(args) # nolint
     res$args <- args
     res$total_samples <- args$samples / args$thin
     res

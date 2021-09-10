@@ -305,13 +305,64 @@ std::vector<int> randomSequence(int min, int max, Engine rng)
     std::vector<int> indices(max - min);
     std::iota(std::begin(indices), std::end(indices), min);
 
-    auto int_generator = [=](int max_val) {
+    auto int_generator = [=](int max_val)
+    {
         boost::random::uniform_int_distribution<> dist_{0, max_val - 1};
         return dist_(*rng);
     };
 
     boost::range::random_shuffle(indices, int_generator);
     return indices;
+}
+
+inline double logSumExp(const double a, const double b)
+{
+    double max_el = std::max(a, b);
+    if (max_el == -std::numeric_limits<double>::infinity())
+    {
+        return -std::numeric_limits<double>::infinity();
+    }
+    double sum = std::exp(a - max_el) + std::exp(b - max_el);
+    return max_el + std::log(sum);
+}
+
+/**
+ * Numerically stable log(∑(exp(a)))
+ * Does not assume the iterable is sorted.
+ * @tparam Iter implements iterable
+ * @param begin iterator pointer to beginning
+ * @param end iterator pointer to end
+ * @return
+ */
+template <typename Iter>
+typename std::iterator_traits<Iter>::value_type logSumExp(const Iter &begin,
+                                                          const Iter &end)
+{
+    using ValueType = typename std::iterator_traits<Iter>::value_type;
+
+    if (begin == end)
+    {
+        return ValueType{};
+    }
+
+    auto max_el = *std::max_element(begin, end);
+
+    if (max_el == -std::numeric_limits<ValueType>::infinity())
+    {
+        return -std::numeric_limits<ValueType>::infinity();
+    }
+
+    auto sum = std::accumulate(begin, end, ValueType{},
+                               [max_el](ValueType a, ValueType b)
+                               { return a + std::exp(b - max_el); });
+    return max_el + std::log(sum);
+}
+
+template <typename It,
+          typename T = std::decay_t<decltype(*begin(std::declval<It>()))>>
+double logSumExp(const It &x)
+{
+    return logSumExp(x.begin(), x.end());
 }
 
 }  // namespace UtilFunctions

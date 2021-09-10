@@ -2,6 +2,7 @@
 #define PARAMETERS_H_
 
 #include <Rcpp.h>
+#include <vector>
 
 class Parameters
 {
@@ -36,7 +37,9 @@ class Parameters
     double eps_neg_alpha;  // Alpha parameter prior on beta distribution
     double eps_neg_beta;   // Beta parameter prior on beta distribution
 
-    double allele_freq_var;
+    // double allele_freq_var;
+    std::vector<double> allele_freq_vars{};
+    bool adapt_allele_freq_vars;
 
     // constructors
     Parameters(){};

@@ -63,7 +63,7 @@ class Chain
     long double calc_genotype_marginal_llik(
         std::vector<int> const &obs_genotype, int coi,
         std::vector<double> const &allele_frequencies, double epsilon_neg,
-        double epsilon_pos, bool importance_sample = false);
+        double epsilon_pos);
 
     long double calc_exact_genotype_marginal_llik(
         std::vector<int> const &obs_genotype, int coi,
@@ -78,8 +78,7 @@ class Chain
     long double importance_sample2(
         std::vector<int> const &obs_genotype, int coi, double epsilon_neg,
         double epsilon_pos, std::vector<double> const &allele_frequencies,
-        int sampling_depth
-    );
+        int sampling_depth);
 
     long double monte_carlo_sample(std::vector<int> const &obs_genotype,
                                    int coi, double epsilon_neg,
@@ -92,9 +91,53 @@ class Chain
         std::vector<double> const &allele_frequencies, double epsilon_neg,
         double epsilon_pos, int sampling_depth, bool imp_sample);
 
+    double calc_estimated_genotype_marginal_llik(
+        std::vector<int> const &obs_genotype, int coi,
+        std::vector<double> const &allele_frequencies, double epsilon_neg,
+        double epsilon_pos, bool verbose = false);
+
+    double calc_estimated_genotype_marginal_llik2(
+        std::vector<int> const &obs_genotype, int coi,
+        std::vector<double> const &allele_frequencies, double epsilon_neg,
+        double epsilon_pos, bool verbose = false);
+
+    double calculate_llik(int num_samples);
+    double calc_old_likelihood();
+    double calc_new_likelihood();
+    void calculate_genotype_likelihood(int sample_idx, int locux_idx);
+    void calculate_mean_coi_likelihood();
+    void calculate_coi_likelihood(int sample_idx);
+    void calculate_eps_neg_likelihood(int sample_idx);
+    void calculate_eps_pos_likelihood(int sample_idx);
+
+    void save_genotype_likelihood(int sample_idx, int locus_idx);
+    void save_mean_coi_likelihood();
+    void save_coi_likelihood(int sample_idx);
+    void save_eps_neg_likelihood(int sample_idx);
+    void save_eps_pos_likelihood(int sample_idx);
+
+    void restore_genotype_likelihood(int sample_idx, int locus_idx);
+    void restore_mean_coi_likelihood();
+    void restore_coi_likelihood(int sample_idx);
+    void restore_eps_neg_likelihood(int sample_idx);
+    void restore_eps_pos_likelihood(int sample_idx);
+
    public:
-    std::vector<std::vector<double>> llik_old{};
-    std::vector<std::vector<double>> llik_new{};
+    std::vector<std::vector<double>> genotyping_llik_old{};
+    std::vector<std::vector<double>> genotyping_llik_new{};
+
+    std::vector<double> coi_prior_old{};
+    std::vector<double> coi_prior_new{};
+    std::vector<double> eps_neg_prior_old{};
+    std::vector<double> eps_neg_prior_new{};
+    std::vector<double> eps_pos_prior_old{};
+    std::vector<double> eps_pos_prior_new{};
+    double mean_coi_prior_new = 0;
+    double mean_coi_prior_old = 0;
+
+    // stores the importance sampled estimates
+    std::vector<double> llik_store{};
+
     double llik;
 
     // Mean COI
@@ -103,6 +146,8 @@ class Chain
     // double poisson_prior_lambda;
     double mean_coi;
 
+    // Latent Genotypes
+    std::vector<std::vector<std::vector<int>>> observed_alleles;
     // COI
     std::vector<int> m{};
     int prop_m;
@@ -112,8 +157,9 @@ class Chain
     // Allele Frequencies
     std::vector<std::vector<double>> p{};
     std::vector<double> prop_p{};
-    std::vector<double> p_prop_var{};
-    std::vector<int> p_accept{};
+    std::vector<std::vector<double>> p_prop_var{};
+    std::vector<std::vector<int>> p_accept{};
+    std::vector<std::vector<int>> p_attempt{};
 
     // Epsilon Positive
     // double eps_pos;
@@ -139,7 +185,6 @@ class Chain
     void update_eps_pos(int iteration);
     void update_eps_neg(int iteration);
     void update_individual_parameters(int iteration);
-    void calculate_llik();
     double get_llik();
 };
 

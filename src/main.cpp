@@ -25,8 +25,11 @@ Rcpp::List run_mcmc(Rcpp::List args)
     }
 
     MCMC mcmc(genotyping_data, lookup, params);
+    UtilFunctions::print("MCMC Initialized");
     MCMCProgressBar pb(params.burnin, params.samples);
+    UtilFunctions::print("PB Init");
     Progress p(params.burnin + params.samples, params.verbose, pb);
+    UtilFunctions::print("P Init");
 
     int step = 0;
     while (step < params.burnin)
