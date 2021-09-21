@@ -3,7 +3,7 @@ pkgdown: 1.6.1
 pkgdown_sha: ~
 articles:
   mcmc_demo: mcmc_demo.html
-last_built: 2021-09-21T00:18Z
+last_built: 2021-09-21T00:37Z
 urls:
   reference: https://m-murphy.github.io/moire//reference
   article: https://m-murphy.github.io/moire//articles
