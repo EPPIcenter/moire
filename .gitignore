@@ -25,3 +25,5 @@ src/Makevars
 .ccls-cache
 
 *.tmp
+
+compile_flags.txt
