@@ -47,7 +47,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">moire</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.1</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.0.0</span>
       </span>
     </div>
 
@@ -116,15 +116,15 @@
 <span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va"><a href="https://tidyr.tidyverse.org">tidyr</a></span><span class="op">)</span></code></pre></div>
 <p>To demonstrate the usage of the package, we can simulate some genotyping data according to our model.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/base/Random.html">set.seed</a></span><span class="op">(</span><span class="fl">17327</span><span class="op">)</span>
+<code class="sourceCode R"><span class="fu"><a href="https://rdrr.io/r/base/Random.html">set.seed</a></span><span class="op">(</span><span class="fl">17325</span><span class="op">)</span>
 
-<span class="va">mean_moi</span> <span class="op">&lt;-</span> <span class="fl">4</span>
+<span class="va">mean_moi</span> <span class="op">&lt;-</span> <span class="fl">5</span>
 <span class="va">num_biological_samples</span> <span class="op">&lt;-</span> <span class="fl">100</span>
 <span class="va">epsilon_pos</span> <span class="op">&lt;-</span> <span class="fl">.01</span>
 <span class="va">epsilon_neg</span> <span class="op">&lt;-</span> <span class="fl">.03</span>
 
 <span class="co"># Generate the number of alleles at each locus</span>
-<span class="va">allele_counts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">10</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">10</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">15</span>, <span class="fl">10</span><span class="op">)</span><span class="op">)</span>
+<span class="va">allele_counts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">15</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">15</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">25</span>, <span class="fl">15</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">50</span>, <span class="fl">15</span><span class="op">)</span><span class="op">)</span>
 
 <span class="co"># We'll use flat alpha vectors for our draws from the Dirichlet</span>
 <span class="va">locus_freq_alphas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html">lapply</a></span><span class="op">(</span><span class="va">allele_counts</span>, <span class="kw">function</span><span class="op">(</span><span class="va">allele</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html">rep</a></span><span class="op">(</span><span class="fl">1</span>, <span class="va">allele</span><span class="op">)</span><span class="op">)</span>
@@ -133,26 +133,27 @@
   <span class="va">mean_moi</span>, <span class="va">locus_freq_alphas</span>,
   <span class="va">num_biological_samples</span>,
   <span class="va">epsilon_pos</span>, <span class="va">epsilon_neg</span>
-  <span class="op">)</span></code></pre></div>
+<span class="op">)</span></code></pre></div>
 <p>Now that we have our data, let’s go ahead and run the MCMC with strong priors on the error distributions.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="va">burnin</span> <span class="op">&lt;-</span> <span class="fl">1e3</span>
 <span class="va">num_samples</span> <span class="op">&lt;-</span> <span class="fl">1e3</span>
 
-<span class="va">res</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/run_mcmc.html">run_mcmc</a></span><span class="op">(</span>
-  <span class="va">simulated_data</span><span class="op">$</span><span class="va">data</span>, <span class="va">simulated_data</span><span class="op">$</span><span class="va">sample_ids</span>, <span class="va">simulated_data</span><span class="op">$</span><span class="va">loci</span>, 
+<span class="va">mcmc_results</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/run_mcmc.html">run_mcmc</a></span><span class="op">(</span>
+  <span class="va">simulated_data</span><span class="op">$</span><span class="va">data</span>, <span class="va">simulated_data</span><span class="op">$</span><span class="va">sample_ids</span>, <span class="va">simulated_data</span><span class="op">$</span><span class="va">loci</span>,
   verbose <span class="op">=</span> <span class="cn">T</span>, burnin <span class="op">=</span> <span class="va">burnin</span>, samples <span class="op">=</span> <span class="va">num_samples</span>, thin <span class="op">=</span> <span class="fl">1</span>,
-  eps_pos_alpha <span class="op">=</span> <span class="fl">10</span>, eps_pos_beta <span class="op">=</span> <span class="fl">990</span>,
-  eps_neg_alpha <span class="op">=</span> <span class="fl">30</span>, eps_neg_beta <span class="op">=</span> <span class="fl">970</span>, allele_freq_var <span class="op">=</span> <span class="fl">.1</span>
+  eps_pos_alpha <span class="op">=</span> <span class="fl">1</span>, eps_pos_beta <span class="op">=</span> <span class="fl">99</span>, complexity_limit <span class="op">=</span> <span class="fl">5</span>,
+  eps_neg_alpha <span class="op">=</span> <span class="fl">10</span>, eps_neg_beta <span class="op">=</span> <span class="fl">990</span>, allele_freq_vars <span class="op">=</span> <span class="fl">1</span>,
+  adapt_allele_freq_vars <span class="op">=</span> <span class="cn">TRUE</span>
 <span class="op">)</span></code></pre></div>
 <p>After running the MCMC, we can access the draws from the posterior distribution and analyze.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="co"># Estimate the COI for each sample</span>
-<span class="va">coi_summary</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/summarize_coi.html">summarize_coi</a></span><span class="op">(</span><span class="va">res</span><span class="op">)</span>
+<span class="va">coi_summary</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/summarize_coi.html">summarize_coi</a></span><span class="op">(</span><span class="va">mcmc_results</span><span class="op">)</span>
 
 <span class="co"># We can also summarize statistics about the allele frequency distribution</span>
-<span class="va">he_summary</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/summarize_he.html">summarize_he</a></span><span class="op">(</span><span class="va">res</span><span class="op">)</span>
-<span class="va">allele_freq_summary</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/summarize_allele_freqs.html">summarize_allele_freqs</a></span><span class="op">(</span><span class="va">res</span><span class="op">)</span>
+<span class="va">he_summary</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/summarize_he.html">summarize_he</a></span><span class="op">(</span><span class="va">mcmc_results</span><span class="op">)</span>
+<span class="va">allele_freq_summary</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/summarize_allele_freqs.html">summarize_allele_freqs</a></span><span class="op">(</span><span class="va">mcmc_results</span><span class="op">)</span>
 
 <span class="co"># Let's append the true values for use later</span>
 <span class="va">coi_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html">data.frame</a></span><span class="op">(</span><span class="va">coi_summary</span>,
@@ -174,8 +175,12 @@
 <span class="va">allele_freq_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html">data.frame</a></span><span class="op">(</span>
   <span class="va">allele_freq_summary</span>,
   <span class="co"># true_allele_frequency = unlist(simulated_data$allele_freqs)</span>
-  naive_allele_frequency <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/unlist.html">unlist</a></span><span class="op">(</span><span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/calculate_naive_allele_frequencies.html">calculate_naive_allele_frequencies</a></span><span class="op">(</span><span class="va">simulated_data</span><span class="op">$</span><span class="va">data</span><span class="op">)</span><span class="op">)</span>,
-  true_allele_frequency <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/unlist.html">unlist</a></span><span class="op">(</span><span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/calculate_naive_allele_frequencies.html">calculate_naive_allele_frequencies</a></span><span class="op">(</span><span class="va">simulated_data</span><span class="op">$</span><span class="va">true_genotypes</span><span class="op">)</span><span class="op">)</span>
+  naive_allele_frequency <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/unlist.html">unlist</a></span><span class="op">(</span>
+    <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/calculate_naive_allele_frequencies.html">calculate_naive_allele_frequencies</a></span><span class="op">(</span><span class="va">simulated_data</span><span class="op">$</span><span class="va">data</span><span class="op">)</span>
+  <span class="op">)</span>,
+  true_allele_frequency <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/unlist.html">unlist</a></span><span class="op">(</span>
+    <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/calculate_naive_allele_frequencies.html">calculate_naive_allele_frequencies</a></span><span class="op">(</span><span class="va">simulated_data</span><span class="op">$</span><span class="va">true_genotypes</span><span class="op">)</span>
+  <span class="op">)</span>
 <span class="op">)</span></code></pre></div>
 <p>Here we demonstrate the difference in distribution of the estimate of MOI using our approach vs the naive method of taking the maximum number of alleles observed or the second highest number of alleles observed</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
@@ -234,8 +239,7 @@
   <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/expand_limits.html">expand_limits</a></span><span class="op">(</span>y <span class="op">=</span> <span class="fl">.5</span><span class="op">)</span></code></pre></div>
 <p><img src="mcmc_demo_files/figure-html/plot_he_concordance-1.png" width="700"></p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R">
-<span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html">ggplot</a></span><span class="op">(</span><span class="va">he_data</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">true_he</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span>
+<code class="sourceCode R"><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html">ggplot</a></span><span class="op">(</span><span class="va">he_data</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">true_he</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span>
   <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">post_stat_mean</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"blue"</span><span class="op">)</span> <span class="op">+</span>
   <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">naive_he</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"green"</span><span class="op">)</span> <span class="op">+</span>
   <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html">theme_classic</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span>
@@ -246,8 +250,6 @@
   <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_linerange.html">geom_errorbar</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>
     y <span class="op">=</span> <span class="va">post_allele_freqs_mean</span>,
     x <span class="op">=</span> <span class="va">true_allele_frequency</span>,
-    <span class="co"># ymax = post_allele_freqs_mean,</span>
-    <span class="co"># ymin = post_allele_freqs_mean)) +</span>
     ymax <span class="op">=</span> <span class="va">post_allele_freqs_upper</span>,
     ymin <span class="op">=</span> <span class="va">post_allele_freqs_lower</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span>
   <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">post_allele_freqs_mean</span>, x <span class="op">=</span> <span class="va">true_allele_frequency</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span>

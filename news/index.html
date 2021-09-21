@@ -92,7 +92,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">moire</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.1</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.0.0</span>
       </span>
     </div>
 
@@ -147,6 +147,15 @@
       <small>Source: <a href='https://github.com/m-murphy/moire/blob/master/NEWS.md'><code>NEWS.md</code></a></small>
     </div>
 
+    <div id="moire-200" class="section level1">
+<h1 class="page-header" data-toc-text="2.0.0">
+<a href="#moire-200" class="anchor"></a>moire 2.0.0</h1>
+<ul>
+<li>Underlying model no longer uses pseudo marginal MH algorithm. Instead, model is augmented with latent genotypes above some user defined complexity level which are then sampled. Loci below the user defined complexity level have the latent state fully marginalized out.</li>
+<li>Removed dependency on GSL</li>
+<li>various bugfixes and speedups</li>
+</ul>
+</div>
     <div id="moire-111" class="section level1">
 <h1 class="page-header" data-toc-text="1.1.1">
 <a href="#moire-111" class="anchor"></a>moire 1.1.1</h1>

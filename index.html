@@ -47,7 +47,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="index.html">moire</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">1.1.1</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="Released version">2.0.0</span>
       </span>
     </div>
 
@@ -105,14 +105,7 @@
 <div id="installation" class="section level2">
 <h2 class="hasAnchor">
 <a href="#installation" class="anchor"></a>Installation</h2>
-<p><code>moire</code> requires the GNU Scientific Library (GSL).</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1"></a><span class="co"># Linux</span></span>
-<span id="cb1-2"><a href="#cb1-2"></a><span class="fu">sudo</span> apt-get install libgsl-dev</span></code></pre></div>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1"></a><span class="co"># MacOS</span></span>
-<span id="cb2-2"><a href="#cb2-2"></a><span class="ex">brew</span> install gsl</span></code></pre></div>
-<p>For Windows, follow instructions found <a href="https://stackoverflow.com/questions/26939683/linking-gsl-library-to-rcppgsl-on-windows-machine">here</a></p>
-<p>After installing GSL, install moire as follows</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="co"># Install development version from Github</span>
 <span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html">install_github</a></span><span class="op">(</span><span class="st">"m-murphy/moire"</span><span class="op">)</span></code></pre></div>
 </div>
@@ -120,7 +113,7 @@
 <h2 class="hasAnchor">
 <a href="#usage" class="anchor"></a>Usage</h2>
 <p>moire supports loading data from either a long format <code>data.frame</code> using <code><a href="reference/load_long_form_data.html">load_long_form_data()</a></code> or from a wide format <code>data.frame</code> using <code><a href="reference/load_delimited_data.html">load_delimited_data()</a></code>.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/utils/read.table.html">read.csv</a></span><span class="op">(</span><span class="st">"your_data.csv"</span><span class="op">)</span>
 <span class="va">data</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/load_long_form_data.html">load_long_form_data</a></span><span class="op">(</span><span class="va">df</span><span class="op">)</span>
 
