@@ -1,4 +1,5 @@
 #include "chain.h"
+
 #include "mcmc_utils.h"
 #include "sampler.h"
 
@@ -225,13 +226,6 @@ void Chain::update_p(int iteration)
             }
 
             auto prev_p = p[j];
-
-            for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
-            {
-                calculate_genotype_likelihood(ii, j);
-            }
-            double new_llik2 = calc_new_likelihood();
-
             p[j] = prop_p;
 
             for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
@@ -564,7 +558,6 @@ void Chain::initialize_likelihood()
 {
     int num_samples = genotyping_data.num_samples;
     int num_loci = genotyping_data.num_loci;
-    int sampling_depth = params.importance_sampling_depth;
     int row_idx, idx;
 
     genotyping_llik_new.resize(num_samples * num_loci);
