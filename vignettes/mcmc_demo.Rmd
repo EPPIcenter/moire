@@ -7,11 +7,13 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup_options, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
+# 
+do.call(knitr::read_chunk, list(path = "../data-raw/mcmc_results.R"))
 ```
 
 ```{r setup, message=FALSE}
@@ -25,24 +27,7 @@ library(tidyr)
 To demonstrate the usage of the package, we can simulate some genotyping data according to our model.
 
 ```{r simulate_data, eval=FALSE, include=TRUE}
-set.seed(17327)
 
-mean_moi <- 4
-num_biological_samples <- 50
-epsilon_pos <- .01
-epsilon_neg <- .03
-
-# Generate the number of alleles at each locus
-allele_counts <- c(rep(5, 5), rep(10, 5), rep(15, 5), rep(25, 5))
-
-# We'll use flat alpha vectors for our draws from the Dirichlet
-locus_freq_alphas <- lapply(allele_counts, function(allele) rep(1, allele))
-
-simulated_data <- moire::simulate_data(
-  mean_moi, locus_freq_alphas,
-  num_biological_samples,
-  epsilon_pos, epsilon_neg
-  )
 ```
 
 ```{r load_simulated_data, eval=TRUE, include=FALSE}
@@ -57,31 +42,21 @@ simulated_data <- moire::simulated_data
 
 Now that we have our data, let's go ahead and run the MCMC with strong priors on the error distributions. 
 
-```{r run_mcmc, eval=FALSE, include=TRUE}
-burnin <- 1e3
-num_samples <- 1e3
-
-res <- moire::run_mcmc(
-  simulated_data$data, simulated_data$sample_ids, simulated_data$loci, 
-  verbose = T, burnin = burnin, samples = num_samples, thin = 1,
-  eps_pos_alpha = 10, eps_pos_beta = 990, complexity_limit = 2^12, importance_sampling_depth = 1000,
-  eps_neg_alpha = 30, eps_neg_beta = 970, allele_freq_var = .1
-)
+```{r run_mcmc, eval=FALSE, include=TRUE, output_sim=TRUE}
 ```
 
 ```{r run_mcmc_load, eval = TRUE, include = FALSE}
-res <- moire::mcmc_results
+mcmc_results <- moire::mcmc_results
 ```
-
 After running the MCMC, we can access the draws from the posterior distribution and analyze.
 
 ```{r analyze_mcmc}
 # Estimate the COI for each sample
-coi_summary <- moire::summarize_coi(res)
+coi_summary <- moire::summarize_coi(mcmc_results)
 
 # We can also summarize statistics about the allele frequency distribution
-he_summary <- moire::summarize_he(res)
-allele_freq_summary <- moire::summarize_allele_freqs(res)
+he_summary <- moire::summarize_he(mcmc_results)
+allele_freq_summary <- moire::summarize_allele_freqs(mcmc_results)
 
 # Let's append the true values for use later
 coi_data <- data.frame(coi_summary,
@@ -103,8 +78,12 @@ he_data <- data.frame(
 allele_freq_data <- data.frame(
   allele_freq_summary,
   # true_allele_frequency = unlist(simulated_data$allele_freqs)
-  naive_allele_frequency = unlist(moire::calculate_naive_allele_frequencies(simulated_data$data)),
-  true_allele_frequency = unlist(moire::calculate_naive_allele_frequencies(simulated_data$true_genotypes))
+  naive_allele_frequency = unlist(
+    moire::calculate_naive_allele_frequencies(simulated_data$data)
+  ),
+  true_allele_frequency = unlist(
+    moire::calculate_naive_allele_frequencies(simulated_data$true_genotypes)
+  )
 )
 ```
 
@@ -180,8 +159,6 @@ ggplot(allele_freq_data) +
   geom_errorbar(aes(
     y = post_allele_freqs_mean,
     x = true_allele_frequency,
-    # ymax = post_allele_freqs_mean,
-    # ymin = post_allele_freqs_mean)) +
     ymax = post_allele_freqs_upper,
     ymin = post_allele_freqs_lower)) +
   geom_point(aes(y = post_allele_freqs_mean, x = true_allele_frequency)) +
@@ -192,26 +169,4 @@ ggplot(allele_freq_data) +
   theme_classic(base_size = 12) +
   expand_limits(x = 0, y = 0) +
   ggtitle("Estimates of Allele Frequencies vs Truth")
-```
-
-```{r plot_allele_freq_concordance_log}
-ggplot(allele_freq_data) +
-  geom_errorbar(aes(
-    y = log(post_allele_freqs_mean),
-    x = log(true_allele_frequency),
-    # ymax = post_allele_freqs_mean,
-    # ymin = post_allele_freqs_mean)) +
-    ymax = log(post_allele_freqs_upper),
-    ymin = log(post_allele_freqs_lower))) +
-  geom_point(aes(y = log(post_allele_freqs_mean), x = log(true_allele_frequency))) +
-  geom_point(aes(y = log(naive_allele_frequency), x = log(true_allele_frequency)), color = "red", alpha = .3) +
-  geom_abline(slope = 1, intercept = 0) +
-  ylab("Mean Posterior Freqeuncy") +
-  xlab("True Frequency") +
-  theme_classic(base_size = 12) +
-  expand_limits(x = 0, y = 0) +
-  ggtitle("Estimates of Allele Frequencies vs Truth")
-
-mean(abs(allele_freq_data$post_allele_freqs_med - allele_freq_data$true_allele_frequency))
-mean(abs(allele_freq_data$naive_allele_frequency - allele_freq_data$true_allele_frequency))
 ```

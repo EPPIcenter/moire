@@ -17,38 +17,24 @@
 #'  discard as burnin
 #' @param samples Positive Integer. Number of samples to take
 #'  after burnin
-#' @param complexity_limit Limit on the total number of computations before
-#'  resorting to an importance sampling based approach of the integral. Total
-#'  number of computations is approximately
-#' @param importance_sampling_depth Positive Integer. Min number
-#'  of samples to take during importance sampling. Larger values
-#'  result in longer computation time, too small of values will
-#'  result in poor mixing.
-#' @param importance_sampling_scaling_factor Positive Ingeter.
-#'  Total additional importance samples taken per increase in
-#'  complexity of infection. Total number of
-#'  samples = importance_sampling_depth + coi * importance_sampling_scaling_
-#'  factor
+#' @param complexity_limit Limit on the number of alleles possible
+#'  before augmenting with a latent genetic state representation.
 #' @param verbose Logical indicating if progress is printed
 #' @param eps_pos_0 0-1 Numeric. Initial eps_pos value
-#' @param eps_pos_var 0-1 Numeric. Variance used in sampling eps_pos
+#' @param eps_pos_var Numeric. Variance used in sampling eps_pos
 #' @param eps_pos_alpha Positive Numeric. Alpha parameter in
 #'  Beta distribution for eps_pos prior
 #' @param eps_pos_beta Positive Numeric. Beta parameter in
 #'  Beta distribution for eps_pos prior
 #' @param eps_neg_0 0-1 Numeric. Initial eps_neg value
-#' @param eps_neg_var 0-1 Numeric. Variance used in sampling eps_neg
+#' @param eps_neg_var Numeric. Variance used in sampling eps_neg
 #' @param eps_neg_alpha Positive Numeric. Alpha parameter in
 #'  Beta distribution for eps_neg prior
 #' @param eps_neg_beta Positive Numeric. Beta parameter in
 #'  Beta distribution for eps_neg prior
 #' @param max_eps_pos 0-1 Numeric. Maximum allowed value for eps_pos
 #' @param max_eps_neg 0-1 Numeric. Maximum allowed value for eps_neg
-#' @param mean_coi_prior_shape Positive Numeric. Shape parameter for gamma
-#'  prior on mean complexity of infection.
-#' @param mean_coi_prior_scale Positive Numeric. Scale parameter for gamma
-#'  prior on mean complexity of infection.
-#' @param mean_coi_var Positive Numeric. Variance used in sampling mean_coi
+#' @param max_coi Positive Numeric. Maximum allowed complexity of infection
 #' @param allele_freq_vars Positive Numeric. Variance used in sampling allele
 #'  frequencies
 #' @param adapt_allele_freq_vars Logical indicating whether to adapt variance
@@ -61,9 +47,7 @@ run_mcmc <-
            thin = 1,
            burnin = 1e4,
            samples = 1e4,
-           complexity_limit = 2050,
-           importance_sampling_depth = 300,
-           importance_sampling_scaling_factor = 100,
+           complexity_limit = 5,
            verbose = TRUE,
            eps_pos_0 = .01,
            eps_pos_var = .001,
@@ -75,9 +59,7 @@ run_mcmc <-
            eps_neg_beta = 95,
            max_eps_pos = .5,
            max_eps_neg = .5,
-           mean_coi_prior_shape = 1.5,
-           mean_coi_prior_scale = .5,
-           mean_coi_var = 1,
+           max_coi = 20,
            allele_freq_vars = .1,
            adapt_allele_freq_vars = FALSE) {
     args <- as.list(environment())
@@ -103,6 +85,10 @@ run_mcmc <-
     })
     if (any(total_alleles < 2)) {
       stop("Loci with less than 2 alleles present, remove these loci")
+    }
+
+    if (max_coi < 1) {
+      stop("Max COI must be greater than 1")
     }
 
     res <- run_mcmc_rcpp(args) # nolint

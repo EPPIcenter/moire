@@ -19,6 +19,7 @@ class Parameters
     // Model Parameters
     // Complexity of Infection
     // int mean_coi;
+    double max_coi;
     double mean_coi_var;
     double mean_coi_prior_shape;
     double mean_coi_prior_scale;

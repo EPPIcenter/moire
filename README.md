@@ -7,23 +7,6 @@ polyallelic genomics data.
 
 ## Installation
 
-`moire` requires the GNU Scientific Library (GSL).
-
-``` bash
-# Linux
-sudo apt-get install libgsl-dev
-```
-
-``` bash
-# MacOS
-brew install gsl
-```
-
-For Windows, follow instructions found
-[here](https://stackoverflow.com/questions/26939683/linking-gsl-library-to-rcppgsl-on-windows-machine)
-
-After installing GSL, install moire as follows
-
 ``` r
 # Install development version from Github
 remotes::install_github("m-murphy/moire")

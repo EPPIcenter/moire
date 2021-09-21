@@ -23,8 +23,6 @@ void MCMC::burnin(int step)
     chain.update_eps_pos(step);
     chain.update_p(step);
     chain.update_m(step);
-    chain.update_individual_parameters(step);
-    chain.update_mean_coi(step);
     llik_burnin.push_back(chain.get_llik());
 }
 
@@ -34,8 +32,6 @@ void MCMC::sample(int step)
     chain.update_eps_pos(params.burnin + step);
     chain.update_p(params.burnin + step);
     chain.update_m(params.burnin + step);
-    chain.update_individual_parameters(params.burnin + step);
-    chain.update_mean_coi(params.burnin + step);
 
     if (params.thin == 0 || step % params.thin == 0)
     {
@@ -50,7 +46,6 @@ void MCMC::sample(int step)
             eps_neg_store[jj].push_back(chain.eps_neg[jj]);
             eps_pos_store[jj].push_back(chain.eps_pos[jj]);
         }
-        mean_coi_store.push_back(chain.mean_coi);
         llik_sample.push_back(chain.get_llik());
     }
 }

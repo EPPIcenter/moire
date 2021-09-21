@@ -124,13 +124,19 @@ void print(T first, Args... args)
 template <class T>
 void print_vector(std::vector<T> v)
 {
-    Rcpp::Rcout << '[';
-    for (size_t i = 0; i < v.size() - 1; i++)
+    if (v.size() == 0)
     {
-        Rcpp::Rcout << v[i] << ", ";
+        Rcpp::Rcout << "[]\n";
     }
-    Rcpp::Rcout << v[v.size() - 1] << "]"
-                << "\n";
+    else
+    {
+        Rcpp::Rcout << '[';
+        for (size_t i = 0; i < v.size() - 1; i++)
+        {
+            Rcpp::Rcout << v[i] << ", ";
+        }
+        Rcpp::Rcout << v[v.size() - 1] << "]\n";
+    }
 }
 
 template <class T>

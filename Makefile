@@ -19,6 +19,12 @@ doc:
 build:
 		Rscript -e "devtools::build()"
 
+install:
+		Rscript -e "devtools::install()"
+
+builddata: install
+		Rscript "data-raw/mcmc_results.R"
+
 buildfast:
 		Rscript -e "devtools::build(vignettes = FALSE)"
 
