@@ -77,7 +77,6 @@ he_data <- data.frame(
 
 allele_freq_data <- data.frame(
   allele_freq_summary,
-  # true_allele_frequency = unlist(simulated_data$allele_freqs)
   naive_allele_frequency = unlist(
     moire::calculate_naive_allele_frequencies(simulated_data$data)
   ),
