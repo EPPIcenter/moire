@@ -3,12 +3,17 @@
 
 #include "lookup.h"
 
-#include <RcppGSL.h>
+#include <algorithm>
 
 #include <boost/random.hpp>
-#include <gsl/gsl_randist.h>
 
 #include <random>
+
+struct LatentGenotype
+{
+    std::vector<int> value;
+    double log_prob;
+};
 
 class Sampler
 {
@@ -36,7 +41,6 @@ class Sampler
    public:
     static std::random_device rd;
     std::ranlux24_base eng;
-    gsl_rng *gsl_rd;
     boost::random::mt19937 r;
 
     double get_epsilon_log_prior(double x, double alpha, double beta);
@@ -61,11 +65,13 @@ class Sampler
         int coi, std::vector<double> const &allele_frequencies,
         int num_samples);
 
-    std::vector<int> sample_latent_genotype(
-        int coi, const std::vector<double> &allele_frequencies);
-
     double sample_log_mh_acceptance();
-    double runif_0_1();
+    double sample_unif();
+    void shuffle_vec(std::vector<int> &vec);
+
+    LatentGenotype sample_latent_genotype(const std::vector<int> &obs_genotype,
+                                          int coi, double epsilon_pos,
+                                          double epsilon_neg);
 
     Sampler(Lookup lookup);
 };

@@ -28,6 +28,6 @@ test_that("loading delimited data works", {
   expect_equal(res$loci, c("A", "B"))
   expect_equal(res$data[[1]][[1]], c(1, 1, 0), ignore_attr = TRUE)
   expect_equal(res$data[[1]][[2]], c(1, 0, 0), ignore_attr = TRUE)
-  expect_equal(res$data[[1]][[3]], c(1, 0, 1), itnore_attr = TRUE)
+  expect_equal(res$data[[1]][[3]], c(1, 0, 1), ignore_attr = TRUE)
   expect_equal(sum(res$is_missing), 1)
 })

@@ -2,6 +2,7 @@
 #define PARAMETERS_H_
 
 #include <Rcpp.h>
+#include <vector>
 
 class Parameters
 {
@@ -11,13 +12,14 @@ class Parameters
     int thin;
     int burnin;
     int samples;
-    int complexity_limit;
-    int importance_sampling_depth;
-    double importance_sampling_scaling_factor;
+    long int complexity_limit;
+    long int importance_sampling_depth;
+    long int importance_sampling_scaling_factor;
 
     // Model Parameters
     // Complexity of Infection
     // int mean_coi;
+    double max_coi;
     double mean_coi_var;
     double mean_coi_prior_shape;
     double mean_coi_prior_scale;
@@ -36,7 +38,9 @@ class Parameters
     double eps_neg_alpha;  // Alpha parameter prior on beta distribution
     double eps_neg_beta;   // Beta parameter prior on beta distribution
 
-    double allele_freq_var;
+    // double allele_freq_var;
+    std::vector<double> allele_freq_vars{};
+    bool adapt_allele_freq_vars;
 
     // constructors
     Parameters(){};

@@ -1,26 +1,24 @@
 Package: moire
 Title: MOI and Allele Frequency Recovery from Noisy Polyallelic Genetics Data
-Version: 1.1.1
+Version: 2.0.0
 Authors@R: 
     person(given = "Maxwell",
            family = "Murphy",
            role = c("aut", "cre"),
-           email = "murphy2122@gmail.com",
+           email = "murphy2122@berkeley.edu",
            comment = c(ORCID = "0000-0003-0332-4388"))
 Description: An MCMC based approach to Bayesian estimation of individual level multiplicity of infection and 
     population allele frequencies from polyallelic genetic data.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
-SystemRequirements: C++14, GNU GSL   
+SystemRequirements: C++14
 LinkingTo: 
     Rcpp,
-    RcppGSL,
     RcppProgress,
     BH
 Imports: 
     Rcpp,
-    RcppGSL,
     RcppProgress,
     magrittr,
     dplyr,
@@ -33,6 +31,7 @@ RoxygenNote: 7.1.1
 Suggests: 
     knitr,
     rmarkdown,
+    markdown,
     ggplot2,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr

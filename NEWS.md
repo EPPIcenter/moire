@@ -1,3 +1,8 @@
+# moire 2.0.0
+- Underlying model no longer uses pseudo marginal MH algorithm. Instead, model is augmented with latent genotypes above some user defined complexity level which are then sampled. Loci below the user defined complexity level have the latent state fully marginalized out.
+- Removed dependency on GSL
+- various bugfixes and speedups
+
 # moire 1.1.1
 
 - fixed overflow bug that would dramatically increase computational costs

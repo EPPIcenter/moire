@@ -1,16 +1,58 @@
 #include "chain.h"
-
 #include "mcmc_utils.h"
 #include "sampler.h"
 
+#include <cmath>
 #include <algorithm>
+
+#include <boost/math/special_functions/binomial.hpp>
+#include <boost/math/special_functions/math_fwd.hpp>
+
+#include <limits>
 #include <map>
+#include <numeric>
+
+void Chain::initialize_latent_genotypes()
+{
+    for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+    {
+        latent_genotypes_new.push_back(std::vector<std::vector<int>>{});
+        latent_genotypes_old.push_back(std::vector<std::vector<int>>{});
+        lg_adj_old.push_back(
+            std::vector<double>(genotyping_data.num_samples, 0));
+        lg_adj_new.push_back(
+            std::vector<double>(genotyping_data.num_samples, 0));
+
+        for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+        {
+            auto obs_alleles = genotyping_data.get_observed_alleles(jj, ii);
+            std::vector<int> allele_index_vec{};
+            for (int a = 0; a < obs_alleles.size(); ++a)
+            {
+                if (obs_alleles[a] == 1)
+                {
+                    allele_index_vec.push_back(a);
+                }
+            }
+
+            if (allele_index_vec.size() == 0)
+            {
+                allele_index_vec.push_back(
+                    sampler.sample_random_int(0, obs_alleles.size() - 1));
+            }
+
+            latent_genotypes_new.back().push_back(
+                std::vector<int>(allele_index_vec));
+
+            latent_genotypes_old.back().push_back(
+                std::vector<int>(allele_index_vec));
+        }
+    }
+}
 
 // Initialize P with empirical allele frequencies
 void Chain::initialize_p()
 {
-    p_accept.resize(genotyping_data.num_loci, 0);
-
     std::vector<std::vector<int>> total_locus_alleles(genotyping_data.num_loci);
     std::vector<int> total_alleles(genotyping_data.num_loci);
 
@@ -43,6 +85,19 @@ void Chain::initialize_p()
                                                          // allele everywhere
         }
     }
+
+    p_prop_var.resize(genotyping_data.num_loci);
+    p_accept.resize(genotyping_data.num_loci);
+    p_attempt.resize(genotyping_data.num_loci);
+
+    for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+    {
+        int total_alleles = p[jj].size();
+        p_prop_var[jj] =
+            std::vector<double>(total_alleles, params.allele_freq_vars[jj]);
+        p_accept[jj] = std::vector<int>(total_alleles, 0);
+        p_attempt[jj] = std::vector<int>(total_alleles, 0);
+    }
 };
 
 void Chain::initialize_m()
@@ -54,7 +109,9 @@ void Chain::initialize_m()
 
 void Chain::initialize_eps_neg()
 {
-    eps_neg.resize(genotyping_data.num_samples, params.eps_neg_0);
+    eps_neg.resize(genotyping_data.num_samples);
+
+    std::fill(eps_neg.begin(), eps_neg.end(), params.eps_pos_0);
     eps_neg_accept.resize(genotyping_data.num_samples, 0);
 }
 
@@ -64,76 +121,55 @@ void Chain::initialize_eps_pos()
     eps_pos_accept.resize(genotyping_data.num_samples, 0);
 }
 
-void Chain::initialize_mean_coi()
-{
-    mean_coi = params.mean_coi_prior_shape * params.mean_coi_prior_scale;
-}
-
-void Chain::update_mean_coi(int iteration)
-{
-    double prop_mean_coi =
-        sampler.sample_epsilon(mean_coi, params.mean_coi_var);
-
-    if (prop_mean_coi > 0)
-    {
-        double sum_can = 0;
-        double sum_orig = 0;
-        for (size_t ii = 0; ii < genotyping_data.num_samples; ii++)
-        {
-            sum_can += sampler.get_coi_log_prob(m[ii], prop_mean_coi);
-            sum_orig += sampler.get_coi_log_prob(m[ii], mean_coi);
-        }
-
-        sum_can += sampler.get_coi_mean_log_prior(prop_mean_coi,
-                                                  params.mean_coi_prior_shape,
-                                                  params.mean_coi_prior_scale);
-
-        sum_orig += sampler.get_coi_mean_log_prior(
-            mean_coi, params.mean_coi_prior_shape, params.mean_coi_prior_scale);
-
-        if (sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig))
-        {
-            mean_coi = prop_mean_coi;
-        }
-    }
-}
-
 void Chain::update_m(int iteration)
 {
-    for (size_t i = 0; i < genotyping_data.num_samples; i++)
+    for (size_t ii = 0; ii < genotyping_data.num_samples; ii++)
     {
-        int prop_m = m[i] + sampler.sample_coi_delta(3);
-
-        if (prop_m > 0)
+        int prop_m = m[ii] + sampler.sample_coi_delta(2);
+        if (prop_m > 0 and prop_m <= params.max_coi)
         {
-            double sum_can = 0;
-            double sum_orig = 0;
+            double prev_m = m[ii];
+            m[ii] = prop_m;
 
-            for (size_t j = 0; j < genotyping_data.num_loci; j++)
+            double adj_ratio = 0;
+
+            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
-                if (!genotyping_data.is_missing(j, i))
+                if (p[jj].size() > params.complexity_limit)
                 {
-                    llik_new[j][i] = calc_genotype_marginal_llik(
-                        genotyping_data.get_observed_alleles(j, i), prop_m,
-                        p[j], eps_neg[i], eps_pos[i]);
-                    sum_can += llik_new[j][i];
-                    sum_orig += llik_old[j][i];
+                    auto lg = sampler.sample_latent_genotype(
+                        genotyping_data.get_observed_alleles(jj, ii), m[ii],
+                        eps_pos[ii], eps_neg[ii]);
+                    latent_genotypes_new[jj][ii] = lg.value;
+                    lg_adj_new[jj][ii] = lg.log_prob;
+                    adj_ratio =
+                        adj_ratio + lg_adj_new[jj][ii] - lg_adj_old[jj][ii];
                 }
+                calculate_genotype_likelihood(ii, jj);
             }
 
-            // ZTPoisson prior on COI
-            sum_can += sampler.get_coi_log_prob(prop_m, mean_coi);
-            sum_orig += sampler.get_coi_log_prob(m[i], mean_coi);
-
-            // Accept
-            if (sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig))
+            double new_llik = calc_new_likelihood();
+            double alpha = sampler.sample_log_mh_acceptance();
+            if (!std::isnan(new_llik) and
+                alpha <= (new_llik - llik + adj_ratio))
             {
-                m[i] = prop_m;
-                for (size_t j = 0; j < genotyping_data.num_loci; j++)
+                llik = new_llik;
+                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
-                    llik_old[j][i] = llik_new[j][i];
+                    save_genotype_likelihood(ii, jj);
+                    lg_adj_old[jj][ii] = lg_adj_new[jj][ii];
+                    latent_genotypes_old[jj][ii] = latent_genotypes_new[jj][ii];
                 }
-                m_accept[i] += 1;
+            }
+            else
+            {
+                m[ii] = prev_m;
+                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+                {
+                    restore_genotype_likelihood(ii, jj);
+                    lg_adj_new[jj][ii] = lg_adj_old[jj][ii];
+                    latent_genotypes_new[jj][ii] = latent_genotypes_old[jj][ii];
+                }
             }
         }
     }
@@ -147,17 +183,17 @@ void Chain::update_p(int iteration)
 {
     for (size_t j = 0; j < genotyping_data.num_loci; j++)
     {
-        int rep = 1;
+        int k = p[j].size();
+        int rep = k;
         while (--rep >= 0)
         {
-            int k = p[j].size();
             const int idx = sampler.sample_random_int(0, k - 1);
 
             auto logitPropP = UtilFunctions::logitVec(p[j]);
 
             double logitCurr = logitPropP[idx];
             double logitProp =
-                sampler.sample_epsilon(logitCurr, params.allele_freq_var);
+                sampler.sample_epsilon(logitCurr, p_prop_var[j][idx]);
 
             auto currLogPQ = UtilFunctions::log_pq(logitCurr);
             auto propLogPQ = UtilFunctions::log_pq(logitProp);
@@ -173,107 +209,69 @@ void Chain::update_p(int iteration)
 
             auto prop_p = UtilFunctions::expitVec(logitPropP);
             // check to make sure the proposed simplex is within a bounded range
+            bool sub_threshold_flag = false;
             for (const auto &el : prop_p)
             {
-                if (el < 1e-12)
+                if (el < 1e-8)
                 {
-                    return;
+                    sub_threshold_flag = true;
+                    break;
                 }
             }
 
-            double sum_can = 0;
-            double sum_orig = 0;
-            for (size_t i = 0; i < genotyping_data.num_samples; i++)
+            if (sub_threshold_flag)
             {
-                if (!genotyping_data.is_missing(j, i))
-                {
-                    const auto observed_alleles =
-                        genotyping_data.get_observed_alleles(j, i);
-                    auto emphasized_alleles = observed_alleles;
-                    emphasized_alleles[idx] = 1;
-
-                    // llik_new[j][i] = calc_genotype_marginal_llik(
-                    // observed_alleles, emphasized_alleles, m[i], prop_p,
-                    // eps_neg[i], eps_pos[i]);
-                    llik_new[j][i] = calc_genotype_marginal_llik(
-                        observed_alleles, m[i], prop_p, eps_neg[i], eps_pos[i]);
-
-                    // UtilFunctions::print("O/N:", llik_old[j][i],
-                    //                      llik_new[j][i]);
-                    sum_can += llik_new[j][i];
-                    sum_orig += llik_old[j][i];
-                }
+                break;
             }
 
-            double acceptanceRatio = sum_can - sum_orig + logAdj;
-            // UtilFunctions::print_vector(prop_p);
-            // UtilFunctions::print_vector(p[j]);
-            // UtilFunctions::print("Accept:", sum_can, sum_orig, logAdj,
-                                 // acceptanceRatio);
-            if (sampler.sample_log_mh_acceptance() <= acceptanceRatio)
+            auto prev_p = p[j];
+
+            for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
             {
-                p[j] = prop_p;
-                p_accept[j] += 1;
-                for (size_t i = 0; i < genotyping_data.num_samples; i++)
-                {
-                    llik_old[j][i] = llik_new[j][i];
-                }
+                calculate_genotype_likelihood(ii, j);
             }
-        }
-    }
-}
+            double new_llik2 = calc_new_likelihood();
 
-// unused at the moment, updating eps_pos/eps_neg independently
-void Chain::update_eps(int iteration)
-{
-    for (size_t i = 0; i < m.size(); i++)
-    {
-        double prop_eps_pos =
-            sampler.sample_epsilon_pos(eps_pos[i], eps_pos_var);
-        double prop_eps_neg =
-            sampler.sample_epsilon_neg(eps_neg[i], eps_neg_var);
+            p[j] = prop_p;
 
-        if (prop_eps_pos < params.max_eps_pos && prop_eps_pos > 0 &&
-            prop_eps_neg < params.max_eps_neg && prop_eps_neg > 0)
-        {
-            double sum_can = 0;
-            double sum_orig = 0;
-
-            for (size_t j = 0; j < genotyping_data.num_loci; j++)
+            for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
             {
-                if (!genotyping_data.is_missing(j, i))
-                {
-                    llik_new[j][i] = calc_genotype_marginal_llik(
-                        genotyping_data.get_observed_alleles(j, i), m[i], p[j],
-                        prop_eps_neg, prop_eps_pos);
-                    sum_can += llik_new[j][i];
-                    sum_orig += llik_old[j][i];
-                }
+                calculate_genotype_likelihood(ii, j);
             }
 
-            // Incorporate prior
-            sum_can += sampler.get_epsilon_log_prior(
-                prop_eps_neg, params.eps_neg_alpha, params.eps_neg_beta);
-            sum_can += sampler.get_epsilon_log_prior(
-                prop_eps_pos, params.eps_pos_alpha, params.eps_pos_beta);
-            sum_orig += sampler.get_epsilon_log_prior(
-                eps_neg[i], params.eps_neg_alpha, params.eps_neg_beta);
-            sum_orig += sampler.get_epsilon_log_prior(
-                eps_pos[i], params.eps_pos_alpha, params.eps_pos_beta);
+            double new_llik = calc_new_likelihood();
 
-            // Accept
-            if (sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig))
+            double acceptanceRatio = new_llik - llik + logAdj;
+
+            if (std::isnan(new_llik) or
+                sampler.sample_log_mh_acceptance() > acceptanceRatio)
             {
-                eps_pos[i] = prop_eps_pos;
-                eps_pos_accept[i] += 1;
-
-                eps_neg[i] = prop_eps_neg;
-                eps_neg_accept[i] += 1;
-
-                for (size_t j = 0; j < genotyping_data.num_loci; j++)
+                p[j] = prev_p;
+                for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
                 {
-                    llik_old[j][i] = llik_new[j][i];
+                    restore_genotype_likelihood(ii, j);
                 }
+            }
+            else
+            {
+                llik = new_llik;
+                for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+                {
+                    save_genotype_likelihood(ii, j);
+                }
+                p_accept[j][idx] += 1;
+            }
+
+            if (params.adapt_allele_freq_vars and iteration < params.burnin and
+                p_attempt[j][idx] > 15)  // don't start adapting until there are
+                                         // at least a few samples
+            {
+                double acceptanceRate = std::min(
+                    (p_accept[j][idx] + 1) / (double(p_attempt[j][idx]) + 1),
+                    1.0);
+                p_prop_var[j][idx] += (acceptanceRate - .43) /
+                                      std::pow(p_attempt[j][idx] + 1, .5);
+                p_prop_var[j][idx] = std::max(p_prop_var[j][idx], .01);
             }
         }
     }
@@ -286,38 +284,39 @@ void Chain::update_eps_pos(int iteration)
         double prop_eps_pos =
             sampler.sample_epsilon_pos(eps_pos[i], eps_pos_var);
 
-        if (prop_eps_pos < params.max_eps_pos && prop_eps_pos > 0)
+        if (prop_eps_pos < params.max_eps_pos && prop_eps_pos > 1e-5)
         {
-            double sum_can = 0;
-            double sum_orig = 0;
+            double prev_eps_pos = eps_pos[i];
+            eps_pos[i] = prop_eps_pos;
+            calculate_eps_pos_likelihood(i);
 
-            for (size_t j = 0; j < genotyping_data.num_loci; j++)
+            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
-                if (!genotyping_data.is_missing(j, i))
-                {
-                    llik_new[j][i] = calc_genotype_marginal_llik(
-                        genotyping_data.get_observed_alleles(j, i), m[i], p[j],
-                        eps_neg[i], prop_eps_pos);
-                    sum_can += llik_new[j][i];
-                    sum_orig += llik_old[j][i];
-                }
+                calculate_genotype_likelihood(i, jj);
             }
 
-            // Incorporate prior
-            sum_can += sampler.get_epsilon_log_prior(
-                prop_eps_pos, params.eps_pos_alpha, params.eps_pos_beta);
-            sum_orig += sampler.get_epsilon_log_prior(
-                eps_pos[i], params.eps_pos_alpha, params.eps_pos_beta);
+            double new_llik = calc_new_likelihood();
 
-            // Accept
-            if (sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig))
+            // Reject
+            if (std::isnan(new_llik) or
+                sampler.sample_log_mh_acceptance() > (new_llik - llik))
             {
-                eps_pos[i] = prop_eps_pos;
-                eps_pos_accept[i] += 1;
-                for (size_t j = 0; j < genotyping_data.num_loci; j++)
+                eps_pos[i] = prev_eps_pos;
+                restore_eps_pos_likelihood(i);
+                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
-                    llik_old[j][i] = llik_new[j][i];
+                    restore_genotype_likelihood(i, jj);
                 }
+            }
+            else
+            {
+                llik = new_llik;
+                save_eps_pos_likelihood(i);
+                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+                {
+                    save_genotype_likelihood(i, jj);
+                }
+                eps_pos_accept[i] += 1;
             }
         }
     }
@@ -330,150 +329,42 @@ void Chain::update_eps_neg(int iteration)
         double prop_eps_neg =
             sampler.sample_epsilon_neg(eps_neg[i], eps_neg_var);
 
-        if (prop_eps_neg < params.max_eps_neg && prop_eps_neg > 0)
+        if (prop_eps_neg < params.max_eps_neg && prop_eps_neg > 1e-5)
         {
-            double sum_can = 0;
-            double sum_orig = 0;
+            double prev_eps_neg = eps_neg[i];
+            eps_neg[i] = prop_eps_neg;
+            calculate_eps_neg_likelihood(i);
 
-            for (size_t j = 0; j < genotyping_data.num_loci; j++)
+            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
-                if (!genotyping_data.is_missing(j, i))
-                {
-                    llik_new[j][i] = calc_genotype_marginal_llik(
-                        genotyping_data.get_observed_alleles(j, i), m[i], p[j],
-                        prop_eps_neg, eps_pos[i]);
-                    sum_can += llik_new[j][i];
-                    sum_orig += llik_old[j][i];
-                }
+                calculate_genotype_likelihood(i, jj);
             }
 
-            // // Incorporate prior
-            sum_can += sampler.get_epsilon_log_prior(
-                prop_eps_neg, params.eps_neg_alpha, params.eps_neg_beta);
-            sum_orig += sampler.get_epsilon_log_prior(
-                eps_neg[i], params.eps_neg_alpha, params.eps_neg_beta);
+            double new_llik = calc_new_likelihood();
 
-            // Accept
-            if (sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig))
+            // Reject
+            if (std::isnan(new_llik) or
+                sampler.sample_log_mh_acceptance() > (new_llik - llik))
             {
-                eps_neg[i] = prop_eps_neg;
+                eps_neg[i] = prev_eps_neg;
+                restore_eps_neg_likelihood(i);
+                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+                {
+                    restore_genotype_likelihood(i, jj);
+                }
+            }
+            else
+            {
+                llik = new_llik;
+                save_eps_neg_likelihood(i);
+                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+                {
+                    save_genotype_likelihood(i, jj);
+                }
                 eps_neg_accept[i] += 1;
-                for (size_t j = 0; j < genotyping_data.num_loci; j++)
-                {
-                    llik_old[j][i] = llik_new[j][i];
-                }
             }
         }
     }
-}
-
-void Chain::update_individual_parameters(int iteration)
-{
-    for (size_t i = 0; i < m.size(); i++)
-    {
-        int prop_m = m[i] + sampler.sample_coi_delta(2);
-        double prop_eps_neg =
-            sampler.sample_epsilon_neg(eps_neg[i], eps_neg_var);
-        double prop_eps_pos =
-            sampler.sample_epsilon_neg(eps_pos[i], eps_pos_var);
-
-        if (prop_eps_neg < params.max_eps_neg && prop_eps_neg > 0 &&
-            prop_eps_pos < params.max_eps_pos && prop_eps_pos > 0 && prop_m &&
-            prop_m > 0)
-        {
-            double sum_can = 0;
-            double sum_orig = 0;
-
-            for (size_t j = 0; j < genotyping_data.num_loci; j++)
-            {
-                if (!genotyping_data.is_missing(j, i))
-                {
-                    llik_new[j][i] = calc_genotype_marginal_llik(
-                        genotyping_data.get_observed_alleles(j, i), prop_m,
-                        p[j], prop_eps_neg, prop_eps_pos);
-                    sum_can += llik_new[j][i];
-                    sum_orig += llik_old[j][i];
-                }
-            }
-
-            // Incorporate priors
-            sum_can += sampler.get_epsilon_log_prior(
-                prop_eps_neg, params.eps_neg_alpha, params.eps_neg_beta);
-            sum_orig += sampler.get_epsilon_log_prior(
-                eps_neg[i], params.eps_neg_alpha, params.eps_neg_beta);
-            sum_can += sampler.get_epsilon_log_prior(
-                prop_eps_pos, params.eps_pos_alpha, params.eps_pos_beta);
-            sum_orig += sampler.get_epsilon_log_prior(
-                eps_pos[i], params.eps_pos_alpha, params.eps_pos_beta);
-            sum_can += sampler.get_coi_log_prob(prop_m, mean_coi);
-            sum_orig += sampler.get_coi_log_prob(m[i], mean_coi);
-
-            // Accept
-            if (sampler.sample_log_mh_acceptance() <= (sum_can - sum_orig))
-            {
-                m[i] = prop_m;
-                eps_neg[i] = prop_eps_neg;
-                eps_pos[i] = prop_eps_pos;
-                individual_accept[i] += 1;
-                for (size_t j = 0; j < genotyping_data.num_loci; j++)
-                {
-                    llik_old[j][i] = llik_new[j][i];
-                }
-            }
-        }
-    }
-}
-
-std::vector<double> Chain::reweight_allele_frequencies(
-    std::vector<double> const &allele_frequencies,
-    std::vector<int> const &observed_genotype, double epsilon_neg,
-    double epsilon_pos, int coi)
-{
-    std::vector<double> res(allele_frequencies.size(), 0);
-    std::vector<double> tp(allele_frequencies.size(), 0);
-    std::vector<double> fn(allele_frequencies.size(), 0);
-    double tp_sum = 0;
-    double fn_sum = 0;
-
-    for (size_t i = 0; i < allele_frequencies.size(); i++)
-    {
-        if (observed_genotype[i])
-        {
-            tp[i] = allele_frequencies[i];
-            tp_sum += allele_frequencies[i];
-        }
-        else
-        {
-            fn[i] = allele_frequencies[i];
-            fn_sum += allele_frequencies[i];
-        }
-    }
-
-    double inv_tp_sum = 1.0 / tp_sum;
-    double inv_fn_sum = 1.0 / fn_sum;
-
-    double prop_pos = ((1 - epsilon_pos) / (1 - epsilon_pos + epsilon_neg));
-    double prop_neg = (epsilon_neg / (1 - epsilon_pos + epsilon_neg));
-
-    double obs_pos_mass = inv_tp_sum * prop_pos;
-    double obs_neg_mass = inv_fn_sum * prop_neg;
-
-    // double obs_pos_mass = inv_tp_sum * .9;
-    // double obs_neg_mass = inv_fn_sum * .1;
-
-    for (size_t i = 0; i < allele_frequencies.size(); i++)
-    {
-        if (observed_genotype[i])
-        {
-            res[i] += tp[i] * obs_pos_mass;
-        }
-        else
-        {
-            res[i] += fn[i] * obs_neg_mass;
-        }
-    }
-
-    return res;
 }
 
 double Chain::calc_transmission_process(
@@ -503,7 +394,7 @@ double Chain::calc_transmission_process(
     }
 
     res = std::log(1 - probAnyMissing_(prVec_, coi)) +
-          log(constrained_set_total_prob) * coi;
+          std::log(constrained_set_total_prob) * coi;
 
     return res;
 }
@@ -521,8 +412,8 @@ double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
 
     int vec_pointer = 0;
     int next_allele_index = allele_index_vec[vec_pointer];
+    int total_alleles = allele_index_vec.size();
 
-    // for (size_t j = 0; j < total_alleles; j++)
     int j = 0;
     bool is_allele;
     for (const auto &e : obs_genotype)
@@ -534,7 +425,7 @@ double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
         tn += e == 0 and !is_allele;
         vec_pointer += is_allele;
 
-        if (vec_pointer < coi)
+        if (vec_pointer < total_alleles)
         {
             next_allele_index = allele_index_vec[vec_pointer];
         }
@@ -572,155 +463,182 @@ long double Chain::calc_exact_genotype_marginal_llik(
     std::vector<double> const &allele_frequencies, double epsilon_neg,
     double epsilon_pos)
 {
-    long double res = 0;
-    double total_samples = 0;
-    for (int i = 1; i <= coi; i++)
+    long double res = 0.0;
+    long double prob = 0.0;
+
+    // set upper limit on the total number of alleles in the index vector
+    int upper_limit = std::min<int>(coi, allele_frequencies.size());
+    for (int i = 1; i <= upper_limit; i++)
     {
         Rcpp::checkUserInterrupt();
         allele_index_generator_.reset(allele_frequencies.size(), i);
         while (!allele_index_generator_.completed)
         {
-            total_samples++;
-            
-            res += std::exp(calc_genotype_log_pmf(
+            prob = std::exp(calc_genotype_log_pmf(
                 allele_index_generator_.curr, obs_genotype, epsilon_pos,
                 epsilon_neg, coi, allele_frequencies));
+
+            res += prob;
             allele_index_generator_.next();
         }
     }
     return log(res);
 }
 
-long double Chain::calc_estimated_genotype_marginal_llik(
-    std::vector<int> const &obs_genotype,
-    std::vector<int> const &emphasized_alleles, int coi,
-    std::vector<double> const &allele_frequencies, double epsilon_neg,
-    double epsilon_pos, int sampling_depth)
+double Chain::calc_old_likelihood()
 {
-    int i = sampling_depth;
-    double importance_weight = 0;
+    double old_llik = 0;
 
-    std::vector<int> allele_index_vec;
-    std::vector<double> reweighted_allele_frequencies =
-        reweight_allele_frequencies(allele_frequencies, emphasized_alleles,
-                                    epsilon_neg, epsilon_pos, coi);
-
-    double est = 0.0;
-    double val = 0.0;
-    std::map<std::vector<int>, double> memo{};
-
-    while (--i >= 0)
+    for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
     {
-        allele_index_vec =
-            sampler.sample_latent_genotype(coi, reweighted_allele_frequencies);
-        auto s = memo.find(allele_index_vec);
-        if (s != memo.end())
-        {
-            val = s->second;
-        }
-        else
-        {
-            importance_weight = calc_transmission_process(
-                allele_index_vec, reweighted_allele_frequencies, coi);
-            val = std::exp(calc_genotype_log_pmf(allele_index_vec, obs_genotype,
-                                                 epsilon_pos, epsilon_neg, coi,
-                                                 allele_frequencies) -
-                           importance_weight);
-            memo[allele_index_vec] = val;
-        }
-        est += val;
+        old_llik += eps_neg_prior_old[ii];
+        old_llik += eps_pos_prior_old[ii];
     }
 
-    est = std::log(est / sampling_depth);
-    return est;
+    for (const double ll : genotyping_llik_old)
+    {
+        old_llik += ll;
+    }
+
+    return old_llik;
 }
 
-long double Chain::calc_genotype_marginal_llik(
-    std::vector<int> const &obs_genotype,
-    std::vector<int> const &emphasized_alleles, int coi,
-    std::vector<double> const &allele_frequencies, double epsilon_neg,
-    double epsilon_pos)
+double Chain::calc_new_likelihood()
 {
-    double log_total_combinations =
-        lookup.get_sampling_depth(coi, allele_frequencies.size());
+    double new_llik = 0;
 
-
-    if (log_total_combinations <= std::log(params.complexity_limit))
+    for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
     {
-        return calc_exact_genotype_marginal_llik(
-            obs_genotype, coi, allele_frequencies, epsilon_neg, epsilon_pos);
+        new_llik += eps_neg_prior_new[ii];
+        new_llik += eps_pos_prior_new[ii];
+    }
+
+    for (const double ll : genotyping_llik_new)
+    {
+        new_llik += ll;
+    }
+
+    return new_llik;
+}
+
+double Chain::get_llik() { return llik; }
+
+void Chain::calculate_genotype_likelihood(int sample_idx, int locus_idx)
+{
+    int idx = sample_idx * genotyping_data.num_loci + locus_idx;
+    double res;
+    if (p[locus_idx].size() <= params.complexity_limit)
+    {
+        res = calc_exact_genotype_marginal_llik(
+            genotyping_data.get_observed_alleles(locus_idx, sample_idx),
+            m[sample_idx], p[locus_idx], eps_neg[sample_idx],
+            eps_pos[sample_idx]);
     }
     else
     {
-        double approx = calc_estimated_genotype_marginal_llik(
-            obs_genotype, emphasized_alleles, coi, allele_frequencies,
-            epsilon_neg, epsilon_pos,
-            params.importance_sampling_depth +
-                coi * params.importance_sampling_scaling_factor);
-
-        return approx;
+        double transmission_prob = calc_transmission_process(
+            latent_genotypes_new[locus_idx][sample_idx], p[locus_idx],
+            m[sample_idx]);
+        double obs_prob = calc_observation_process(
+            latent_genotypes_new[locus_idx][sample_idx],
+            genotyping_data.get_observed_alleles(locus_idx, sample_idx),
+            m[sample_idx], eps_neg[sample_idx], eps_pos[sample_idx]);
+        res = transmission_prob + obs_prob;
     }
+    genotyping_llik_new[idx] = res;
 }
 
-long double Chain::calc_genotype_marginal_llik(
-    std::vector<int> const &obs_genotype, int coi,
-    std::vector<double> const &allele_frequencies, double epsilon_neg,
-    double epsilon_pos)
+void Chain::calculate_eps_neg_likelihood(int sample_idx)
 {
-    return calc_genotype_marginal_llik(obs_genotype, obs_genotype, coi,
-                                       allele_frequencies, epsilon_neg,
-                                       epsilon_pos);
+    eps_neg_prior_new[sample_idx] = sampler.get_epsilon_log_prior(
+        eps_neg[sample_idx], params.eps_neg_alpha, params.eps_neg_beta);
+}
+
+void Chain::calculate_eps_pos_likelihood(int sample_idx)
+{
+    eps_pos_prior_new[sample_idx] = sampler.get_epsilon_log_prior(
+        eps_pos[sample_idx], params.eps_pos_alpha, params.eps_pos_beta);
 }
 
 void Chain::initialize_likelihood()
 {
-    for (size_t j = 0; j < genotyping_data.num_loci; j++)
+    int num_samples = genotyping_data.num_samples;
+    int num_loci = genotyping_data.num_loci;
+    int sampling_depth = params.importance_sampling_depth;
+    int row_idx, idx;
+
+    genotyping_llik_new.resize(num_samples * num_loci);
+    genotyping_llik_old.resize(num_samples * num_loci);
+
+    eps_neg_prior_new.resize(num_samples);
+    eps_neg_prior_old.resize(num_samples);
+    eps_pos_prior_new.resize(num_samples);
+    eps_pos_prior_old.resize(num_samples);
+    for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
     {
-        llik_old.push_back(std::vector<double>(genotyping_data.num_samples));
-        llik_new.push_back(std::vector<double>(genotyping_data.num_samples));
-        for (size_t i = 0; i < genotyping_data.num_samples; i++)
+        row_idx = ii * num_loci;
+        for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
         {
-            double marginal_llik = 0;
-            if (!genotyping_data.is_missing(j, i))
+            idx = row_idx + jj;
+            if (genotyping_data.is_missing(jj, ii))
             {
-                marginal_llik = calc_genotype_marginal_llik(
-                    genotyping_data.get_observed_alleles(j, i), m[i], p[j],
-                    eps_neg[i], eps_pos[i]);
+                genotyping_llik_new[idx] = 0;
             }
-            llik_old[j][i] = marginal_llik;
-            llik_new[j][i] = marginal_llik;
-        }
-    }
-};
-
-void Chain::calculate_llik()
-{
-    llik = 0;
-    for (size_t j = 0; j < genotyping_data.num_loci; j++)
-    {
-        for (size_t i = 0; i < genotyping_data.num_samples; i++)
-        {
-            llik += llik_old[j][i];
+            else
+            {
+                calculate_genotype_likelihood(ii, jj);
+            }
+            genotyping_llik_old[idx] = genotyping_llik_new[idx];
         }
     }
 
-    for (size_t i = 0; i < genotyping_data.num_samples; i++)
+    for (size_t ii = 0; ii < genotyping_data.num_samples; ii++)
     {
-        llik += sampler.get_epsilon_log_prior(eps_neg[i], params.eps_neg_alpha,
-                                              params.eps_neg_beta);
-        llik += sampler.get_epsilon_log_prior(eps_pos[i], params.eps_pos_alpha,
-                                              params.eps_pos_beta);
-        llik += sampler.get_coi_log_prob(m[i], mean_coi);
+        double eps_neg_prior = sampler.get_epsilon_log_prior(
+            eps_neg[ii], params.eps_neg_alpha, params.eps_neg_beta);
+        double eps_pos_prior = sampler.get_epsilon_log_prior(
+            eps_pos[ii], params.eps_pos_alpha, params.eps_pos_beta);
+
+        eps_neg_prior_old[ii] = eps_neg_prior;
+        eps_neg_prior_new[ii] = eps_neg_prior;
+        eps_pos_prior_old[ii] = eps_pos_prior;
+        eps_pos_prior_new[ii] = eps_pos_prior;
     }
 
-    llik += sampler.get_coi_mean_log_prior(
-        mean_coi, params.mean_coi_prior_shape, params.mean_coi_prior_scale);
+    llik = calc_new_likelihood();
 }
 
-double Chain::get_llik()
+void Chain::save_genotype_likelihood(int sample_idx, int locus_idx)
 {
-    calculate_llik();
-    return llik;
+    int idx = sample_idx * genotyping_data.num_loci + locus_idx;
+
+    genotyping_llik_old.at(idx) = genotyping_llik_new.at(idx);
+}
+
+void Chain::save_eps_neg_likelihood(int sample_idx)
+{
+    eps_neg_prior_old[sample_idx] = eps_neg_prior_new[sample_idx];
+}
+
+void Chain::save_eps_pos_likelihood(int sample_idx)
+{
+    eps_pos_prior_old[sample_idx] = eps_pos_prior_new[sample_idx];
+}
+
+void Chain::restore_genotype_likelihood(int sample_idx, int locus_idx)
+{
+    int idx = sample_idx * genotyping_data.num_loci + locus_idx;
+    genotyping_llik_new.at(idx) = genotyping_llik_old.at(idx);
+}
+
+void Chain::restore_eps_neg_likelihood(int sample_idx)
+{
+    eps_neg_prior_new[sample_idx] = eps_neg_prior_old[sample_idx];
+}
+
+void Chain::restore_eps_pos_likelihood(int sample_idx)
+{
+    eps_pos_prior_new[sample_idx] = eps_pos_prior_old[sample_idx];
 }
 
 Chain::Chain(GenotypingData genotyping_data, Lookup lookup, Parameters params)
@@ -730,16 +648,18 @@ Chain::Chain(GenotypingData genotyping_data, Lookup lookup, Parameters params)
       sampler(lookup)
 
 {
-    llik = 0;
     eps_pos_var = params.eps_pos_var;
     eps_neg_var = params.eps_neg_var;
     m_prop_mean = std::vector<double>(genotyping_data.num_samples, 1);
-    p_prop_var = std::vector<double>(genotyping_data.num_loci, 1);
+    p_prop_var = std::vector<std::vector<double>>(genotyping_data.num_loci);
+    p_accept = std::vector<std::vector<int>>(genotyping_data.num_loci);
 
-    initialize_p();
+    llik = std::numeric_limits<double>::lowest();
+
     initialize_m();
+    initialize_latent_genotypes();
+    initialize_p();
     initialize_eps_neg();
     initialize_eps_pos();
-    initialize_mean_coi();
     initialize_likelihood();
-};
+}

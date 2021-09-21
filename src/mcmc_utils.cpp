@@ -11,6 +11,8 @@ int r_to_bool(SEXP x) { return Rcpp::as<bool>(x); };
 
 int r_to_int(SEXP x) { return Rcpp::as<int>(x); };
 
+long int r_to_long_int(SEXP x) {return Rcpp::as<long int>(x); };
+
 double r_to_double(SEXP x) { return Rcpp::as<double>(x); };
 
 std::string r_to_string(SEXP x) { return Rcpp::as<std::string>(x); };

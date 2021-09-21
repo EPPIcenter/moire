@@ -12,22 +12,6 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.path = "man/figures/"
 
 ## Installation
 
-`moire` requires the GNU Scientific Library (GSL).
-
-```{bash, eval = FALSE}
-# Linux
-sudo apt-get install libgsl-dev
-```
-
-```{bash, eval = FALSE}
-# MacOS
-brew install gsl
-```
-
-For Windows, follow instructions found [here](https://stackoverflow.com/questions/26939683/linking-gsl-library-to-rcppgsl-on-windows-machine)
-
-After installing GSL, install moire as follows
-
 ```{r, eval = FALSE}
 # Install development version from Github
 remotes::install_github("m-murphy/moire")

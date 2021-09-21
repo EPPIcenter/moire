@@ -32,10 +32,11 @@ void Lookup::init_sampling_depth()
             lookup_sampling_depth[key] = 0;
             for (int kk = jj; kk > 0; --kk)
             {
-                lookup_sampling_depth[key] += lookup_lgamma[ii + 1] -
-                                              lookup_lgamma[kk + 1] -
-                                              lookup_lgamma[(ii - kk) + 1];
+                lookup_sampling_depth[key] +=
+                    std::exp(lookup_lgamma[ii + 1] - lookup_lgamma[kk + 1] -
+                             lookup_lgamma[(ii - kk) + 1]);
             }
+            lookup_sampling_depth[key] = std::log(lookup_sampling_depth[key]);
         }
     }
 }

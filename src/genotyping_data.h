@@ -4,6 +4,7 @@
 #define DATA_H_
 
 #include <Rcpp.h>
+#include <vector>
 
 //------------------------------------------------
 // class containing multi allelic genotyping data
@@ -15,8 +16,8 @@ class GenotypingData
     static std::vector<std::vector<bool>> is_missing_;
     static std::vector<int> num_alleles;
     static std::vector<int> observed_coi;
-    static size_t num_samples;
-    static size_t num_loci;
+    static std::size_t num_samples;
+    static std::size_t num_loci;
     static int max_alleles;
 
     // constructors

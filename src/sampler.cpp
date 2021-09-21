@@ -13,7 +13,6 @@ std::random_device Sampler::rd;
 Sampler::Sampler(Lookup lookup) : lookup(lookup)
 {
     eng = std::ranlux24_base(rd());
-    gsl_rd = gsl_rng_alloc(gsl_rng_minstd);
     unif_distr = std::uniform_real_distribution<double>(0, 1);
     ber_distr = std::bernoulli_distribution(.5);
 }
@@ -31,7 +30,7 @@ double Sampler::dpois(int x, double mean, bool return_log)
 double Sampler::dztpois(int x, double lambda)
 {
     return x * std::log(lambda) - std::log(std::exp(lambda) - 1) -
-           lookup.lookup_lgamma[x + 1];
+           std::lgamma(x + 1);
 }
 
 double Sampler::dgamma(double x, double shape, double scale, bool return_log)
@@ -189,25 +188,110 @@ std::vector<double> Sampler::sample_allele_frequencies2(
     return rlogit_norm(curr_allele_frequencies, variance);
 };
 
-std::vector<int> Sampler::sample_latent_genotype(
-    int coi, const std::vector<double> &allele_frequencies)
+void Sampler::shuffle_vec(std::vector<int> &vec)
 {
-    std::vector<int> tmp_alleles(allele_frequencies.size(), 0);
-    std::vector<int> allele_index_vec{};
-    allele_index_vec.reserve(coi);
-
-    gsl_ran_multinomial(gsl_rd, allele_frequencies.size(), coi,
-                        allele_frequencies.data(),
-                        (unsigned int *)tmp_alleles.data());
-
-    for (size_t i = 0; i < allele_frequencies.size(); i++)
-    {
-        if (tmp_alleles[i] > 0)
-        {
-            allele_index_vec.push_back(i);
-        }
-    }
-    return allele_index_vec;
+    std::shuffle(vec.begin(), vec.end(), eng);
 }
 
-double Sampler::sample_log_mh_acceptance() { return log(unif_distr(eng)); };
+double Sampler::sample_unif() { return unif_distr(eng); };
+
+double Sampler::sample_log_mh_acceptance()
+{
+    return std::log(unif_distr(eng));
+};
+
+LatentGenotype Sampler::sample_latent_genotype(
+    const std::vector<int> &obs_genotype, int coi, double epsilon_pos,
+    double epsilon_neg)
+{
+    int total_alleles = obs_genotype.size();
+    int total_obs_positives = 0;
+    int total_obs_negatives = 0;
+    std::vector<int> obs_positive_indices{};
+    std::vector<int> obs_negative_indices{};
+
+    for (int ii = 0; ii < total_alleles; ++ii)
+    {
+        if (obs_genotype[ii] == 1)
+        {
+            total_obs_positives++;
+            obs_positive_indices.push_back(ii);
+        }
+        else
+        {
+            total_obs_negatives++;
+            obs_negative_indices.push_back(ii);
+        }
+    }
+
+    // if the observed number of positives exceeds the COI, then some number of
+    // them must be false positives
+    int min_false_positives = std::max(0, total_obs_positives - coi);
+    int max_false_positives = total_obs_positives - (total_obs_negatives == 0);
+
+    int total_false_positives = min_false_positives;
+    for (int ii = total_false_positives; ii < max_false_positives; ++ii)
+    {
+        total_false_positives += (sample_unif() < epsilon_pos);
+    }
+    int total_true_positives = total_obs_positives - total_false_positives;
+
+    double log_prob_total_false_positives =
+        std::log(boost::math::binomial_coefficient<double>(
+            total_obs_positives, total_false_positives - min_false_positives)) +
+        (total_false_positives - min_false_positives) * std::log(epsilon_pos) +
+        total_true_positives * std::log(1 - epsilon_pos);
+
+    // there must be at least one allele, so if all obs_positives are considered
+    // false positives then there must be at least one false negative
+    int min_false_negatives =
+        std::min(total_obs_negatives,
+                 1 * (total_false_positives == total_obs_positives));
+    // also, there can't be more than min((coi - total_true_positives),
+    // total_obs_negatives) false negatives
+    int max_false_negatives =
+        std::min(coi - total_true_positives, total_obs_negatives);
+
+    int total_false_negatives = min_false_negatives;
+    for (int ii = total_false_negatives; ii < max_false_negatives; ++ii)
+    {
+        total_false_negatives += (sample_unif() < epsilon_neg);
+    }
+    int total_true_negatives = total_obs_negatives - total_false_negatives;
+
+    double log_prob_total_false_negatives =
+        std::log(boost::math::binomial_coefficient<double>(
+            total_obs_negatives, total_false_negatives - min_false_negatives)) +
+        (total_false_negatives - min_false_negatives) * std::log(epsilon_neg) +
+        total_true_negatives * std::log(1 - epsilon_neg);
+
+    shuffle_vec(obs_positive_indices);
+    shuffle_vec(obs_negative_indices);
+
+    std::vector<int> allele_index_vec{};
+    allele_index_vec.insert(
+        allele_index_vec.end(), obs_positive_indices.begin(),
+        obs_positive_indices.begin() + total_true_positives);
+
+    allele_index_vec.insert(
+        allele_index_vec.end(), obs_negative_indices.begin(),
+        obs_negative_indices.begin() + total_false_negatives);
+
+    std::sort(allele_index_vec.begin(), allele_index_vec.end());
+
+    assert(allele_index_vec.size() ==
+           total_true_positives + total_false_negatives);
+
+    double log_prob_positive_indices =
+        -std::log(boost::math::binomial_coefficient<double>(
+            total_obs_positives, total_true_positives));
+    double log_prob_negative_indices =
+        -std::log(boost::math::binomial_coefficient<double>(
+            total_obs_negatives, total_false_negatives));
+
+    double log_prob = log_prob_positive_indices + log_prob_negative_indices +
+                      log_prob_total_false_positives +
+                      log_prob_total_false_negatives;
+
+    return LatentGenotype{allele_index_vec, log_prob};
+}
