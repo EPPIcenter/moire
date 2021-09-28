@@ -31,8 +31,10 @@ Rcpp::List run_mcmc(Rcpp::List args)
     {
         Rcpp::stop("Error: Initial Llik is NaN");
     }
+
     MCMCProgressBar pb(params.burnin, params.samples);
     Progress p(params.burnin + params.samples, params.verbose, pb);
+    pb.set_llik(mcmc.get_llik());
 
     int step = 0;
     while (step < params.burnin)
@@ -84,6 +86,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("allele_freqs");
     res_names.push_back("eps_neg");
     res_names.push_back("eps_pos");
+    res_names.push_back("observed_coi");
     // res_names.push_back("acceptance_rates");
 
     res.names() = res_names;
