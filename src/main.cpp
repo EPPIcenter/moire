@@ -7,6 +7,8 @@
 #include "mcmc_utils.h"
 #include "parameters.h"
 
+#include <Rcpp/utils/tinyformat.h>
+
 #include <progress.hpp>
 //----------------------------------------------
 // [[Rcpp::export(name='run_mcmc_rcpp')]]
@@ -25,7 +27,10 @@ Rcpp::List run_mcmc(Rcpp::List args)
     }
 
     MCMC mcmc(genotyping_data, lookup, params);
-    UtilFunctions::print("MCMC Initialized");
+    if (std::isnan(mcmc.get_llik()))
+    {
+        Rcpp::stop("Error: Initial Llik is NaN");
+    }
     MCMCProgressBar pb(params.burnin, params.samples);
     Progress p(params.burnin + params.samples, params.verbose, pb);
 
