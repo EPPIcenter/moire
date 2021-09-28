@@ -13,6 +13,7 @@ class Parameters
     int burnin;
     int samples;
     long int complexity_limit;
+    double allele_freq_threshold;
 
     // Model Parameters
     // Complexity of Infection

@@ -213,7 +213,7 @@ void Chain::update_p(int iteration)
             bool sub_threshold_flag = false;
             for (const auto &el : prop_p)
             {
-                if (el < 1e-8)
+                if (el < params.allele_freq_threshold)
                 {
                     sub_threshold_flag = true;
                     break;

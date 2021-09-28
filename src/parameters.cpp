@@ -11,6 +11,8 @@ Parameters::Parameters(const Rcpp::List &args)
     burnin = UtilFunctions::r_to_int(args["burnin"]);
     samples = UtilFunctions::r_to_int(args["samples"]);
     complexity_limit = UtilFunctions::r_to_long_int(args["complexity_limit"]);
+    allele_freq_threshold =
+        UtilFunctions::r_to_double(args["allele_freq_threshold"]);
 
     // Model
     max_coi = UtilFunctions::r_to_double(args["max_coi"]);

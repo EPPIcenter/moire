@@ -27,3 +27,5 @@ src/Makevars
 *.tmp
 
 compile_flags.txt
+
+manuscript/simulated_data/

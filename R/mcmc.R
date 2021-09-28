@@ -20,6 +20,8 @@
 #' @param complexity_limit Limit on the number of alleles possible
 #'  before augmenting with a latent genetic state representation.
 #' @param verbose Logical indicating if progress is printed
+#' @param allele_freq_threshold 0-1 Numeric. Lowest allowed value for an
+#'  allele frequency.
 #' @param eps_pos_0 0-1 Numeric. Initial eps_pos value
 #' @param eps_pos_var Numeric. Variance used in sampling eps_pos
 #' @param eps_pos_alpha Positive Numeric. Alpha parameter in
@@ -49,6 +51,7 @@ run_mcmc <-
            samples = 1e4,
            complexity_limit = 5,
            verbose = TRUE,
+           allele_freq_threshold = 1e-5,
            eps_pos_0 = .01,
            eps_pos_var = .001,
            eps_pos_alpha = 1,
