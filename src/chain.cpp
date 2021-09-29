@@ -110,9 +110,7 @@ void Chain::initialize_m()
 
 void Chain::initialize_eps_neg()
 {
-    eps_neg.resize(genotyping_data.num_samples);
-
-    std::fill(eps_neg.begin(), eps_neg.end(), params.eps_pos_0);
+    eps_neg.resize(genotyping_data.num_samples, params.eps_neg_0);
     eps_neg_accept.resize(genotyping_data.num_samples, 0);
 }
 

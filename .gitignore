@@ -29,3 +29,5 @@ src/Makevars
 compile_flags.txt
 
 manuscript/simulated_data/
+
+*.rds
