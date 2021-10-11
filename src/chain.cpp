@@ -6,7 +6,9 @@
 #include <cmath>
 #include <algorithm>
 
-#include <boost/math/special_functions/binomial.hpp>
+// #include <boost/math/special_functions/binomial.hpp>
+// #include <boost/math/special_functions/math_fwd.hpp>
+
 #include <boost/math/special_functions/math_fwd.hpp>
 
 #include <limits>
@@ -19,34 +21,36 @@ void Chain::initialize_latent_genotypes()
     {
         latent_genotypes_new.push_back(std::vector<std::vector<int>>{});
         latent_genotypes_old.push_back(std::vector<std::vector<int>>{});
-        lg_adj_old.push_back(
-            std::vector<double>(genotyping_data.num_samples, 0));
-        lg_adj_new.push_back(
-            std::vector<double>(genotyping_data.num_samples, 0));
+        lg_adj_old.push_back(std::vector<double>{});
+        lg_adj_new.push_back(std::vector<double>{});
 
         for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
         {
             auto obs_alleles = genotyping_data.get_observed_alleles(jj, ii);
             std::vector<int> allele_index_vec{};
-            for (int a = 0; a < obs_alleles.size(); ++a)
-            {
-                if (obs_alleles[a] == 1)
-                {
-                    allele_index_vec.push_back(a);
-                }
-            }
+            // for (int a = 0; a < obs_alleles.size(); ++a)
+            // {
+            //     if (obs_alleles[a] == 1)
+            //     {
+            //         allele_index_vec.push_back(a);
+            //     }
+            // }
 
-            if (allele_index_vec.size() == 0)
-            {
-                allele_index_vec.push_back(
-                    sampler.sample_random_int(0, obs_alleles.size() - 1));
-            }
+            // if (allele_index_vec.size() == 0)
+            // {
+            //     allele_index_vec.push_back(
+            //         sampler.sample_random_int(0, obs_alleles.size() - 1));
+            // }
 
-            latent_genotypes_new.back().push_back(
-                std::vector<int>(allele_index_vec));
+            auto lg =
+                sampler.sample_latent_genotype(obs_alleles, m[ii], .2, .2);
 
-            latent_genotypes_old.back().push_back(
-                std::vector<int>(allele_index_vec));
+            latent_genotypes_new.back().push_back(lg.value);
+            lg_adj_new.back().push_back(lg.log_prob);
+
+            latent_genotypes_old.back().push_back(lg.value);
+            lg_adj_old.back().push_back(lg.log_prob);
+            // UtilFunctions::print("LG llik:", lg.log_prob);
         }
     }
 }
@@ -103,7 +107,12 @@ void Chain::initialize_p()
 
 void Chain::initialize_m()
 {
-    m = genotyping_data.observed_coi;
+    // m = genotyping_data.observed_coi;
+    for (const auto coi : genotyping_data.observed_coi)
+    {
+        m.push_back(coi + 3);
+    }
+    // m = std::vector<int>(genotyping_data.num_samples, 20);
     m_accept.resize(genotyping_data.num_samples, 0);
     individual_accept.resize(genotyping_data.num_samples, 0);
 }
@@ -137,8 +146,8 @@ void Chain::update_m(int iteration)
                 if (p[jj].size() > params.complexity_limit)
                 {
                     auto lg = sampler.sample_latent_genotype(
-                        genotyping_data.get_observed_alleles(jj, ii), m[ii],
-                        eps_pos[ii], eps_neg[ii]);
+                        genotyping_data.get_observed_alleles(jj, ii), m[ii], .2,
+                        .2);
                     latent_genotypes_new[jj][ii] = lg.value;
                     lg_adj_new[jj][ii] = lg.log_prob;
                     adj_ratio =
@@ -388,6 +397,12 @@ double Chain::calc_transmission_process(
     res = std::log(1 - probAnyMissing_(prVec_, coi)) +
           std::log(constrained_set_total_prob) * coi;
 
+    // if (std::isinf(res))
+    // {
+    //     UtilFunctions::print(coi, constrained_set_total_prob);
+    //     UtilFunctions::print_vector(prVec_);
+    // }
+
     return res;
 }
 
@@ -397,14 +412,14 @@ double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
                                        double epsilon_pos)
 {
     double res = 0;
-    int fp = 0;
-    int tp = 0;
-    int fn = 0;
-    int tn = 0;
+    unsigned int fp = 0;
+    unsigned int tp = 0;
+    unsigned int fn = 0;
+    unsigned int tn = 0;
 
-    int vec_pointer = 0;
-    int next_allele_index = allele_index_vec[vec_pointer];
-    int total_alleles = allele_index_vec.size();
+    unsigned int vec_pointer = 0;
+    unsigned int next_allele_index = allele_index_vec[vec_pointer];
+    unsigned int total_alleles = allele_index_vec.size();
 
     int j = 0;
     bool is_allele;
@@ -428,11 +443,74 @@ double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
         ++j;
     }
 
+    // res += std::log(epsilon_neg) * fn;
+    // res += std::log(1 - epsilon_neg) * tn;
+    // res += std::log(epsilon_pos) * fp;
+    // res += std::log(1 - epsilon_pos) * tp;
+    res += std::log(1 - epsilon_neg) * tp;
     res += std::log(epsilon_neg) * fn;
-    res += std::log(1 - epsilon_neg) * tn;
-    res += std::log(epsilon_pos) * fp;
-    res += std::log(1 - epsilon_pos) * tp;
 
+    if (fp > 0)
+    {
+        unsigned int total_unobserved_alleles = tn + fp;
+        double constrained_set_total_prob =
+            fp / (double)total_unobserved_alleles;
+
+        prVec_.clear();
+        prVec_.resize(fp);
+        std::fill(prVec_.begin(), prVec_.end(), 1.0 / fp);
+        // each true positive can contribute at most one false positive, so
+        // there must be at least as many true positives as false positives.
+        // if (fp > (tp + fn))
+        // {
+        //     UtilFunctions::print("ERROR", fp, tp, fn);
+        // }
+        double accum = 0;
+        for (unsigned int contributing_pos_count = fp;
+             contributing_pos_count <= (tp + fn); contributing_pos_count++)
+        {
+            // how many different ways could the contributing positives be
+            // selected from the total positives
+            double log_total_combos =
+                std::log(boost::math::binomial_coefficient<double>(
+                    (tp + fn), contributing_pos_count));
+
+            // the probability that `contributing_pos_count` alleles contributed
+            // a false positive
+            double log_prob_num_contributing =
+                contributing_pos_count * std::log(epsilon_pos);
+
+            // the probability that this particular set of alleles are false
+            // positives given `contributing_pos_count`, which is the
+            // probability that all alleles are represented conditional on all
+            // alleles coming from the restricted set
+            double log_prob_false_positives =
+                std::log(1 - probAnyMissing_(prVec_, contributing_pos_count)) +
+                std::log(constrained_set_total_prob) * contributing_pos_count;
+
+            accum += std::exp(log_total_combos + log_prob_num_contributing +
+                              log_prob_false_positives);
+
+            // if (accum == 0)
+            // {
+            //     UtilFunctions::print(
+            //         "Obs:", log_total_combos, log_prob_num_contributing,
+            //         log_prob_false_positives, contributing_pos_count,
+            //         constrained_set_total_prob, fp, tp);
+            // }
+        }
+
+        // if (accum == 0)
+        // {
+        //     UtilFunctions::print("Inf:", fp, tp, fn, tn);
+        //     UtilFunctions::print_vector(obs_genotype);
+        //     UtilFunctions::print_vector(allele_index_vec);
+        // }
+        // UtilFunctions::print(std::log(accum));
+        res += std::log(accum);
+
+        // UtilFunctions::print_vector(prVec_);
+    }
     return res;
 };
 
@@ -648,9 +726,9 @@ Chain::Chain(GenotypingData genotyping_data, Lookup lookup, Parameters params)
     llik = std::numeric_limits<double>::lowest();
 
     initialize_m();
-    initialize_latent_genotypes();
-    initialize_p();
     initialize_eps_neg();
     initialize_eps_pos();
+    initialize_latent_genotypes();
+    initialize_p();
     initialize_likelihood();
 }

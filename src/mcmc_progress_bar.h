@@ -19,6 +19,11 @@ class MCMCProgressBar : public ProgressBar
     void set_llik(double llik);
 
    private:
+    enum events
+    {
+        UPDATE_CONSOLE
+    };
+
     std::string time_remaining_string_(double dur, float progress);
     std::string current_ticks_string_(float progress);
     std::string current_llik_string_();
@@ -29,7 +34,7 @@ class MCMCProgressBar : public ProgressBar
     int burnin_;
     int sample_;
     double llik_;
-    Timer<> clock_;
+    Timer<events> clock_;
     bool finalized_ = false;
     bool timer_flag_ = false;
 };

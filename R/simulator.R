@@ -67,13 +67,26 @@ simulate_sample_genotype <- function(sample_cois, locus_allele_dist) {
 #' @param epsilon_pos false positive rate
 #' @param epsilon_neg false negative rate
 simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg) {
-  sapply(alleles, function(allele) {
+  positive_indices <- which(as.logical(alleles))
+  negative_indices <- which(!as.logical(alleles))
+
+  alleles <- sapply(alleles, function(allele) {
     if (allele > 0) {
       rbinom(1, 1, prob = 1 - epsilon_neg)
     } else {
-      rbinom(1, 1, epsilon_pos)
+      allele
     }
   })
+
+  if (length(negative_indices) > 0) {
+    for (idx in positive_indices) {
+      if (rbinom(1, 1, prob = epsilon_pos) == 1) {
+        fp_idx <- sample(negative_indices, 1)
+        alleles[fp_idx] <- 1
+      }
+    }
+  }
+  return(alleles)
 }
 
 #' Simulate observed genotypes

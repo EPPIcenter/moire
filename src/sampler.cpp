@@ -224,33 +224,12 @@ LatentGenotype Sampler::sample_latent_genotype(
         }
     }
 
-    // if the observed number of positives exceeds the COI, then some number of
-    // them must be false positives
-    int min_false_positives = std::max(0, total_obs_positives - coi);
-    int max_false_positives = total_obs_positives - (total_obs_negatives == 0);
-
-    int total_false_positives = min_false_positives;
-    for (int ii = total_false_positives; ii < max_false_positives; ++ii)
-    {
-        total_false_positives += (sample_unif() < epsilon_pos);
-    }
-    int total_true_positives = total_obs_positives - total_false_positives;
-
-    double log_prob_total_false_positives =
-        std::log(boost::math::binomial_coefficient<double>(
-            total_obs_positives, total_false_positives - min_false_positives)) +
-        (total_false_positives - min_false_positives) * std::log(epsilon_pos) +
-        total_true_positives * std::log(1 - epsilon_pos);
-
     // there must be at least one allele, so if all obs_positives are considered
     // false positives then there must be at least one false negative
-    int min_false_negatives =
-        std::min(total_obs_negatives,
-                 1 * (total_false_positives == total_obs_positives));
-    // also, there can't be more than min((coi - total_true_positives),
-    // total_obs_negatives) false negatives
+    int min_false_negatives = std::max(0, 1 * (total_obs_positives == 0));
+
     int max_false_negatives =
-        std::min(coi - total_true_positives, total_obs_negatives);
+        std::max(min_false_negatives, std::min(coi, total_obs_negatives));
 
     int total_false_negatives = min_false_negatives;
     for (int ii = total_false_negatives; ii < max_false_negatives; ++ii)
@@ -264,6 +243,31 @@ LatentGenotype Sampler::sample_latent_genotype(
             total_obs_negatives, total_false_negatives - min_false_negatives)) +
         (total_false_negatives - min_false_negatives) * std::log(epsilon_neg) +
         total_true_negatives * std::log(1 - epsilon_neg);
+
+    // if the observed number of positives exceeds the COI, then some number of
+    // them must be false positives
+    int min_false_positives =
+        std::max(0, (total_obs_positives + total_false_negatives) - coi);
+
+    int max_false_positives =
+        std::min(total_obs_positives, total_false_negatives / 2);
+
+    // UtilFunctions::print(min_false_negatives, max_false_negatives,
+    //                      min_false_positives, max_false_positives,
+    //                      total_obs_positives, total_obs_negatives, coi);
+
+    int total_false_positives = min_false_positives;
+    for (int ii = total_false_positives; ii < max_false_positives; ++ii)
+    {
+        total_false_positives += (sample_unif() < epsilon_pos);
+    }
+    int total_true_positives = total_obs_positives - total_false_positives;
+
+    double log_prob_total_false_positives =
+        std::log(boost::math::binomial_coefficient<double>(
+            total_obs_positives, total_false_positives - min_false_positives)) +
+        (total_false_positives - min_false_positives) * std::log(epsilon_pos) +
+        total_true_positives * std::log(1 - epsilon_pos);
 
     shuffle_vec(obs_positive_indices);
     shuffle_vec(obs_negative_indices);
