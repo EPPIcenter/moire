@@ -197,6 +197,7 @@ void Chain::update_p(int iteration)
         while (--rep >= 0)
         {
             const int idx = sampler.sample_random_int(0, k - 1);
+            p_attempt[j][idx] += 1;
 
             auto logitPropP = UtilFunctions::logitVec(p[j]);
 
