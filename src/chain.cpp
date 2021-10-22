@@ -168,6 +168,7 @@ void Chain::update_m(int iteration)
                     lg_adj_old[jj][ii] = lg_adj_new[jj][ii];
                     latent_genotypes_old[jj][ii] = latent_genotypes_new[jj][ii];
                 }
+                m_accept[ii] += 1;
             }
             else
             {
@@ -397,12 +398,6 @@ double Chain::calc_transmission_process(
     res = std::log(1 - probAnyMissing_(prVec_, coi)) +
           std::log(constrained_set_total_prob) * coi;
 
-    // if (std::isinf(res))
-    // {
-    //     UtilFunctions::print(coi, constrained_set_total_prob);
-    //     UtilFunctions::print_vector(prVec_);
-    // }
-
     return res;
 }
 
@@ -443,10 +438,6 @@ double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
         ++j;
     }
 
-    // res += std::log(epsilon_neg) * fn;
-    // res += std::log(1 - epsilon_neg) * tn;
-    // res += std::log(epsilon_pos) * fp;
-    // res += std::log(1 - epsilon_pos) * tp;
     res += std::log(1 - epsilon_neg) * tp;
     res += std::log(epsilon_neg) * fn;
 
@@ -461,10 +452,6 @@ double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
         std::fill(prVec_.begin(), prVec_.end(), 1.0 / fp);
         // each true positive can contribute at most one false positive, so
         // there must be at least as many true positives as false positives.
-        // if (fp > (tp + fn))
-        // {
-        //     UtilFunctions::print("ERROR", fp, tp, fn);
-        // }
         double accum = 0;
         for (unsigned int contributing_pos_count = fp;
              contributing_pos_count <= (tp + fn); contributing_pos_count++)
@@ -490,26 +477,9 @@ double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
 
             accum += std::exp(log_total_combos + log_prob_num_contributing +
                               log_prob_false_positives);
-
-            // if (accum == 0)
-            // {
-            //     UtilFunctions::print(
-            //         "Obs:", log_total_combos, log_prob_num_contributing,
-            //         log_prob_false_positives, contributing_pos_count,
-            //         constrained_set_total_prob, fp, tp);
-            // }
         }
 
-        // if (accum == 0)
-        // {
-        //     UtilFunctions::print("Inf:", fp, tp, fn, tn);
-        //     UtilFunctions::print_vector(obs_genotype);
-        //     UtilFunctions::print_vector(allele_index_vec);
-        // }
-        // UtilFunctions::print(std::log(accum));
         res += std::log(accum);
-
-        // UtilFunctions::print_vector(prVec_);
     }
     return res;
 };
