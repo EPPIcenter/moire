@@ -64,28 +64,35 @@ simulate_sample_genotype <- function(sample_cois, locus_allele_dist) {
 #'
 #' @param alleles A numeric vector representing the number of strains
 #'  contributing each allele
-#' @param epsilon_pos false positive rate
-#' @param epsilon_neg false negative rate
+#' @param epsilon_pos expected number of false negatives
+#' @param epsilon_neg expected number of false positives
 simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg) {
-  positive_indices <- which(as.logical(alleles))
-  negative_indices <- which(!as.logical(alleles))
+  positive_indices <- which(as.logical(alleles)) # True Positives
+  negative_indices <- which(!as.logical(alleles)) # True Negatives
+
+  # eps_pos_prob = epsilon_pos / length(negative_indices)
+  # eps_neg_prob = epsilon_neg / length(positive_indices)
+  eps_pos_prob = epsilon_pos / length(alleles)
+  eps_neg_prob = epsilon_neg / length(alleles)
+
 
   alleles <- sapply(alleles, function(allele) {
     if (allele > 0) {
-      rbinom(1, 1, prob = 1 - epsilon_neg)
+      rbinom(1, 1, prob = 1 - eps_neg_prob)
     } else {
-      allele
+      rbinom(1, 1, prob = eps_pos_prob)
+      # allele
     }
   })
 
-  if (length(negative_indices) > 0) {
-    for (idx in positive_indices) {
-      if (rbinom(1, 1, prob = epsilon_pos) == 1) {
-        fp_idx <- sample(negative_indices, 1)
-        alleles[fp_idx] <- 1
-      }
-    }
-  }
+  # if (length(negative_indices) > 0) {
+  #   for (idx in positive_indices) {
+  #     if (rbinom(1, 1, prob = epsilon_pos) == 1) {
+  #       fp_idx <- sample(negative_indices, 1)
+  #       alleles[fp_idx] <- 1
+  #     }
+  #   }
+  # }
   return(alleles)
 }
 
@@ -98,8 +105,8 @@ simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg) {
 #'
 #' @param true_genotypes a list of numeric vectors that are input
 #'  to sim_observed_allele
-#' @param epsilon_pos false positive rate
-#' @param epsilon_neg false negative rate
+#' @param epsilon_pos expected number of false positives
+#' @param epsilon_neg expected number of false negatives
 simulate_observed_genotype <- function(true_genotypes,
                                        epsilon_pos,
                                        epsilon_neg) {
@@ -116,8 +123,8 @@ simulate_observed_genotype <- function(true_genotypes,
 #' @param locus_freq_alphas List of alpha vectors to be used to simulate
 #'  from a Dirichlet distribution to generate allele frequencies.
 #' @param num_samples Total number of biological samples to simulate
-#' @param epsilon_pos False positive rate, between 0 and 1
-#' @param epsilon_neg False negative rate, between 0 and 1
+#' @param epsilon_pos False positive rate, expected number of false positives
+#' @param epsilon_neg False negative rate, expected number of false negatives
 #' @return Simulated data that is structured to go into the MCMC sampler
 #'
 simulate_data <- function(mean_coi,

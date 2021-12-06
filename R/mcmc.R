@@ -24,16 +24,16 @@
 #'  allele frequency.
 #' @param eps_pos_0 0-1 Numeric. Initial eps_pos value
 #' @param eps_pos_var Numeric. Variance used in sampling eps_pos
-#' @param eps_pos_alpha Positive Numeric. Alpha parameter in
-#'  Beta distribution for eps_pos prior
-#' @param eps_pos_beta Positive Numeric. Beta parameter in
-#'  Beta distribution for eps_pos prior
+#' @param eps_pos_shape Positive Numeric. Shape parameter in
+#'  Gamma distribution for eps_pos prior
+#' @param eps_pos_scale Positive Numeric. Scale parameter in
+#'  Gamma distribution for eps_pos prior
 #' @param eps_neg_0 0-1 Numeric. Initial eps_neg value
 #' @param eps_neg_var Numeric. Variance used in sampling eps_neg
-#' @param eps_neg_alpha Positive Numeric. Alpha parameter in
-#'  Beta distribution for eps_neg prior
-#' @param eps_neg_beta Positive Numeric. Beta parameter in
-#'  Beta distribution for eps_neg prior
+#' @param eps_neg_shape Positive Numeric. Shape parameter in
+#'  Gamma distribution for eps_neg prior
+#' @param eps_neg_scale Positive Numeric. Scale parameter in
+#'  Gamma distribution for eps_neg prior
 #' @param max_eps_pos 0-1 Numeric. Maximum allowed value for eps_pos
 #' @param max_eps_neg 0-1 Numeric. Maximum allowed value for eps_neg
 #' @param max_coi Positive Numeric. Maximum allowed complexity of infection
@@ -52,16 +52,16 @@ run_mcmc <-
            complexity_limit = 5,
            verbose = TRUE,
            allele_freq_threshold = 1e-5,
-           eps_pos_0 = .01,
-           eps_pos_var = .001,
-           eps_pos_alpha = 1,
-           eps_pos_beta = 99,
-           eps_neg_0 = .05,
-           eps_neg_var = .005,
-           eps_neg_alpha = 5,
-           eps_neg_beta = 95,
-           max_eps_pos = .5,
-           max_eps_neg = .5,
+           eps_pos_0 = 1,
+           eps_pos_var = .05,
+           eps_pos_shape = 1,
+           eps_pos_scale = 1,
+           eps_neg_0 = 1,
+           eps_neg_var = .05,
+           eps_neg_shape = 1,
+           eps_neg_scale = 1,
+           max_eps_pos = 20,
+           max_eps_neg = 20,
            max_coi = 20,
            allele_freq_vars = .1,
            adapt_allele_freq_vars = FALSE) {

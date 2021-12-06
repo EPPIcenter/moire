@@ -439,49 +439,27 @@ double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
         ++j;
     }
 
-    res += std::log(1 - epsilon_neg) * tp;
-    res += std::log(epsilon_neg) * fn;
+    int total_possible_alleles = obs_genotype.size();
+    res += std::log(1 - (epsilon_neg / total_possible_alleles)) * tp;
+    res += std::log(epsilon_neg / total_possible_alleles) * fn;
+    res += std::log(1 - (epsilon_pos / total_possible_alleles)) * tn;
+    res += std::log(epsilon_pos / total_possible_alleles) * fp;
 
-    if (fp > 0)
-    {
-        unsigned int total_unobserved_alleles = tn + fp;
-        double constrained_set_total_prob =
-            fp / (double)total_unobserved_alleles;
+    // unsigned int total_latent_neg = fp + tn;
+    // unsigned int total_latent_pos = fn + tp;
 
-        prVec_.clear();
-        prVec_.resize(fp);
-        std::fill(prVec_.begin(), prVec_.end(), 1.0 / fp);
-        // each true positive can contribute at most one false positive, so
-        // there must be at least as many true positives as false positives.
-        double accum = 0;
-        for (unsigned int contributing_pos_count = fp;
-             contributing_pos_count <= (tp + fn); contributing_pos_count++)
-        {
-            // how many different ways could the contributing positives be
-            // selected from the total positives
-            double log_total_combos =
-                std::log(boost::math::binomial_coefficient<double>(
-                    (tp + fn), contributing_pos_count));
+    // if (total_latent_pos > 0)
+    // {
+    //     res += std::log(1 - (epsilon_neg / total_latent_pos)) * tp;
+    //     res += std::log(epsilon_neg / total_latent_pos) * fn;
+    // }
 
-            // the probability that `contributing_pos_count` alleles contributed
-            // a false positive
-            double log_prob_num_contributing =
-                contributing_pos_count * std::log(epsilon_pos);
+    // if (total_latent_neg > 0)
+    // {
+    //     res += std::log(1 - (epsilon_pos / total_latent_neg)) * tn;
+    //     res += std::log(epsilon_pos / total_latent_neg) * fp;
+    // }
 
-            // the probability that this particular set of alleles are false
-            // positives given `contributing_pos_count`, which is the
-            // probability that all alleles are represented conditional on all
-            // alleles coming from the restricted set
-            double log_prob_false_positives =
-                std::log(1 - probAnyMissing_(prVec_, contributing_pos_count)) +
-                std::log(constrained_set_total_prob) * contributing_pos_count;
-
-            accum += std::exp(log_total_combos + log_prob_num_contributing +
-                              log_prob_false_positives);
-        }
-
-        res += std::log(accum);
-    }
     return res;
 };
 
@@ -592,13 +570,13 @@ void Chain::calculate_genotype_likelihood(int sample_idx, int locus_idx)
 void Chain::calculate_eps_neg_likelihood(int sample_idx)
 {
     eps_neg_prior_new[sample_idx] = sampler.get_epsilon_log_prior(
-        eps_neg[sample_idx], params.eps_neg_alpha, params.eps_neg_beta);
+        eps_neg[sample_idx], params.eps_neg_shape, params.eps_neg_scale);
 }
 
 void Chain::calculate_eps_pos_likelihood(int sample_idx)
 {
     eps_pos_prior_new[sample_idx] = sampler.get_epsilon_log_prior(
-        eps_pos[sample_idx], params.eps_pos_alpha, params.eps_pos_beta);
+        eps_pos[sample_idx], params.eps_pos_shape, params.eps_pos_scale);
 }
 
 void Chain::initialize_likelihood()
@@ -635,9 +613,9 @@ void Chain::initialize_likelihood()
     for (size_t ii = 0; ii < genotyping_data.num_samples; ii++)
     {
         double eps_neg_prior = sampler.get_epsilon_log_prior(
-            eps_neg[ii], params.eps_neg_alpha, params.eps_neg_beta);
+            eps_neg[ii], params.eps_neg_shape, params.eps_neg_scale);
         double eps_pos_prior = sampler.get_epsilon_log_prior(
-            eps_pos[ii], params.eps_pos_alpha, params.eps_pos_beta);
+            eps_pos[ii], params.eps_pos_shape, params.eps_pos_scale);
 
         eps_neg_prior_old[ii] = eps_neg_prior;
         eps_neg_prior_new[ii] = eps_neg_prior;

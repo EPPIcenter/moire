@@ -140,9 +140,14 @@ int Sampler::sample_coi_delta(double coi_prop_mean)
     return (2 * ber_distr(eng) - 1) * (geom_distr(eng));
 }
 
-double Sampler::get_epsilon_log_prior(double x, double alpha, double beta)
+// double Sampler::get_epsilon_log_prior(double x, double alpha, double beta)
+// {
+//     return dbeta(x, alpha, beta, true);
+// }
+
+double Sampler::get_epsilon_log_prior(double x, double shape, double scale)
 {
-    return dbeta(x, alpha, beta, true);
+    return dgamma(x, shape, scale, true);
 }
 
 // double Sampler::sample_epsilon(double curr_epsilon, double variance) {
@@ -234,15 +239,18 @@ LatentGenotype Sampler::sample_latent_genotype(
     int total_false_negatives = min_false_negatives;
     for (int ii = total_false_negatives; ii < max_false_negatives; ++ii)
     {
-        total_false_negatives += (sample_unif() < epsilon_neg);
+        total_false_negatives +=
+            (sample_unif() < (epsilon_neg / obs_genotype.size()));
     }
     int total_true_negatives = total_obs_negatives - total_false_negatives;
 
     double log_prob_total_false_negatives =
         std::log(boost::math::binomial_coefficient<double>(
             total_obs_negatives, total_false_negatives - min_false_negatives)) +
-        (total_false_negatives - min_false_negatives) * std::log(epsilon_neg) +
-        total_true_negatives * std::log(1 - epsilon_neg);
+        (total_false_negatives - min_false_negatives) *
+            std::log(epsilon_neg / obs_genotype.size()) +
+        total_true_negatives *
+            std::log(1 - (epsilon_neg / obs_genotype.size()));
 
     // if the observed number of positives exceeds the COI, then some number of
     // them must be false positives
@@ -259,15 +267,18 @@ LatentGenotype Sampler::sample_latent_genotype(
     int total_false_positives = min_false_positives;
     for (int ii = total_false_positives; ii < max_false_positives; ++ii)
     {
-        total_false_positives += (sample_unif() < epsilon_pos);
+        total_false_positives +=
+            (sample_unif() < (epsilon_pos / obs_genotype.size()));
     }
     int total_true_positives = total_obs_positives - total_false_positives;
 
     double log_prob_total_false_positives =
         std::log(boost::math::binomial_coefficient<double>(
             total_obs_positives, total_false_positives - min_false_positives)) +
-        (total_false_positives - min_false_positives) * std::log(epsilon_pos) +
-        total_true_positives * std::log(1 - epsilon_pos);
+        (total_false_positives - min_false_positives) *
+            std::log(epsilon_pos / obs_genotype.size()) +
+        total_true_positives *
+            std::log(1 - (epsilon_pos / obs_genotype.size()));
 
     shuffle_vec(obs_positive_indices);
     shuffle_vec(obs_negative_indices);
