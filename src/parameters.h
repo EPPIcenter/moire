@@ -12,7 +12,6 @@ class Parameters
     int thin;
     int burnin;
     int samples;
-    long int complexity_limit;
     double allele_freq_threshold;
 
     // Model Parameters

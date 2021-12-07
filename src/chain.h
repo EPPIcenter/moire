@@ -51,11 +51,6 @@ class Chain
         std::vector<std::vector<int>> const &true_genotypes, double epsilon_neg,
         double epsilon_pos, int num_genotypes);
 
-    long double calc_exact_genotype_marginal_llik(
-        std::vector<int> const &obs_genotype, int coi,
-        std::vector<double> const &allele_frequencies, double epsilon_neg,
-        double epsilon_pos);
-
     double calculate_llik(int num_samples);
     double calc_old_likelihood();
     double calc_new_likelihood();

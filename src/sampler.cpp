@@ -7,6 +7,7 @@
 #include <Rmath.h>
 #include <algorithm>
 #include <random>
+#include <tuple>
 
 std::random_device Sampler::rd;
 
@@ -140,21 +141,10 @@ int Sampler::sample_coi_delta(double coi_prop_mean)
     return (2 * ber_distr(eng) - 1) * (geom_distr(eng));
 }
 
-// double Sampler::get_epsilon_log_prior(double x, double alpha, double beta)
-// {
-//     return dbeta(x, alpha, beta, true);
-// }
-
 double Sampler::get_epsilon_log_prior(double x, double shape, double scale)
 {
     return dgamma(x, shape, scale, true);
 }
-
-// double Sampler::sample_epsilon(double curr_epsilon, double variance) {
-//     norm_distr.param(std::normal_distribution<double>::param_type(log(curr_epsilon
-//     / (1 - curr_epsilon)), variance)); double prop = norm_distr(eng); return
-//     exp(prop) / (1 + exp(prop));
-// };
 
 double Sampler::sample_epsilon(double curr_epsilon, double variance)
 {
@@ -163,6 +153,22 @@ double Sampler::sample_epsilon(double curr_epsilon, double variance)
     double prop = norm_distr(eng);
     return prop;
 };
+
+std::tuple<double, double> Sampler::sample_constrained(double curr, double var,
+                                                       double lower,
+                                                       double upper)
+{
+    norm_distr.param(std::normal_distribution<double>::param_type(0, var));
+    double eps = norm_distr(eng);
+    double unconstrained = std::log(curr - lower) - std::log(upper - curr);
+    double exp_prop = std::exp(eps + unconstrained);
+    double prop = (upper * exp_prop + lower) / (exp_prop + 1);
+    prop = UtilFunctions::clamp(prop, lower, upper);
+
+    double adj = std::log(prop - lower) + std::log(upper - prop) -
+                 std::log(curr - lower) - std::log(upper - curr);
+    return std::make_tuple(prop, adj);
+}
 
 double Sampler::sample_epsilon_pos(double curr_epsilon_pos, double variance)
 {
@@ -259,10 +265,6 @@ LatentGenotype Sampler::sample_latent_genotype(
 
     int max_false_positives =
         std::min(total_obs_positives, total_false_negatives / 2);
-
-    // UtilFunctions::print(min_false_negatives, max_false_negatives,
-    //                      min_false_positives, max_false_positives,
-    //                      total_obs_positives, total_obs_negatives, coi);
 
     int total_false_positives = min_false_positives;
     for (int ii = total_false_positives; ii < max_false_positives; ++ii)
