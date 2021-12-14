@@ -1,13 +1,14 @@
 ## ----simulate_data
 set.seed(17325)
 
-mean_moi <- 5
+mean_moi <- 15
 num_biological_samples <- 100
-epsilon_pos <- .05
-epsilon_neg <- .1
+epsilon_pos <- .1
+epsilon_neg <- 1
 
 # Generate the number of alleles at each locus
 allele_counts <- c(rep(5, 15), rep(10, 15), rep(25, 15))
+# allele_counts <- c(rep(2, 100))
 
 
 # We'll use flat alpha vectors for our draws from the Dirichlet
@@ -21,14 +22,14 @@ simulated_data <- moire::simulate_data(
 
 
 ## ----run_mcmc
-burnin <- 1e5
-num_samples <- 1e4
+burnin <- 1e4
+num_samples <- 1e3
 
 mcmc_results <- moire::run_mcmc(
   simulated_data$data, simulated_data$sample_ids, simulated_data$loci,
-  verbose = T, burnin = burnin, samples = num_samples, thin = 1,
-  eps_pos_alpha = 1, eps_pos_beta = 99, complexity_limit = 1,
-  eps_neg_alpha = 1, eps_neg_beta = 99, allele_freq_vars = 1,
+  verbose = T, burnin = burnin, samples = num_samples, thin = 1, eps_pos_0 = 1, eps_neg_0 = 1,
+  eps_pos_shape = .1, eps_pos_scale = 1, eps_pos_var = 1, eps_neg_var = 1,
+  eps_neg_shape = .1, eps_neg_scale = 1, allele_freq_vars = 1,
   adapt_allele_freq_vars = TRUE
 )
 
