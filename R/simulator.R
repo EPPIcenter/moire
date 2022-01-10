@@ -25,7 +25,7 @@ rdirichlet <- function(n, alpha) {
 #' @param num_loci total number of loci to draw
 simulate_allele_frequencies <- function(alpha, num_loci) {
   dists <- rdirichlet(num_loci, alpha)
-  lapply(seq_len(num_loci), function(x) {
+  sapply(seq_len(num_loci), function(x) {
     dists[x, ]
   })
 }
@@ -136,14 +136,12 @@ simulate_data <- function(mean_coi,
                           locus_freq_alphas = NULL,
                           allele_freqs = NULL) {
   if(is.null(allele_freqs)) {
-    allele_freqs <- c()
-    for (alpha in locus_freq_alphas) {
-      allele_freqs <- c(
-        allele_freqs,
-        simulate_allele_frequencies(alpha, 1)
-      )
+    allele_freqs <- list()
+    for (i in 1:length(locus_freq_alphas)) {
+      allele_freqs[[i]] <- simulate_allele_frequencies(locus_freq_alphas[[i]], 1)
     }
   }
+
 
   sample_cois <- simulate_sample_coi(num_samples, mean_coi)
 

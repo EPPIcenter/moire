@@ -226,7 +226,8 @@ summarize_allele_freqs <- function(mcmc_results,
         post_allele_freqs_lower = post_allele_freqs_lower,
         post_allele_freqs_med = post_allele_freqs_med,
         post_allele_freqs_upper = post_allele_freqs_upper,
-        post_allele_freqs_mean = post_allele_freqs_mean
+        post_allele_freqs_mean = post_allele_freqs_mean,
+        num_alleles = num_alleles
       )
     }
   )
