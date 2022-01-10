@@ -125,25 +125,29 @@ simulate_observed_genotype <- function(true_genotypes,
 #' @param num_samples Total number of biological samples to simulate
 #' @param epsilon_pos False positive rate, expected number of false positives
 #' @param epsilon_neg False negative rate, expected number of false negatives
+#' @param allele_freqs List of allele frequencies to be used instead of
+#'  simulating allele frequencies
 #' @return Simulated data that is structured to go into the MCMC sampler
 #'
 simulate_data <- function(mean_coi,
-                          locus_freq_alphas,
                           num_samples,
                           epsilon_pos,
-                          epsilon_neg) {
-  allele_freq_dists <- c()
-
-  for (alpha in locus_freq_alphas) {
-    allele_freq_dists <- c(
-      allele_freq_dists,
-      simulate_allele_frequencies(alpha, 1)
-    )
+                          epsilon_neg,
+                          locus_freq_alphas = NULL,
+                          allele_freqs = NULL) {
+  if(is.null(allele_freqs)) {
+    allele_freqs <- c()
+    for (alpha in locus_freq_alphas) {
+      allele_freqs <- c(
+        allele_freqs,
+        simulate_allele_frequencies(alpha, 1)
+      )
+    }
   }
 
   sample_cois <- simulate_sample_coi(num_samples, mean_coi)
 
-  true_sample_genotypes <- lapply(allele_freq_dists, function(dist) {
+  true_sample_genotypes <- lapply(allele_freqs, function(dist) {
     simulate_sample_genotype(sample_cois, dist)
   })
 
@@ -156,13 +160,14 @@ simulate_data <- function(mean_coi,
   list(
     data = observed_sample_genotypes,
     sample_ids = paste0("S", seq.int(1, num_samples)),
-    loci = paste0("L", seq.int(1, length(locus_freq_alphas))),
-    allele_freqs = allele_freq_dists,
+    loci = paste0("L", seq.int(1, length(allele_freqs))),
+    allele_freqs = allele_freqs,
     sample_cois = sample_cois,
     true_genotypes = true_sample_genotypes,
     input = list(
       mean_coi = mean_coi,
       locus_freq_alphas = locus_freq_alphas,
+      allele_freqs = allele_freqs,
       num_samples = num_samples,
       epsilon_pos = epsilon_pos,
       epsilon_neg = epsilon_neg
