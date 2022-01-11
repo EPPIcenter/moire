@@ -259,12 +259,10 @@ void Chain::update_eps_pos(int iteration)
 {
     for (size_t i = 0; i < m.size(); i++)
     {
-        auto prop_adj = sampler.sample_constrained(eps_pos[i], eps_pos_var, 0,
-                                                   params.max_eps_pos);
+        auto prop_adj =
+            sampler.sample_constrained(eps_pos[i], eps_pos_var, 0, 1);
         double prop_eps_pos = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
-        // double prop_eps_pos =
-        //     sampler.sample_epsilon_pos(eps_pos[i], eps_pos_var);
 
         if (prop_eps_pos < params.max_eps_pos && prop_eps_pos > 1e-32)
         {
@@ -308,13 +306,11 @@ void Chain::update_eps_neg(int iteration)
 {
     for (size_t i = 0; i < m.size(); i++)
     {
-        auto prop_adj = sampler.sample_constrained(eps_neg[i], eps_neg_var, 0,
-                                                   params.max_eps_neg);
+        auto prop_adj =
+            sampler.sample_constrained(eps_neg[i], eps_neg_var, 0, 1);
         double prop_eps_neg = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
-        // double prop_eps_neg =
-        //     sampler.sample_epsilon_neg(eps_neg[i], eps_neg_var);
         if (prop_eps_neg < params.max_eps_neg && prop_eps_neg > 1e-32)
         {
             double prev_eps_neg = eps_neg[i];
