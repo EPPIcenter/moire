@@ -144,7 +144,7 @@ int Sampler::sample_coi_delta(double coi_prop_mean)
 double Sampler::get_epsilon_log_prior(double x, double alpha, double beta)
 {
     // return dgamma(x, shape, scale, true);
-    return dbeta(x, alpha, beta, true)
+    return dbeta(x, alpha, beta, true);
 }
 
 double Sampler::sample_epsilon(double curr_epsilon, double variance)
