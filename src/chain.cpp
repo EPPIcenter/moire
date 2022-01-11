@@ -423,10 +423,16 @@ double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
     }
 
     int total_possible_alleles = obs_genotype.size();
-    res += std::log(1 - (epsilon_neg / total_possible_alleles)) * tp;
-    res += std::log(epsilon_neg / total_possible_alleles) * fn;
-    res += std::log(1 - (epsilon_pos / total_possible_alleles)) * tn;
-    res += std::log(epsilon_pos / total_possible_alleles) * fp;
+    res += std::log(1 - (epsilon_neg * params.max_eps_neg /
+                         total_possible_alleles)) *
+           tp;
+    res += std::log(epsilon_neg * params.max_eps_neg / total_possible_alleles) *
+           fn;
+    res += std::log(1 - (epsilon_pos * params.max_eps_pos /
+                         total_possible_alleles)) *
+           tn;
+    res += std::log(epsilon_pos * params.max_eps_pos / total_possible_alleles) *
+           fp;
 
     return res;
 };
@@ -500,13 +506,13 @@ void Chain::calculate_genotype_likelihood(int sample_idx, int locus_idx)
 void Chain::calculate_eps_neg_likelihood(int sample_idx)
 {
     eps_neg_prior_new[sample_idx] = sampler.get_epsilon_log_prior(
-        eps_neg[sample_idx], params.eps_neg_shape, params.eps_neg_scale);
+        eps_neg[sample_idx], params.eps_neg_alpha, params.eps_neg_beta);
 }
 
 void Chain::calculate_eps_pos_likelihood(int sample_idx)
 {
     eps_pos_prior_new[sample_idx] = sampler.get_epsilon_log_prior(
-        eps_pos[sample_idx], params.eps_pos_shape, params.eps_pos_scale);
+        eps_pos[sample_idx], params.eps_pos_alpha, params.eps_pos_beta);
 }
 
 void Chain::initialize_likelihood()
@@ -543,9 +549,9 @@ void Chain::initialize_likelihood()
     for (size_t ii = 0; ii < genotyping_data.num_samples; ii++)
     {
         double eps_neg_prior = sampler.get_epsilon_log_prior(
-            eps_neg[ii], params.eps_neg_shape, params.eps_neg_scale);
+            eps_neg[ii], params.eps_neg_alpha, params.eps_neg_beta);
         double eps_pos_prior = sampler.get_epsilon_log_prior(
-            eps_pos[ii], params.eps_pos_shape, params.eps_pos_scale);
+            eps_pos[ii], params.eps_pos_alpha, params.eps_pos_beta);
 
         eps_neg_prior_old[ii] = eps_neg_prior;
         eps_neg_prior_new[ii] = eps_neg_prior;

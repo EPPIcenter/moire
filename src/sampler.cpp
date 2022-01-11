@@ -141,9 +141,10 @@ int Sampler::sample_coi_delta(double coi_prop_mean)
     return (2 * ber_distr(eng) - 1) * (geom_distr(eng));
 }
 
-double Sampler::get_epsilon_log_prior(double x, double shape, double scale)
+double Sampler::get_epsilon_log_prior(double x, double alpha, double beta)
 {
-    return dgamma(x, shape, scale, true);
+    // return dgamma(x, shape, scale, true);
+    return dbeta(x, alpha, beta, true)
 }
 
 double Sampler::sample_epsilon(double curr_epsilon, double variance)
