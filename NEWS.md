@@ -1,3 +1,8 @@
+# moire 2.1.0
+- Implemented a new error model that removes sensitivity to total number of alleles at a locus
+- Removed option to marginalize out latent genotypes below some complexity threshold
+- bug fixes, documentation improvements
+
 # moire 2.0.1
 - Minor bugfix when sampling that caused computational slow down
 
