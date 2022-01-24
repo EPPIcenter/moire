@@ -44,15 +44,32 @@ simulate_sample_coi <- function(num_samples, mean_coi) {
 
 #' Simulate sample genotype
 #' @details Simulates sampling the genetics at a single locus given an allele
-#'  frequency distribution and a vector of sample COIs
+#'   frequency distribution and a vector of sample COIs
 #'
 #' @param sample_cois Numeric vector indicating the multiplicity of infection
-#'  for each biological sample
+#'   for each biological sample
 #' @param locus_allele_dist Allele frequencies -- simplex parameter of a
-#'  multinomial distribution
-simulate_sample_genotype <- function(sample_cois, locus_allele_dist) {
+#'   multinomial distribution
+#' @param internal_relatedness numeric 0-1 indicating the probability for a
+#'   strain's allele to come from an existing lineage within host
+#' @export
+simulate_sample_genotype <- function(sample_cois, locus_allele_dist, internal_relatedness) {
   lapply(sample_cois, function(coi) {
-    rmultinom(1, coi, locus_allele_dist)
+    genotypes <- matrix(nrow = coi, ncol = length(locus_allele_dist))
+    for (i in 1:coi) {
+      if (i == 1) {
+        genotypes[i,] = rmultinom(1, 1, locus_allele_dist)
+      } else {
+        sample_internal = as.logical(rbinom(1, 1, internal_relatedness))
+        if (sample_internal) {
+          genotypes[i,] <- genotypes[sample(1:(i - 1), 1),]
+        } else {
+          genotypes[i,] <- rmultinom(1, 1, locus_allele_dist)
+        }
+      }
+    }
+    g <- colSums(genotypes)
+    g
   })
 }
 
@@ -70,29 +87,20 @@ simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg) {
   positive_indices <- which(as.logical(alleles)) # True Positives
   negative_indices <- which(!as.logical(alleles)) # True Negatives
 
-  # eps_pos_prob = epsilon_pos / length(negative_indices)
-  # eps_neg_prob = epsilon_neg / length(positive_indices)
+  # scale eps to the number of alleles so that given a fixed COI, there is a fixed
+  # number of expected false positives or negatives across loci of varying
+  # diversity.
   eps_pos_prob = epsilon_pos / length(alleles)
   eps_neg_prob = epsilon_neg / length(alleles)
-
 
   alleles <- sapply(alleles, function(allele) {
     if (allele > 0) {
       rbinom(1, 1, prob = 1 - eps_neg_prob)
     } else {
       rbinom(1, 1, prob = eps_pos_prob)
-      # allele
     }
   })
 
-  # if (length(negative_indices) > 0) {
-  #   for (idx in positive_indices) {
-  #     if (rbinom(1, 1, prob = epsilon_pos) == 1) {
-  #       fp_idx <- sample(negative_indices, 1)
-  #       alleles[fp_idx] <- 1
-  #     }
-  #   }
-  # }
   return(alleles)
 }
 
@@ -134,7 +142,8 @@ simulate_data <- function(mean_coi,
                           epsilon_pos,
                           epsilon_neg,
                           locus_freq_alphas = NULL,
-                          allele_freqs = NULL) {
+                          allele_freqs = NULL,
+                          internal_relatedness = 0) {
   if(is.null(allele_freqs)) {
     allele_freqs <- list()
     for (i in 1:length(locus_freq_alphas)) {
@@ -146,7 +155,7 @@ simulate_data <- function(mean_coi,
   sample_cois <- simulate_sample_coi(num_samples, mean_coi)
 
   true_sample_genotypes <- lapply(allele_freqs, function(dist) {
-    simulate_sample_genotype(sample_cois, dist)
+    simulate_sample_genotype(sample_cois, dist, internal_relatedness)
   })
 
   observed_sample_genotypes <- lapply(

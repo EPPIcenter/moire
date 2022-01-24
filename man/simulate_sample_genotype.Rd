@@ -4,7 +4,7 @@
 \alias{simulate_sample_genotype}
 \title{Simulate sample genotype}
 \usage{
-simulate_sample_genotype(sample_cois, locus_allele_dist)
+simulate_sample_genotype(sample_cois, locus_allele_dist, internal_relatedness)
 }
 \arguments{
 \item{sample_cois}{Numeric vector indicating the multiplicity of infection
@@ -12,6 +12,9 @@ for each biological sample}
 
 \item{locus_allele_dist}{Allele frequencies -- simplex parameter of a
 multinomial distribution}
+
+\item{internal_relatedness}{numeric 0-1 indicating the probability for a
+strain's allele to come from an existing lineage within host}
 }
 \description{
 Simulate sample genotype
