@@ -7,7 +7,7 @@ home:
 template:
   opengraph:
     image:
-      src: man/figures/logo.png
+      src: man/figures/logo.svg
     twitter:
       creator: "@MxMrphy"
       site: "@EPPIcenter_UCSF"
@@ -27,7 +27,7 @@ reference:
 - title: Summaries
 - contents:
   - starts_with("summarize_")
-  - starts_with("calculate_") 
+  - starts_with("calculate_")
 - title: Utilities
 - contents:
   - starts_with("load_")

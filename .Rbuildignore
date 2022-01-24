@@ -1,7 +1,7 @@
 ^renv$
 ^renv\.lock$
 ^\.travis\.yml$
-^moiR\.Rproj$
+^moire\.Rproj$
 ^\.Rproj\.user$
 ^_pkgdown\.yml$
 ^docs$
@@ -10,3 +10,7 @@
 ^data-raw$
 ^\.ccls-cache$
 ^\.vscode
+manuscript$
+compile_flags\.txt$
+^\.ccls
+logo\.ai
