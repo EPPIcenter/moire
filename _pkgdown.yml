@@ -5,6 +5,7 @@ home:
   description: MOI and allele frequency recovery from noisy polyallelic genomics data
 
 template:
+  bootstrap: 5
   opengraph:
     image:
       src: man/figures/logo.svg
@@ -15,6 +16,8 @@ template:
   params:
     bootswatch: simplex
     ganalytics: UA-176090065-1
+  code:
+    width: 80
 
 reference:
 - title: MCMC

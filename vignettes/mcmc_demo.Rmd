@@ -10,7 +10,8 @@ vignette: >
 ```{r setup_options, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.align = "center"
 )
 # 
 do.call(knitr::read_chunk, list(path = "../data-raw/mcmc_results.R"))
@@ -108,7 +109,8 @@ ggplot(coi_estimates, aes(x = estimate, stat(count))) +
   geom_bar() +
   xlab("Complexity of Infection") +
   ylab("Total Count") +
-  theme_classic(base_size = 12)
+  theme_classic(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 90))
 ```
 
 Since we simulated data, we know the true complexity of infection and heterozygosity and can compare
@@ -137,18 +139,18 @@ ggplot(he_data, aes(x = loci)) +
   geom_point(aes(y = post_stat_mean), color = "blue") +
   geom_point(aes(y = true_he), color = "red") +
   geom_point(aes(y = naive_he), color = "green") +
-  theme_classic() +
   ggtitle("Estimate of Heterozygosity") +
   xlab("Locus") +
   ylab("Mean Posterior Heterozygosity") +
-  expand_limits(y = .5)
-
+  expand_limits(y = .5) + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
 ggplot(he_data, aes(x = true_he)) +
   geom_errorbar(aes(y = post_stat_mean, ymax = post_stat_upper, ymin = post_stat_lower)) +
   geom_point(aes(y = post_stat_mean), color = "blue") +
   geom_point(aes(y = naive_he), color = "green") +
-  theme_classic() +
-  geom_abline(slope = 1, intercept = 0)
+  geom_abline(slope = 1, intercept = 0) +
+  theme_classic()
 ```
 
 ```{r plot_allele_freq_concordance}

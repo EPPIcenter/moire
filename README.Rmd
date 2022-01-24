@@ -6,7 +6,7 @@ output: github_document
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.path = "man/figures/")
 ```
 
-# moire <img src="man/figures/logo.svg" align="right" alt="" height="139" />
+# moire <img src="man/figures/logo.svg" align="right" alt=""/>
 
 `moire` is a package implementing an MCMC based approach to estimating complexity of infection and population allele frequencies from polyallelic genomics data.
 
@@ -26,5 +26,7 @@ df <- read.csv("your_data.csv")
 data <- load_long_form_data(df)
 
 # With data in appropriate format, run MCMC as follows
-mcmc_results <- moire::run_mcmc(data$data, data$sample_ids, data$loci, data$is_missing)
+mcmc_results <- moire::run_mcmc(
+  data$data, data$sample_ids, data$loci, data$is_missing
+)
 ```
