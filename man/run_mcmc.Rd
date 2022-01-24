@@ -12,24 +12,21 @@ run_mcmc(
   thin = 1,
   burnin = 10000,
   samples = 10000,
-  complexity_limit = 2050,
-  importance_sampling_depth = 300,
-  importance_sampling_scaling_factor = 100,
   verbose = TRUE,
-  eps_pos_0 = 0.01,
-  eps_pos_var = 0.001,
-  eps_pos_alpha = 1,
-  eps_pos_beta = 99,
-  eps_neg_0 = 0.05,
-  eps_neg_var = 0.005,
-  eps_neg_alpha = 5,
-  eps_neg_beta = 95,
-  max_eps_pos = 0.5,
-  max_eps_neg = 0.5,
-  mean_coi_prior_shape = 1.5,
-  mean_coi_prior_scale = 0.5,
-  mean_coi_var = 1,
-  allele_freq_var = 0.1
+  allele_freq_threshold = 1e-05,
+  eps_pos_0 = 0.005,
+  eps_pos_var = 1,
+  eps_pos_alpha = 0.5,
+  eps_pos_beta = 99.5,
+  eps_neg_0 = 0.005,
+  eps_neg_var = 1,
+  eps_neg_alpha = 0.5,
+  eps_neg_beta = 99.5,
+  max_eps_pos = 2,
+  max_eps_neg = 2,
+  max_coi = 20,
+  allele_freq_vars = 1,
+  adapt_allele_freq_vars = TRUE
 )
 }
 \arguments{
@@ -55,57 +52,42 @@ discard as burnin}
 \item{samples}{Positive Integer. Number of samples to take
 after burnin}
 
-\item{complexity_limit}{Limit on the total number of computations before
-resorting to an importance sampling based approach of the integral. Total
-number of computations is approximately}
-
-\item{importance_sampling_depth}{Positive Integer. Min number
-of samples to take during importance sampling. Larger values
-result in longer computation time, too small of values will
-result in poor mixing.}
-
-\item{importance_sampling_scaling_factor}{Positive Ingeter.
-Total additional importance samples taken per increase in
-complexity of infection. Total number of
-samples = importance_sampling_depth + coi * importance_sampling_scaling_
-factor}
-
 \item{verbose}{Logical indicating if progress is printed}
 
-\item{eps_pos_0}{0-1 Numeric. Initial eps_pos value}
+\item{allele_freq_threshold}{0-1 Numeric. Lowest allowed value for an
+allele frequency.}
 
-\item{eps_pos_var}{0-1 Numeric. Variance used in sampling eps_pos}
+\item{eps_pos_0}{Numeric. Initial eps_pos value}
 
-\item{eps_pos_alpha}{Positive Numeric. Alpha parameter in
-Beta distribution for eps_pos prior}
+\item{eps_pos_var}{Numeric. Variance used in sampling eps_pos}
 
-\item{eps_pos_beta}{Positive Numeric. Beta parameter in
-Beta distribution for eps_pos prior}
+\item{eps_neg_0}{Numeric. Initial eps_neg value}
 
-\item{eps_neg_0}{0-1 Numeric. Initial eps_neg value}
+\item{eps_neg_var}{Numeric. Variance used in sampling eps_neg}
 
-\item{eps_neg_var}{0-1 Numeric. Variance used in sampling eps_neg}
+\item{max_eps_pos}{Numeric. Maximum allowed value for eps_pos}
 
-\item{eps_neg_alpha}{Positive Numeric. Alpha parameter in
-Beta distribution for eps_neg prior}
+\item{max_eps_neg}{Numeric. Maximum allowed value for eps_neg}
 
-\item{eps_neg_beta}{Positive Numeric. Beta parameter in
-Beta distribution for eps_neg prior}
+\item{max_coi}{Positive Numeric. Maximum allowed complexity of infection}
 
-\item{max_eps_pos}{0-1 Numeric. Maximum allowed value for eps_pos}
-
-\item{max_eps_neg}{0-1 Numeric. Maximum allowed value for eps_neg}
-
-\item{mean_coi_prior_shape}{Positive Numeric. Shape parameter for gamma
-prior on mean complexity of infection.}
-
-\item{mean_coi_prior_scale}{Positive Numeric. Scale parameter for gamma
-prior on mean complexity of infection.}
-
-\item{mean_coi_var}{Positive Numeric. Variance used in sampling mean_coi}
-
-\item{allele_freq_var}{Positive Numeric. Variance used in sampling allele
+\item{allele_freq_vars}{Positive Numeric. Variance used in sampling allele
 frequencies}
+
+\item{adapt_allele_freq_vars}{Logical indicating whether to adapt variance
+to achieve an acceptance rate of .27}
+
+\item{eps_pos_shape}{Positive Numeric. Shape parameter in
+Gamma distribution for eps_pos prior}
+
+\item{eps_pos_scale}{Positive Numeric. Scale parameter in
+Gamma distribution for eps_pos prior}
+
+\item{eps_neg_shape}{Positive Numeric. Shape parameter in
+Gamma distribution for eps_neg prior}
+
+\item{eps_neg_scale}{Positive Numeric. Scale parameter in
+Gamma distribution for eps_neg prior}
 }
 \description{
 Sample from the target distribution using MCMC

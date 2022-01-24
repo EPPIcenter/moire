@@ -10,9 +10,9 @@ simulate_observed_allele(alleles, epsilon_pos, epsilon_neg)
 \item{alleles}{A numeric vector representing the number of strains
 contributing each allele}
 
-\item{epsilon_pos}{false positive rate}
+\item{epsilon_pos}{expected number of false negatives}
 
-\item{epsilon_neg}{false negative rate}
+\item{epsilon_neg}{expected number of false positives}
 }
 \description{
 Simulates the observation process

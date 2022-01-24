@@ -9,9 +9,9 @@ MCMCProgressBar::MCMCProgressBar(int burnin, int sample)
 
 void MCMCProgressBar::display()
 {
-    UtilFunctions::print(
-        "0%    10   20   30   40   50   60   70   80   90   100%");
-    UtilFunctions::print("[----|----|----|----|----|----|----|----|----|----|");
+    using namespace UtilFunctions;
+    print("0%    10   20   30   40   50   60   70   80   90   100%");
+    print("[----|----|----|----|----|----|----|----|----|----]");
 };
 
 void MCMCProgressBar::update(float progress)
@@ -25,7 +25,12 @@ void MCMCProgressBar::update(float progress)
     }
     else
     {
-        // stop and record time
+        // stop and record time no more than every .1 seconds
+        if (clock_.time_since_event(events::UPDATE_CONSOLE).count() < 100)
+        {
+            return;
+        }
+
         clock_.tock();
         auto duration = clock_.duration();
 
@@ -40,6 +45,7 @@ void MCMCProgressBar::update(float progress)
            << empty_space;
 
         // clear console line and update
+        clock_.record_event(events::UPDATE_CONSOLE);
         UtilFunctions::rewrite_line(ss.str());
 
         if (progress == 1)

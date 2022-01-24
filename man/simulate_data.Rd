@@ -6,23 +6,28 @@
 \usage{
 simulate_data(
   mean_coi,
-  locus_freq_alphas,
   num_samples,
   epsilon_pos,
-  epsilon_neg
+  epsilon_neg,
+  locus_freq_alphas = NULL,
+  allele_freqs = NULL,
+  internal_relatedness = 0
 )
 }
 \arguments{
 \item{mean_coi}{Mean multiplicity of infection drawn from a Poisson}
 
+\item{num_samples}{Total number of biological samples to simulate}
+
+\item{epsilon_pos}{False positive rate, expected number of false positives}
+
+\item{epsilon_neg}{False negative rate, expected number of false negatives}
+
 \item{locus_freq_alphas}{List of alpha vectors to be used to simulate
 from a Dirichlet distribution to generate allele frequencies.}
 
-\item{num_samples}{Total number of biological samples to simulate}
-
-\item{epsilon_pos}{False positive rate, between 0 and 1}
-
-\item{epsilon_neg}{False negative rate, between 0 and 1}
+\item{allele_freqs}{List of allele frequencies to be used instead of
+simulating allele frequencies}
 }
 \value{
 Simulated data that is structured to go into the MCMC sampler

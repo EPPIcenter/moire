@@ -371,6 +371,12 @@ double logSumExp(const It &x)
     return logSumExp(x.begin(), x.end());
 }
 
+template <typename T>
+constexpr const T &clamp(T &el, T &low, T &high)
+{
+    return el < low ? low : el > high ? high : el;
+}
+
 }  // namespace UtilFunctions
 
 #endif  // MCMC_UTILS_H_

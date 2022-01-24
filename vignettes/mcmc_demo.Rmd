@@ -25,24 +25,21 @@ library(tidyr)
 ```
 
 To demonstrate the usage of the package, we can simulate some genotyping data according to our model.
+```{r load_settings, eval=TRUE, include=TRUE}
+
+```
 
 ```{r simulate_data, eval=FALSE, include=TRUE}
 
 ```
 
 ```{r load_simulated_data, eval=TRUE, include=FALSE}
-set.seed(17327)
-
-mean_moi <- 4
-num_biological_samples <- 100
-epsilon_pos <- .01
-epsilon_neg <- .03
 simulated_data <- moire::simulated_data
 ```
 
-Now that we have our data, let's go ahead and run the MCMC with strong priors on the error distributions. 
+Now that we have our data, let's go ahead and run the MCMC. 
 
-```{r run_mcmc, eval=FALSE, include=TRUE, output_sim=TRUE}
+```{r run_mcmc, eval=FALSE, include=TRUE}
 ```
 
 ```{r run_mcmc_load, eval = TRUE, include = FALSE}
@@ -147,6 +144,7 @@ ggplot(he_data, aes(x = loci)) +
   expand_limits(y = .5)
 
 ggplot(he_data, aes(x = true_he)) +
+  geom_errorbar(aes(y = post_stat_mean, ymax = post_stat_upper, ymin = post_stat_lower)) +
   geom_point(aes(y = post_stat_mean), color = "blue") +
   geom_point(aes(y = naive_he), color = "green") +
   theme_classic() +

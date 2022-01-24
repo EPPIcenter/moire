@@ -122,6 +122,76 @@ summarize_coi <- function(mcmc_results, lower_quantile = .025,
   return(coi_data)
 }
 
+#' Summarize epsilon_neg
+#'
+#' @details Summarize epsilon negative results from MCMC. Returns
+#'  a dataframe that contains summaries of the posterior
+#'  distribution of epsilon negative for each biological sample.
+#'
+#' @export
+#'
+#' @param mcmc_results Result of calling run_mcmc()
+#' @param lower_quantile The lower quantile of the posterior
+#'  distribution to return
+#' @param upper_quantile The upper quantile of the posterior
+#'  distribution to return
+summarize_epsilon_neg <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975) {
+  epsilon_neg <- mcmc_results$eps_neg
+  post_eps_neg_lower <- sapply(epsilon_neg, function(x) {
+    quantile(x, lower_quantile)
+  })
+  post_eps_neg_med <- sapply(epsilon_neg, function(x) {
+    quantile(x, .5)
+  })
+  post_eps_neg_upper <- sapply(epsilon_neg, function(x) {
+    quantile(x, upper_quantile)
+  })
+  post_eps_neg_mean <- sapply(epsilon_neg, mean)
+
+  eps_neg_data <- data.frame(
+    sample_id = mcmc_results$args$sample_ids,
+    post_eps_neg_lower, post_eps_neg_med, post_eps_neg_upper, post_eps_neg_mean
+  )
+
+  return(eps_neg_data)
+}
+
+
+#' Summarize epsilon_pos
+#'
+#' @details Summarize epsilon positive results from MCMC. Returns
+#'  a dataframe that contains summaries of the posterior
+#'  distribution of epsilon positive for each biological sample.
+#'
+#' @export
+#'
+#' @param mcmc_results Result of calling run_mcmc()
+#' @param lower_quantile The lower quantile of the posterior
+#'  distribution to return
+#' @param upper_quantile The upper quantile of the posterior
+#'  distribution to return
+summarize_epsilon_pos <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975) {
+  epsilon_pos <- mcmc_results$eps_pos
+  post_eps_pos_lower <- sapply(epsilon_pos, function(x) {
+    quantile(x, lower_quantile)
+  })
+  post_eps_pos_med <- sapply(epsilon_pos, function(x) {
+    quantile(x, .5)
+  })
+  post_eps_pos_upper <- sapply(epsilon_pos, function(x) {
+    quantile(x, upper_quantile)
+  })
+  post_eps_pos_mean <- sapply(epsilon_pos, mean)
+
+  eps_pos_data <- data.frame(
+    sample_id = mcmc_results$args$sample_ids,
+    post_eps_pos_lower, post_eps_pos_med, post_eps_pos_upper, post_eps_pos_mean
+  )
+
+  return(eps_pos_data)
+}
+
+
 #' Summarize Function of Allele Frequencies
 #'
 #' @details General function to summarize the posterior distribution of
@@ -226,7 +296,8 @@ summarize_allele_freqs <- function(mcmc_results,
         post_allele_freqs_lower = post_allele_freqs_lower,
         post_allele_freqs_med = post_allele_freqs_med,
         post_allele_freqs_upper = post_allele_freqs_upper,
-        post_allele_freqs_mean = post_allele_freqs_mean
+        post_allele_freqs_mean = post_allele_freqs_mean,
+        num_alleles = num_alleles
       )
     }
   )

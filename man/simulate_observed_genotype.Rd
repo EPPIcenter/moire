@@ -10,9 +10,9 @@ simulate_observed_genotype(true_genotypes, epsilon_pos, epsilon_neg)
 \item{true_genotypes}{a list of numeric vectors that are input
 to sim_observed_allele}
 
-\item{epsilon_pos}{false positive rate}
+\item{epsilon_pos}{expected number of false positives}
 
-\item{epsilon_neg}{false negative rate}
+\item{epsilon_neg}{expected number of false negatives}
 }
 \description{
 Simulate observed genotypes

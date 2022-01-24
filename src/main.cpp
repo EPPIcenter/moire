@@ -7,6 +7,8 @@
 #include "mcmc_utils.h"
 #include "parameters.h"
 
+#include <Rcpp/utils/tinyformat.h>
+
 #include <progress.hpp>
 //----------------------------------------------
 // [[Rcpp::export(name='run_mcmc_rcpp')]]
@@ -25,9 +27,14 @@ Rcpp::List run_mcmc(Rcpp::List args)
     }
 
     MCMC mcmc(genotyping_data, lookup, params);
-    UtilFunctions::print("MCMC Initialized");
+    if (std::isnan(mcmc.get_llik()))
+    {
+        Rcpp::stop("Error: Initial Llik is NaN");
+    }
+
     MCMCProgressBar pb(params.burnin, params.samples);
     Progress p(params.burnin + params.samples, params.verbose, pb);
+    pb.set_llik(mcmc.get_llik());
 
     int step = 0;
     while (step < params.burnin)
@@ -49,18 +56,29 @@ Rcpp::List run_mcmc(Rcpp::List args)
         p.increment();
     }
 
-    // Rcpp::List debug;
-    // debug.push_back(Rcpp::wrap(mcmc.chain.p_accept));
-    // debug.push_back(Rcpp::wrap(mcmc.chain.m_accept));
-    // debug.push_back(Rcpp::wrap(mcmc.chain.eps_neg_accept));
-    // debug.push_back(Rcpp::wrap(mcmc.chain.eps_pos_accept));
+    Rcpp::List acceptance_rates;
+    acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.p_accept));
+    acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.m_accept));
+    acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.eps_neg_accept));
+    acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.eps_pos_accept));
 
-    // Rcpp::StringVector debug_names;
-    // debug_names.push_back("allele_freq_accept");
-    // debug_names.push_back("coi_accept");
-    // debug_names.push_back("eps_neg_accept");
-    // debug_names.push_back("eps_pos_accept");
-    // debug.names() = debug_names;
+    Rcpp::StringVector acceptance_rate_names;
+    acceptance_rate_names.push_back("allele_freq_accept");
+    acceptance_rate_names.push_back("coi_accept");
+    acceptance_rate_names.push_back("eps_neg_accept");
+    acceptance_rate_names.push_back("eps_pos_accept");
+    acceptance_rates.names() = acceptance_rate_names;
+
+    Rcpp::List sampling_variances;
+    sampling_variances.push_back(Rcpp::wrap(mcmc.chain.p_prop_var));
+    sampling_variances.push_back(Rcpp::wrap(mcmc.chain.eps_neg_var));
+    sampling_variances.push_back(Rcpp::wrap(mcmc.chain.eps_pos_var));
+
+    Rcpp::StringVector sampling_variance_names;
+    sampling_variance_names.push_back("allele_freq_var");
+    sampling_variance_names.push_back("eps_neg_var");
+    sampling_variance_names.push_back("eps_pos_var");
+    sampling_variances.names() = sampling_variance_names;
 
     Rcpp::List res;
     res.push_back(Rcpp::wrap(mcmc.llik_burnin));
@@ -70,7 +88,8 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res.push_back(Rcpp::wrap(mcmc.eps_neg_store));
     res.push_back(Rcpp::wrap(mcmc.eps_pos_store));
     res.push_back(Rcpp::wrap(mcmc.genotyping_data.observed_coi));
-    // res.push_back(Rcpp::wrap(debug));
+    res.push_back(Rcpp::wrap(acceptance_rates));
+    res.push_back(Rcpp::wrap(sampling_variances));
 
     Rcpp::StringVector res_names;
     res_names.push_back("llik_burnin");
@@ -79,7 +98,9 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("allele_freqs");
     res_names.push_back("eps_neg");
     res_names.push_back("eps_pos");
-    // res_names.push_back("acceptance_rates");
+    res_names.push_back("observed_coi");
+    res_names.push_back("acceptance_rates");
+    res_names.push_back("sampling_variances");
 
     res.names() = res_names;
     return res;

@@ -27,3 +27,7 @@ src/Makevars
 *.tmp
 
 compile_flags.txt
+
+manuscript/
+
+*.rds

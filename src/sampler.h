@@ -48,6 +48,8 @@ class Sampler
     double get_coi_mean_log_prior(double mean, double shape, double scale);
 
     double sample_epsilon(double curr_epsilon, double variance);
+    std::tuple<double, double> sample_constrained(double curr, double var,
+                                                  double lower, double upper);
     double sample_epsilon_pos(double curr_epsilon_pos, double variance);
     double sample_epsilon_neg(double curr_epsilon_neg, double variance);
 
