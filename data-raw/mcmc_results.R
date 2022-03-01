@@ -4,7 +4,7 @@ set.seed(17325)
 mean_moi <- 4
 num_biological_samples <- 100
 epsilon_pos <- .05
-epsilon_neg <- .05
+epsilon_neg <- .1
 
 # Generate the number of alleles at each locus
 allele_counts <- c(rep(3, 15), rep(5, 15), rep(10, 15))
@@ -24,12 +24,12 @@ simulated_data <- moire::simulate_data(
 
 ## ----run_mcmc
 burnin <- 1e4
-num_samples <- 1e3
+num_samples <- 1e2
 
 mcmc_results <- moire::run_mcmc(
   simulated_data$data, simulated_data$sample_ids, simulated_data$loci,
-  verbose = T, burnin = burnin, samples = num_samples,
-  adapt_allele_freq_vars = TRUE
+  verbose = T, burnin = burnin, samples_per_chain = num_samples,
+  adapt_allele_freq_vars = TRUE, num_chains = 10, num_cores = 10
 )
 
 ## ----save_results

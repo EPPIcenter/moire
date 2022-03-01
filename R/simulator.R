@@ -69,6 +69,7 @@ simulate_sample_genotype <- function(sample_cois, locus_allele_dist, internal_re
       }
     }
     g <- colSums(genotypes)
+    names(g) <- names(locus_allele_dist)
     g
   })
 }
@@ -93,15 +94,16 @@ simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg) {
   eps_pos_prob = epsilon_pos / length(alleles)
   eps_neg_prob = epsilon_neg / length(alleles)
 
-  alleles <- sapply(alleles, function(allele) {
+  obs_alleles <- sapply(alleles, function(allele) {
     if (allele > 0) {
       rbinom(1, 1, prob = 1 - eps_neg_prob)
     } else {
       rbinom(1, 1, prob = eps_pos_prob)
     }
   })
+  names(obs_alleles) <- names(alleles)
 
-  return(alleles)
+  return(obs_alleles)
 }
 
 #' Simulate observed genotypes
@@ -146,9 +148,14 @@ simulate_data <- function(mean_coi,
                           internal_relatedness = 0) {
   if(is.null(allele_freqs)) {
     allele_freqs <- list()
+    allele_freq_names <- paste0("L", 1:length(locus_freq_alphas))
     for (i in 1:length(locus_freq_alphas)) {
-      allele_freqs[[i]] <- simulate_allele_frequencies(locus_freq_alphas[[i]], 1)
+      total_alleles <- length(locus_freq_alphas[[i]])
+      allele_names <- 1:total_alleles
+      allele_freqs[[allele_freq_names[i]]] <- simulate_allele_frequencies(locus_freq_alphas[[i]], 1)[,1]
+      names(allele_freqs[[i]]) <- paste(allele_freq_names[i], allele_names, sep = "_")
     }
+    names(allele_freqs) <- allele_freq_names
   }
 
 

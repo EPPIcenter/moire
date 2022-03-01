@@ -15,7 +15,7 @@
 #'  1 means do not thin
 #' @param burnin Positive Integer. Number of MCMC samples to
 #'  discard as burnin
-#' @param samples Positive Integer. Number of samples to take
+#' @param samples_per_chain Positive Integer. Number of samples to take
 #'  after burnin
 #' @param verbose Logical indicating if progress is printed
 #' @param allele_freq_threshold 0-1 Numeric. Lowest allowed value for an
@@ -39,6 +39,8 @@
 #'  frequencies
 #' @param adapt_allele_freq_vars Logical indicating whether to adapt variance
 #'  to achieve an acceptance rate of .27
+#' @param num_chains Total number of chains to run, possibly simultaneously
+#' @param num_cores Total cores to use to run chains
 run_mcmc <-
   function(data,
            sample_ids,
@@ -46,7 +48,7 @@ run_mcmc <-
            is_missing = FALSE,
            thin = 1,
            burnin = 1e4,
-           samples = 1e4,
+           samples_per_chain = 1e3,
            verbose = TRUE,
            allele_freq_threshold = 1e-5,
            eps_pos_0 = .005,
@@ -61,28 +63,31 @@ run_mcmc <-
            max_eps_neg = 2,
            max_coi = 20,
            allele_freq_vars = 1,
-           adapt_allele_freq_vars = TRUE) {
+           adapt_allele_freq_vars = TRUE,
+           num_chains = 1,
+           num_cores = 1) {
     args <- as.list(environment())
+    mcmc_args <- as.list(environment())
 
     ## if is_missing == FALSE, then generate a default FALSE matrix
-    if (class(args$is_missing) == "logical" && args$is_missing == FALSE) {
-      num_loci <- length(args$data)
-      num_biological_samples <- length(args$data[[1]])
-      args$is_missing <- matrix(
+    if (class(mcmc_args$is_missing) == "logical" && mcmc_args$is_missing == FALSE) {
+      num_loci <- length(mcmc_args$data)
+      num_biological_samples <- length(mcmc_args$data[[1]])
+      mcmc_args$is_missing <- matrix(
         FALSE,
         nrow = num_loci,
         ncol = num_biological_samples
       )
     }
 
-    if (length(args$allele_freq_vars)) {
-      args$allele_freq_vars <- rep(args$allele_freq_vars, length(loci))
+    if (length(mcmc_args$allele_freq_vars)) {
+      mcmc_args$allele_freq_vars <- rep(mcmc_args$allele_freq_vars, length(loci))
     }
-
 
     total_alleles <- lapply(data, function(x) {
       return(length(x[[1]]))
     })
+
     if (any(total_alleles < 2)) {
       stop("Loci with less than 2 alleles present, remove these loci")
     }
@@ -91,8 +96,29 @@ run_mcmc <-
       stop("Max COI must be greater than 1")
     }
 
-    res <- run_mcmc_rcpp(args) # nolint
+    res <- list()
+    chains <- list()
+    if (num_chains > 1) {
+       chains <- parallel::mclapply(
+         1:num_chains,
+         function(i) {
+           mcmc_args$chain_number <- i
+           mcmc_args$simple_verbose <- (mcmc_args$num_chains > 1)
+           mcmc_args$samples <- round(mcmc_args$samples_per_chain)
+           chain <- run_mcmc_rcpp(mcmc_args)
+           return(chain)
+          },
+        mc.cores = num_cores)
+    } else {
+      mcmc_args$chain_number <- 1
+      mcmc_args$simple_verbose <- FALSE
+      mcmc_args$samples <- mcmc_args$total_samples * mcmc_args$thin
+      chain <- run_mcmc_rcpp(mcmc_args)
+      chains[[1]] <- chain
+    }
+
+
+    res$chains <- chains
     res$args <- args
-    res$total_samples <- args$samples / args$thin
     res
   }

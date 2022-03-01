@@ -5,7 +5,6 @@
 
 #include "chain.h"
 #include "genotyping_data.h"
-#include "lookup.h"
 #include "parameters.h"
 
 #include <Rcpp.h>
@@ -16,7 +15,6 @@ class MCMC
    private:
    public:
     GenotypingData genotyping_data;
-    Lookup lookup;
     Parameters params;
     Chain chain;
 
@@ -33,7 +31,7 @@ class MCMC
     void sample(int step);
     double get_llik();
 
-    MCMC(GenotypingData genotyping_data, Lookup lookup, Parameters params);
+    MCMC(GenotypingData genotyping_data, Parameters params);
 };
 
 #endif  // MCMC_H_

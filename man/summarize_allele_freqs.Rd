@@ -7,7 +7,8 @@
 summarize_allele_freqs(
   mcmc_results,
   lower_quantile = 0.025,
-  upper_quantile = 0.975
+  upper_quantile = 0.975,
+  merge_chains = TRUE
 )
 }
 \arguments{
@@ -18,6 +19,8 @@ to return}
 
 \item{upper_quantile}{The upper quantile of the posterior distribution
 to return}
+
+\item{merge_chains}{boolean indicating that all chain results should be merged}
 }
 \description{
 Summarize allele frequencies

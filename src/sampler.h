@@ -36,7 +36,6 @@ class Sampler
     std::vector<double> rdirichlet(std::vector<double> const &shape_vec);
     std::vector<double> rlogit_norm(std::vector<double> const &p,
                                     double variance);
-    Lookup lookup;
 
    public:
     static std::random_device rd;
@@ -53,7 +52,6 @@ class Sampler
     double sample_epsilon_pos(double curr_epsilon_pos, double variance);
     double sample_epsilon_neg(double curr_epsilon_neg, double variance);
 
-    int sample_coi(int curr_coi, int delta, int max_coi);
     int sample_coi_delta(double coi_prop_mean);
     int sample_coi_delta();
     double sample_mean_coi(double coi_mean_shape, double coi_mean_rate);
@@ -75,7 +73,7 @@ class Sampler
                                           int coi, double epsilon_pos,
                                           double epsilon_neg);
 
-    Sampler(Lookup lookup);
+    Sampler();
 };
 
 #endif  // SAMPLER_H_

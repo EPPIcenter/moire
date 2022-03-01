@@ -34,40 +34,13 @@ void Chain::initialize_latent_genotypes()
     }
 }
 
-// Initialize P with empirical allele frequencies
+// Initialize P with random allele frequencies
 void Chain::initialize_p()
 {
-    std::vector<std::vector<int>> total_locus_alleles(genotyping_data.num_loci);
-    std::vector<int> total_alleles(genotyping_data.num_loci);
-
     for (size_t i = 0; i < genotyping_data.num_loci; i++)
     {
-        total_locus_alleles.push_back(
-            std::vector<int>(genotyping_data.num_alleles[i]));
-        total_alleles.push_back(0);
-        p.push_back(std::vector<double>(genotyping_data.num_alleles[i]));
-        for (size_t j = 0; j < genotyping_data.num_samples; j++)
-        {
-            const auto &sample_genotype =
-                genotyping_data.get_observed_alleles(i, j);
-            for (size_t k = 0; k < sample_genotype.size(); k++)
-            {
-                if (j == 0)
-                {
-                    total_locus_alleles[i].push_back(0);
-                }
-
-                total_locus_alleles[i][k] += sample_genotype[k];
-                total_alleles[i] += sample_genotype[k];
-            }
-        }
-        for (size_t j = 0; j < genotyping_data.num_alleles[i]; j++)
-        {
-            p[i][j] = (total_locus_alleles[i][j] + 1) /
-                      ((double)total_alleles[i] +
-                       genotyping_data.num_alleles[i]);  // Make sure at least 1
-                                                         // allele everywhere
-        }
+        p.push_back(sampler.sample_allele_frequencies(
+            std::vector<double>(genotyping_data.num_alleles[i], 1), 1));
     }
 
     p_prop_var.resize(genotyping_data.num_loci);
@@ -86,12 +59,14 @@ void Chain::initialize_p()
 
 void Chain::initialize_m()
 {
-    m = genotyping_data.observed_coi;
-    // for (const auto coi : genotyping_data.observed_coi)
-    // {
-    //     m.push_back(coi + 3);
-    // }
-    // m = std::vector<int>(genotyping_data.num_samples, 20);
+    m = std::vector<int>();
+    for (const auto coi : genotyping_data.observed_coi)
+    {
+        int m_coi = coi + sampler.sample_coi_delta(3);
+        m_coi = std::min(m_coi, params.max_coi);
+        m_coi = std::max(1, m_coi);
+        m.push_back(m_coi);
+    }
     m_accept.resize(genotyping_data.num_samples, 0);
     individual_accept.resize(genotyping_data.num_samples, 0);
 }
@@ -123,8 +98,8 @@ void Chain::update_m(int iteration)
             for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 auto lg = sampler.sample_latent_genotype(
-                    genotyping_data.get_observed_alleles(jj, ii), m[ii], .2,
-                    .2);
+                    genotyping_data.get_observed_alleles(jj, ii), m[ii],
+                    eps_pos[ii], eps_neg[ii]);
                 latent_genotypes_new[jj][ii] = lg.value;
                 lg_adj_new[jj][ii] = lg.log_prob;
                 adj_ratio = adj_ratio + lg_adj_new[jj][ii] - lg_adj_old[jj][ii];
@@ -591,11 +566,8 @@ void Chain::restore_eps_pos_likelihood(int sample_idx)
     eps_pos_prior_new[sample_idx] = eps_pos_prior_old[sample_idx];
 }
 
-Chain::Chain(GenotypingData genotyping_data, Lookup lookup, Parameters params)
-    : genotyping_data(genotyping_data),
-      lookup(lookup),
-      params(params),
-      sampler(lookup)
+Chain::Chain(GenotypingData genotyping_data, Parameters params)
+    : genotyping_data(genotyping_data), params(params), sampler()
 
 {
     eps_pos_var = params.eps_pos_var;
