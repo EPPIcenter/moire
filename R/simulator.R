@@ -2,6 +2,7 @@
 #'
 #' @details Implementation of random sampling from a Dirichlet distribution
 #'
+#' @importFrom stats rgamma
 #' @export
 #'
 #' @param n total number of draws

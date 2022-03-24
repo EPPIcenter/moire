@@ -112,7 +112,7 @@ run_mcmc <-
     } else {
       mcmc_args$chain_number <- 1
       mcmc_args$simple_verbose <- FALSE
-      mcmc_args$samples <- mcmc_args$total_samples * mcmc_args$thin
+      mcmc_args$samples <- mcmc_args$samples_per_chain
       chain <- run_mcmc_rcpp(mcmc_args)
       chains[[1]] <- chain
     }
