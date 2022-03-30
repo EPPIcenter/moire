@@ -462,16 +462,23 @@ double Chain::get_llik() { return llik; }
 void Chain::calculate_genotype_likelihood(int sample_idx, int locus_idx)
 {
     int idx = sample_idx * genotyping_data.num_loci + locus_idx;
-    double res;
-    double transmission_prob =
-        calc_transmission_process(latent_genotypes_new[locus_idx][sample_idx],
-                                  p[locus_idx], m[sample_idx]);
-    double obs_prob = calc_observation_process(
-        latent_genotypes_new[locus_idx][sample_idx],
-        genotyping_data.get_observed_alleles(locus_idx, sample_idx),
-        m[sample_idx], eps_neg[sample_idx], eps_pos[sample_idx]);
-    res = transmission_prob + obs_prob;
-    genotyping_llik_new[idx] = res;
+    if (genotyping_data.is_missing(locus_idx, sample_idx))
+    {
+        genotyping_llik_new[idx] = 0;
+    }
+    else
+    {
+        double res;
+        double transmission_prob = calc_transmission_process(
+            latent_genotypes_new[locus_idx][sample_idx], p[locus_idx],
+            m[sample_idx]);
+        double obs_prob = calc_observation_process(
+            latent_genotypes_new[locus_idx][sample_idx],
+            genotyping_data.get_observed_alleles(locus_idx, sample_idx),
+            m[sample_idx], eps_neg[sample_idx], eps_pos[sample_idx]);
+        res = transmission_prob + obs_prob;
+        genotyping_llik_new[idx] = res;
+    }
 }
 
 void Chain::calculate_eps_neg_likelihood(int sample_idx)
@@ -505,14 +512,7 @@ void Chain::initialize_likelihood()
         for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
         {
             idx = row_idx + jj;
-            if (genotyping_data.is_missing(jj, ii))
-            {
-                genotyping_llik_new[idx] = 0;
-            }
-            else
-            {
-                calculate_genotype_likelihood(ii, jj);
-            }
+            calculate_genotype_likelihood(ii, jj);
             genotyping_llik_old[idx] = genotyping_llik_new[idx];
         }
     }
