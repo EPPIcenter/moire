@@ -4,7 +4,12 @@
 \alias{simulate_observed_genotype}
 \title{Simulate observed genotypes}
 \usage{
-simulate_observed_genotype(true_genotypes, epsilon_pos, epsilon_neg)
+simulate_observed_genotype(
+  true_genotypes,
+  epsilon_pos,
+  epsilon_neg,
+  missingness
+)
 }
 \arguments{
 \item{true_genotypes}{a list of numeric vectors that are input
@@ -13,6 +18,8 @@ to sim_observed_allele}
 \item{epsilon_pos}{expected number of false positives}
 
 \item{epsilon_neg}{expected number of false negatives}
+
+\item{missingness}{probability of data being missing}
 }
 \description{
 Simulate observed genotypes

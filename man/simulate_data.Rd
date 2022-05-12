@@ -11,7 +11,8 @@ simulate_data(
   epsilon_neg,
   locus_freq_alphas = NULL,
   allele_freqs = NULL,
-  internal_relatedness = 0
+  internal_relatedness = 0,
+  missingness = 0
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ from a Dirichlet distribution to generate allele frequencies.}
 
 \item{allele_freqs}{List of allele frequencies to be used instead of
 simulating allele frequencies}
+
+\item{missingness}{probability of data being missing}
 }
 \value{
 Simulated data that is structured to go into the MCMC sampler

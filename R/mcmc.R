@@ -50,7 +50,7 @@ run_mcmc <-
            burnin = 1e4,
            samples_per_chain = 1e3,
            verbose = TRUE,
-           allele_freq_threshold = 1e-5,
+           allele_freq_threshold = 1e-12,
            eps_pos_0 = .1,
            eps_pos_var = 1,
            eps_pos_alpha = .1,
