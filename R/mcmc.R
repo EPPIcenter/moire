@@ -22,18 +22,19 @@
 #'  allele frequency.
 #' @param eps_pos_0 Numeric. Initial eps_pos value
 #' @param eps_pos_var Numeric. Variance used in sampling eps_pos
-#' @param eps_pos_shape Positive Numeric. Shape parameter in
-#'  Gamma distribution for eps_pos prior
-#' @param eps_pos_scale Positive Numeric. Scale parameter in
-#'  Gamma distribution for eps_pos prior
+#' @param eps_pos_alpha Positive Numeric. Alpha parameter in
+#'  Beta distribution for eps_pos prior
+#' @param eps_pos_beta Positive Numeric. Beta parameter in
+#'  Beta distribution for eps_pos prior
 #' @param eps_neg_0 Numeric. Initial eps_neg value
 #' @param eps_neg_var Numeric. Variance used in sampling eps_neg
-#' @param eps_neg_shape Positive Numeric. Shape parameter in
-#'  Gamma distribution for eps_neg prior
-#' @param eps_neg_scale Positive Numeric. Scale parameter in
-#'  Gamma distribution for eps_neg prior
+#' @param eps_neg_alpha Positive Numeric. Alpha parameter in
+#'  Beta distribution for eps_neg prior
+#' @param eps_neg_beta Positive Numeric. Beta parameter in
+#'  Beta distribution for eps_neg prior
 #' @param max_eps_pos Numeric. Maximum allowed value for eps_pos
 #' @param max_eps_neg Numeric. Maximum allowed value for eps_neg
+
 #' @param max_coi Positive Numeric. Maximum allowed complexity of infection
 #' @param allele_freq_vars Positive Numeric. Variance used in sampling allele
 #'  frequencies

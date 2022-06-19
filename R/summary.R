@@ -61,6 +61,8 @@ calculate_naive_coi <- function(data) {
 #' @details Estimate naive allele frequencies from the empirical distribution
 #'  of alleles
 #'
+#' @import purrr
+#'
 #' @export
 #'
 #' @param data List of lists of numeric vectors, where each list element
@@ -87,6 +89,8 @@ calculate_he <- function(allele_freqs) {
 #'  a dataframe that contains summaries of the posterior
 #'  distribution of COI for each biological sample, as well as naive
 #'  estimates of COI.
+#'
+#'  @importFrom stats quantile
 #'
 #' @export
 #'
@@ -157,6 +161,8 @@ summarize_coi <- function(mcmc_results, lower_quantile = .025,
 #'  a dataframe that contains summaries of the posterior
 #'  distribution of epsilon negative for each biological sample.
 #'
+#' @importFrom stats quantile
+#'
 #' @export
 #'
 #' @param mcmc_results Result of calling run_mcmc()
@@ -221,6 +227,7 @@ summarize_epsilon_neg <- function(mcmc_results, lower_quantile = .025, upper_qua
 #'  a dataframe that contains summaries of the posterior
 #'  distribution of epsilon positive for each biological sample.
 #'
+#' @importFrom stats quantile
 #' @export
 #'
 #' @param mcmc_results Result of calling run_mcmc()
@@ -281,6 +288,8 @@ summarize_epsilon_pos <- function(mcmc_results, lower_quantile = .025, upper_qua
 #'
 #' @details General function to summarize the posterior distribution of
 #' functions of the sampled allele frequencies
+#'
+#' @importFrom stats quantile
 #'
 #' @export
 #'
@@ -388,6 +397,8 @@ summarize_he <- function(mcmc_results,
 #'
 #' @details Summarize individual allele frequencies from the posterior
 #'  distribution of sampled allele frequencies
+#'
+#' @importFrom stats quantile
 #'
 #' @export
 #'

@@ -30,6 +30,9 @@ from a Dirichlet distribution to generate allele frequencies.}
 \item{allele_freqs}{List of allele frequencies to be used instead of
 simulating allele frequencies}
 
+\item{internal_relatedness}{Probability of allele to be drawn from a within-
+host infection}
+
 \item{missingness}{probability of data being missing}
 }
 \value{

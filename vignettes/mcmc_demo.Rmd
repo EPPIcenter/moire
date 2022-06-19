@@ -14,7 +14,8 @@ knitr::opts_chunk$set(
   fig.align = "center"
 )
 # 
-do.call(knitr::read_chunk, list(path = "../data-raw/mcmc_results.R"))
+do.call(knitr::read_chunk, list(path = system.file(c("data-raw", "mcmc_results.R"), package="moire")))
+# knitr::read_chunk("../data-raw/mcmc_results.R")
 ```
 
 ```{r setup, message=FALSE}
@@ -155,6 +156,8 @@ ggplot(he_data, aes(x = true_he)) +
   geom_point(aes(y = post_stat_mean), color = "blue") +
   geom_point(aes(y = naive_he), color = "green") +
   geom_abline(slope = 1, intercept = 0) +
+  xlab("True Heterozygosity") +
+  ylab("Mean Posterior Heterozygosity") +
   theme_classic()
 ```
 Naive estimation (green) results in a severe upward bias, especially at lower levels of expected heterozygosity. MOIRE maintains high accuracy (blue), including measures of uncertainty at the 95% credible interval. 

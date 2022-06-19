@@ -9,7 +9,7 @@ Authors@R:
            comment = c(ORCID = "0000-0003-0332-4388"))
 Description: An MCMC based approach to Bayesian estimation of individual level multiplicity of infection and 
     population allele frequencies from polyallelic genetic data.
-License: MIT + file LICENSE
+License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
 SystemRequirements: C++14
@@ -23,7 +23,8 @@ Imports:
     magrittr,
     dplyr,
     tidyr,
-    stats
+    stats,
+    purrr
 URL: https://github.com/m-murphy/moire
 BugReports: https://github.com/m-murphy/moire/issues
 Roxygen: list(markdown = TRUE)

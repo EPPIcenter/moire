@@ -35,6 +35,8 @@ simulate_allele_frequencies <- function(alpha, num_loci) {
 #'
 #' @details Simulate sample COIs from a zero-truncated Poisson distribution
 #'
+#' @importFrom stats qpois runif dpois
+#'
 #' @export
 #'
 #' @param num_samples the total number of biological samples to simulate
@@ -46,6 +48,10 @@ simulate_sample_coi <- function(num_samples, mean_coi) {
 #' Simulate sample genotype
 #' @details Simulates sampling the genetics at a single locus given an allele
 #'   frequency distribution and a vector of sample COIs
+#'
+#' @importFrom stats rmultinom rbinom quantile
+#'
+#' @export
 #'
 #' @param sample_cois Numeric vector indicating the multiplicity of infection
 #'   for each biological sample
@@ -80,6 +86,9 @@ simulate_sample_genotype <- function(sample_cois, locus_allele_dist, internal_re
 #' @details Takes a numeric value representing
 #'  the number of strains contributing an allele and returns a binary vector
 #'  indicating the presence or absence of the allele.
+#'
+#' @importFrom stats rbinom
+#' @export
 #'
 #' @param alleles A numeric vector representing the number of strains
 #'  contributing each allele
@@ -146,6 +155,8 @@ simulate_observed_genotype <- function(true_genotypes,
 #' @param epsilon_neg False negative rate, expected number of false negatives
 #' @param allele_freqs List of allele frequencies to be used instead of
 #'  simulating allele frequencies
+#' @param internal_relatedness Probability of allele to be drawn from a within-
+#' host infection
 #' @param missingness probability of data being missing
 #' @return Simulated data that is structured to go into the MCMC sampler
 #'

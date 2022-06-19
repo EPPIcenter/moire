@@ -63,9 +63,21 @@ allele frequency.}
 
 \item{eps_pos_var}{Numeric. Variance used in sampling eps_pos}
 
+\item{eps_pos_alpha}{Positive Numeric. Alpha parameter in
+Beta distribution for eps_pos prior}
+
+\item{eps_pos_beta}{Positive Numeric. Beta parameter in
+Beta distribution for eps_pos prior}
+
 \item{eps_neg_0}{Numeric. Initial eps_neg value}
 
 \item{eps_neg_var}{Numeric. Variance used in sampling eps_neg}
+
+\item{eps_neg_alpha}{Positive Numeric. Alpha parameter in
+Beta distribution for eps_neg prior}
+
+\item{eps_neg_beta}{Positive Numeric. Beta parameter in
+Beta distribution for eps_neg prior}
 
 \item{max_eps_pos}{Numeric. Maximum allowed value for eps_pos}
 
@@ -82,18 +94,6 @@ to achieve an acceptance rate of .27}
 \item{num_chains}{Total number of chains to run, possibly simultaneously}
 
 \item{num_cores}{Total cores to use to run chains}
-
-\item{eps_pos_shape}{Positive Numeric. Shape parameter in
-Gamma distribution for eps_pos prior}
-
-\item{eps_pos_scale}{Positive Numeric. Scale parameter in
-Gamma distribution for eps_pos prior}
-
-\item{eps_neg_shape}{Positive Numeric. Shape parameter in
-Gamma distribution for eps_neg prior}
-
-\item{eps_neg_scale}{Positive Numeric. Scale parameter in
-Gamma distribution for eps_neg prior}
 }
 \description{
 Sample from the target distribution using MCMC
