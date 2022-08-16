@@ -3,7 +3,7 @@ test_that("loading long form data works", {
     sample_id = c("S1", "S1", "S1", "S2", "S2", "S3", "S3"),
     locus = c("A", "A", "B", "A", "B", "A", "A"),
     allele = c("1", "2", "1", "1", "2", "3", "1")
-  ) %>% dplyr::slice_sample(prop = 1)
+  ) |> dplyr::slice_sample(prop = 1)
 
   res <- moire::load_long_form_data(data)
 

@@ -71,15 +71,17 @@ run_mcmc <-
     mcmc_args <- as.list(environment())
 
     ## if is_missing == FALSE, then generate a default FALSE matrix
-    if (class(mcmc_args$is_missing) == "logical" && mcmc_args$is_missing == FALSE) {
-      num_loci <- length(mcmc_args$data)
-      num_biological_samples <- length(mcmc_args$data[[1]])
-      mcmc_args$is_missing <- matrix(
-        FALSE,
-        nrow = num_loci,
-        ncol = num_biological_samples
-      )
-    }
+    suppressWarnings({
+      if (inherits(mcmc_args$is_missing, "logical") && mcmc_args$is_missing == FALSE) {
+        num_loci <- length(mcmc_args$data)
+        num_biological_samples <- length(mcmc_args$data[[1]])
+        mcmc_args$is_missing <- matrix(
+          FALSE,
+          nrow = num_loci,
+          ncol = num_biological_samples
+        )
+      }
+    })
 
     if (length(mcmc_args$allele_freq_vars)) {
       mcmc_args$allele_freq_vars <- rep(mcmc_args$allele_freq_vars, length(loci))
@@ -100,16 +102,17 @@ run_mcmc <-
     res <- list()
     chains <- list()
     if (num_chains > 1) {
-       chains <- parallel::mclapply(
-         1:num_chains,
-         function(i) {
-           mcmc_args$chain_number <- i
-           mcmc_args$simple_verbose <- (mcmc_args$num_chains > 1)
-           mcmc_args$samples <- round(mcmc_args$samples_per_chain)
-           chain <- run_mcmc_rcpp(mcmc_args)
-           return(chain)
-          },
-        mc.cores = num_cores)
+      chains <- parallel::mclapply(
+        1:num_chains,
+        function(i) {
+          mcmc_args$chain_number <- i
+          mcmc_args$simple_verbose <- (mcmc_args$num_chains > 1)
+          mcmc_args$samples <- round(mcmc_args$samples_per_chain)
+          chain <- run_mcmc_rcpp(mcmc_args)
+          return(chain)
+        },
+        mc.cores = num_cores
+      )
     } else {
       mcmc_args$chain_number <- 1
       mcmc_args$simple_verbose <- FALSE

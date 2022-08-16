@@ -20,15 +20,15 @@ LinkingTo:
 Imports: 
     Rcpp,
     RcppProgress,
-    magrittr,
     dplyr,
     tidyr,
     stats,
-    purrr
+    purrr,
+    rlang
 URL: https://github.com/m-murphy/moire
 BugReports: https://github.com/m-murphy/moire/issues
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.1.2
+RoxygenNote: 7.2.0
 Suggests: 
     knitr,
     rmarkdown,

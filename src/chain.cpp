@@ -239,7 +239,7 @@ void Chain::update_eps_pos(int iteration)
         double prop_eps_pos = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
-        if (prop_eps_pos < params.max_eps_pos && prop_eps_pos > 1e-32)
+        if (prop_eps_pos < 1 && prop_eps_pos > 1e-32)
         {
             double prev_eps_pos = eps_pos[i];
             eps_pos[i] = prop_eps_pos;
@@ -286,7 +286,7 @@ void Chain::update_eps_neg(int iteration)
         double prop_eps_neg = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
-        if (prop_eps_neg < params.max_eps_neg && prop_eps_neg > 1e-32)
+        if (prop_eps_neg < 1 && prop_eps_neg > 1e-32)
         {
             double prev_eps_neg = eps_neg[i];
             eps_neg[i] = prop_eps_neg;

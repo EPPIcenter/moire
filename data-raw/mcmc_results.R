@@ -24,8 +24,8 @@ simulated_data <- moire::simulate_data(
 ## ----run_mcmc
 burnin <- 1e5
 num_samples <- 1e4
-num_chains = 10
-num_cores = 10
+num_chains <- 10
+num_cores <- 10
 
 mcmc_results <- moire::run_mcmc(
   simulated_data$data, simulated_data$sample_ids, simulated_data$loci,
@@ -34,4 +34,4 @@ mcmc_results <- moire::run_mcmc(
 )
 
 ## ----save_results
-usethis::use_data(mcmc_results, simulated_data, overwrite = TRUE)
+usethis::use_data(mcmc_results, simulated_data, overwrite = TRUE, compress = "xz")

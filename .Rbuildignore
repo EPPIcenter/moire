@@ -16,3 +16,6 @@ logo\.ai
 .clang-format
 ^refs
 ^LICENSE\.md$
+data-raw
+^Makefile
+^README\.Rmd

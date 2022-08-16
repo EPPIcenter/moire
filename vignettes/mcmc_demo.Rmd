@@ -15,12 +15,10 @@ knitr::opts_chunk$set(
 )
 # 
 do.call(knitr::read_chunk, list(path = system.file(c("data-raw", "mcmc_results.R"), package="moire")))
-# knitr::read_chunk("../data-raw/mcmc_results.R")
 ```
 
 ```{r setup, message=FALSE}
 library(moire)
-library(magrittr)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
@@ -88,16 +86,16 @@ allele_freq_data <- data.frame(
 Here we demonstrate the difference in distribution of the estimate of MOI using our approach vs the naive method of taking the maximum number of alleles observed or the second highest number of alleles observed
 
 ```{r plot_distribution}
-coi_estimates <- coi_data %>%
-  dplyr::select(post_coi_med, naive_coi, offset_naive_coi, true_coi) %>%
+coi_estimates <- coi_data |>
+  dplyr::select(post_coi_med, naive_coi, offset_naive_coi, true_coi) |>
   tidyr::pivot_longer(tidyr::everything(),
                       names_to = "estimator",
-                      values_to = "estimate") %>%
+                      values_to = "estimate") |>
   dplyr::mutate(estimator_pretty = case_when(
     estimator == "post_coi_med" ~ "Median Posterior Est.",
     estimator == "naive_coi" ~ "Naive Estimate",
     estimator == "offset_naive_coi" ~ "Offset Naive Estimate",
-    estimator == "true_coi" ~ "True COI")) %>%
+    estimator == "true_coi" ~ "True COI")) |>
   transform(estimator_pretty = factor(estimator_pretty, levels = c(
     "Median Posterior Est.",
     "Offset Naive Estimate",
