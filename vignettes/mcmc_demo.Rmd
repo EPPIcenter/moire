@@ -14,12 +14,11 @@ knitr::opts_chunk$set(
   fig.align = "center"
 )
 # 
-do.call(knitr::read_chunk, list(path = "../data-raw/mcmc_results.R"))
+do.call(knitr::read_chunk, list(path = system.file(c("data-raw", "mcmc_results.R"), package="moire")))
 ```
 
 ```{r setup, message=FALSE}
 library(moire)
-library(magrittr)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
@@ -87,16 +86,16 @@ allele_freq_data <- data.frame(
 Here we demonstrate the difference in distribution of the estimate of MOI using our approach vs the naive method of taking the maximum number of alleles observed or the second highest number of alleles observed
 
 ```{r plot_distribution}
-coi_estimates <- coi_data %>%
-  dplyr::select(post_coi_med, naive_coi, offset_naive_coi, true_coi) %>%
+coi_estimates <- coi_data |>
+  dplyr::select(post_coi_med, naive_coi, offset_naive_coi, true_coi) |>
   tidyr::pivot_longer(tidyr::everything(),
                       names_to = "estimator",
-                      values_to = "estimate") %>%
+                      values_to = "estimate") |>
   dplyr::mutate(estimator_pretty = case_when(
     estimator == "post_coi_med" ~ "Median Posterior Est.",
     estimator == "naive_coi" ~ "Naive Estimate",
     estimator == "offset_naive_coi" ~ "Offset Naive Estimate",
-    estimator == "true_coi" ~ "True COI")) %>%
+    estimator == "true_coi" ~ "True COI")) |>
   transform(estimator_pretty = factor(estimator_pretty, levels = c(
     "Median Posterior Est.",
     "Offset Naive Estimate",
@@ -113,7 +112,7 @@ ggplot(coi_estimates, aes(x = estimate, stat(count))) +
   theme(axis.text.x = element_text(angle = 90))
 ```
 
-Since we simulated data, we know the true complexity of infection and heterozygosity and can compare
+Since we simulated data, we know the true complexity of infection and allele frequencies and can compare to our estimates.
 
 ```{r plot_coi_concordance}
 ggplot(coi_data, aes(x = true_coi, y = post_coi_mean)) +
@@ -130,28 +129,7 @@ ggplot(coi_data, aes(x = true_coi, y = post_coi_mean)) +
   expand_limits(x = 0, y = 0) +
   ggtitle("Estimates of COI vs Truth")
 ```
-
-```{r plot_he_concordance}
-ggplot(he_data, aes(x = loci)) +
-  geom_errorbar(aes(y = post_stat_mean,
-                    ymax = post_stat_upper,
-                    ymin = post_stat_lower)) +
-  geom_point(aes(y = post_stat_mean), color = "blue") +
-  geom_point(aes(y = true_he), color = "red") +
-  geom_point(aes(y = naive_he), color = "green") +
-  ggtitle("Estimate of Heterozygosity") +
-  xlab("Locus") +
-  ylab("Mean Posterior Heterozygosity") +
-  expand_limits(y = .5) + 
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 90))
-ggplot(he_data, aes(x = true_he)) +
-  geom_errorbar(aes(y = post_stat_mean, ymax = post_stat_upper, ymin = post_stat_lower)) +
-  geom_point(aes(y = post_stat_mean), color = "blue") +
-  geom_point(aes(y = naive_he), color = "green") +
-  geom_abline(slope = 1, intercept = 0) +
-  theme_classic()
-```
+As expected, the naive estimator (in red) and the offset naive estimator (in green) are pretty heavily biased and. Complexity of infection is well estimated, but there's some difficulty in the upper range.
 
 ```{r plot_allele_freq_concordance}
 ggplot(allele_freq_data) +
@@ -169,3 +147,15 @@ ggplot(allele_freq_data) +
   expand_limits(x = 0, y = 0) +
   ggtitle("Estimates of Allele Frequencies vs Truth")
 ```
+Again, naive estimation of allele frequencies (red) is heavily biased and lacks any estimates of uncertainty. Allele frequencies are very well estimated by MOIRE (black), recovering values from the entire range along with measures of uncertainty at the 95% credible interval. Since we have access to the full distribution of sample allele frequencies, we can also look at distributions of other summary statistics that might be of interest. For example, let's take a look at expected heterozygosity.
+```{r plot_he_concordance}
+ggplot(he_data, aes(x = true_he)) +
+  geom_errorbar(aes(y = post_stat_mean, ymax = post_stat_upper, ymin = post_stat_lower)) +
+  geom_point(aes(y = post_stat_mean), color = "blue") +
+  geom_point(aes(y = naive_he), color = "green") +
+  geom_abline(slope = 1, intercept = 0) +
+  xlab("True Heterozygosity") +
+  ylab("Mean Posterior Heterozygosity") +
+  theme_classic()
+```
+Naive estimation (green) results in a severe upward bias, especially at lower levels of expected heterozygosity. MOIRE maintains high accuracy (blue), including measures of uncertainty at the 95% credible interval. 

@@ -8,11 +8,12 @@ summarize_coi(
   mcmc_results,
   lower_quantile = 0.025,
   upper_quantile = 0.975,
-  naive_offset = 2
+  naive_offset = 2,
+  merge_chains = TRUE
 )
 }
 \arguments{
-\item{mcmc_results}{Result of calling run_mcmc()}
+\item{mcmc_results}{Result of calling run_mcmc}
 
 \item{lower_quantile}{The lower quantile of the posterior
 distribution to return}
@@ -20,7 +21,9 @@ distribution to return}
 \item{upper_quantile}{The upper quantile of the posterior
 distribution to return}
 
-\item{naive_offset}{Offset used in calculate_naive_coi_offset()}
+\item{naive_offset}{Offset used in calculate_naive_coi_offset}
+
+\item{merge_chains}{boolean indicating that all chain results should be merged}
 }
 \description{
 Summarize COI
@@ -30,4 +33,6 @@ Summarize complexity of infection results from MCMC. Returns
 a dataframe that contains summaries of the posterior
 distribution of COI for each biological sample, as well as naive
 estimates of COI.
+
+@importFrom stats quantile
 }

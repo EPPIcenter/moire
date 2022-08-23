@@ -7,10 +7,15 @@
 ^docs$
 ^pkgdown$
 ^\.github$
-^data-raw$
 ^\.ccls-cache$
 ^\.vscode
 manuscript$
 compile_flags\.txt$
 ^\.ccls
 logo\.ai
+.clang-format
+^refs
+^LICENSE\.md$
+data-raw
+^Makefile
+^README\.Rmd

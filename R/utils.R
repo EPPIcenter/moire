@@ -11,48 +11,49 @@
 #' Each row is a single observation of an allele at a particular
 #' locus for a given sample.
 #'
+#' @importFrom rlang .data
 load_long_form_data <- function(df) {
-  unique_alleles <- df %>%
-    dplyr::group_by(locus) %>%
-    dplyr::summarise(unique_alleles = list(sort(unique(allele))))
+  unique_alleles <- df |>
+    dplyr::group_by(.data$locus) |>
+    dplyr::summarise(unique_alleles = list(sort(unique(.data$allele))))
 
-  num_loci <- df %>%
-    dplyr::pull(locus) %>%
+  num_loci <- df |>
+    dplyr::pull(.data$locus) |>
     dplyr::n_distinct()
 
-  sample_locus_barcodes <- df %>%
-    dplyr::group_by(sample_id, locus) %>%
-    dplyr::summarize(alleles_grp = list(allele), .groups = "drop") %>%
-    dplyr::mutate(missing = FALSE) %>%
-    tidyr::complete(sample_id, locus,
+  sample_locus_barcodes <- df |>
+    dplyr::group_by(.data$sample_id, .data$locus) |>
+    dplyr::summarize(alleles_grp = list(.data$allele), .groups = "drop") |>
+    dplyr::mutate(missing = FALSE) |>
+    tidyr::complete(.data$sample_id, .data$locus,
       fill = list(alleles_grp = list(c(NULL)), missing = TRUE)
     )
 
-  missing_vec <- sample_locus_barcodes %>%
-    dplyr::arrange(sample_id, locus) %>%
-    dplyr::pull(missing)
+  missing_vec <- sample_locus_barcodes |>
+    dplyr::arrange(.data$sample_id, .data$locus) |>
+    dplyr::pull(.data$missing)
 
-  sample_locus_barcodes <- sample_locus_barcodes %>%
-    dplyr::left_join(unique_alleles, by = "locus") %>%
-    dplyr::rowwise(sample_id, locus, missing) %>%
+  sample_locus_barcodes <- sample_locus_barcodes |>
+    dplyr::left_join(unique_alleles, by = "locus") |>
+    dplyr::rowwise(.data$sample_id, .data$locus, .data$missing) |>
     dplyr::summarise(
       barcode = list(sapply(
         unique_alleles,
         function(x) {
-          as.integer(x %in% alleles_grp)
+          as.integer(x %in% .data$alleles_grp)
         }
       )), .groups = "drop"
-    ) %>%
-    dplyr::group_by(locus) %>%
-    dplyr::arrange(sample_id, by_group = TRUE) %>%
-    dplyr::summarise(locus_barcodes = list(barcode))
+    ) |>
+    dplyr::group_by(.data$locus) |>
+    dplyr::arrange(.data$sample_id, by_group = TRUE) |>
+    dplyr::summarise(locus_barcodes = list(.data$barcode))
 
 
-  sample_ids <- df %>%
-    dplyr::select(sample_id) %>%
-    dplyr::arrange(sample_id) %>%
-    dplyr::distinct() %>%
-    dplyr::pull(sample_id)
+  sample_ids <- df |>
+    dplyr::select(.data$sample_id) |>
+    dplyr::arrange(.data$sample_id) |>
+    dplyr::distinct() |>
+    dplyr::pull(.data$sample_id)
 
   is_missing <- matrix(missing_vec, nrow = num_loci)
 
@@ -76,14 +77,15 @@ load_long_form_data <- function(df) {
 #'
 #' @param data data.frame containing the described data
 #' @param sep string used to separate alleles
-
+#'
+#' @importFrom rlang .data
 load_delimited_data <- function(data, sep = ";") {
-  df <- data %>%
-    tidyr::pivot_longer(-sample_id,
+  df <- data |>
+    tidyr::pivot_longer(-.data$sample_id,
       names_to = "locus",
       values_to = "allele"
-    ) %>%
-    tidyr::separate_rows(allele, sep = sep) %>%
-    dplyr::filter(!is.na(allele))
+    ) |>
+    tidyr::separate_rows(.data$allele, sep = sep) |>
+    dplyr::filter(!is.na(.data$allele))
   return(load_long_form_data(df))
 }

@@ -11,22 +11,24 @@ run_mcmc(
   is_missing = FALSE,
   thin = 1,
   burnin = 10000,
-  samples = 10000,
+  samples_per_chain = 1000,
   verbose = TRUE,
-  allele_freq_threshold = 1e-05,
-  eps_pos_0 = 0.005,
+  allele_freq_threshold = 1e-12,
+  eps_pos_0 = 0.1,
   eps_pos_var = 1,
-  eps_pos_alpha = 0.5,
-  eps_pos_beta = 99.5,
-  eps_neg_0 = 0.005,
+  eps_pos_alpha = 0.1,
+  eps_pos_beta = 9.9,
+  eps_neg_0 = 0.1,
   eps_neg_var = 1,
-  eps_neg_alpha = 0.5,
-  eps_neg_beta = 99.5,
+  eps_neg_alpha = 0.1,
+  eps_neg_beta = 9.9,
   max_eps_pos = 2,
   max_eps_neg = 2,
   max_coi = 20,
   allele_freq_vars = 1,
-  adapt_allele_freq_vars = TRUE
+  adapt_allele_freq_vars = TRUE,
+  num_chains = 1,
+  num_cores = 1
 )
 }
 \arguments{
@@ -49,7 +51,7 @@ the user may pass in FALSE if no data should be considered missing.}
 \item{burnin}{Positive Integer. Number of MCMC samples to
 discard as burnin}
 
-\item{samples}{Positive Integer. Number of samples to take
+\item{samples_per_chain}{Positive Integer. Number of samples to take
 after burnin}
 
 \item{verbose}{Logical indicating if progress is printed}
@@ -61,9 +63,21 @@ allele frequency.}
 
 \item{eps_pos_var}{Numeric. Variance used in sampling eps_pos}
 
+\item{eps_pos_alpha}{Positive Numeric. Alpha parameter in
+Beta distribution for eps_pos prior}
+
+\item{eps_pos_beta}{Positive Numeric. Beta parameter in
+Beta distribution for eps_pos prior}
+
 \item{eps_neg_0}{Numeric. Initial eps_neg value}
 
 \item{eps_neg_var}{Numeric. Variance used in sampling eps_neg}
+
+\item{eps_neg_alpha}{Positive Numeric. Alpha parameter in
+Beta distribution for eps_neg prior}
+
+\item{eps_neg_beta}{Positive Numeric. Beta parameter in
+Beta distribution for eps_neg prior}
 
 \item{max_eps_pos}{Numeric. Maximum allowed value for eps_pos}
 
@@ -77,17 +91,9 @@ frequencies}
 \item{adapt_allele_freq_vars}{Logical indicating whether to adapt variance
 to achieve an acceptance rate of .27}
 
-\item{eps_pos_shape}{Positive Numeric. Shape parameter in
-Gamma distribution for eps_pos prior}
+\item{num_chains}{Total number of chains to run, possibly simultaneously}
 
-\item{eps_pos_scale}{Positive Numeric. Scale parameter in
-Gamma distribution for eps_pos prior}
-
-\item{eps_neg_shape}{Positive Numeric. Shape parameter in
-Gamma distribution for eps_neg prior}
-
-\item{eps_neg_scale}{Positive Numeric. Scale parameter in
-Gamma distribution for eps_neg prior}
+\item{num_cores}{Total cores to use to run chains}
 }
 \description{
 Sample from the target distribution using MCMC

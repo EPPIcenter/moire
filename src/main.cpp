@@ -16,17 +16,17 @@ Rcpp::List run_mcmc(Rcpp::List args)
 {
     Parameters params(args);
     GenotypingData genotyping_data(args);
-    Lookup lookup(genotyping_data.max_alleles);
+    int chain_number = args["chain_number"];
 
-    if (params.verbose)
+    if (params.verbose && !params.simple_verbose)
     {
-        UtilFunctions::print("Starting MCMC");
+        UtilFunctions::print("Starting MCMC -- Chain", params.chain_number);
         UtilFunctions::print("Total Burnin:", params.burnin);
         UtilFunctions::print("Total Samples:", params.samples);
         UtilFunctions::print("Thinning:", params.thin);
     }
 
-    MCMC mcmc(genotyping_data, lookup, params);
+    MCMC mcmc(genotyping_data, params);
     if (std::isnan(mcmc.get_llik()))
     {
         Rcpp::stop("Error: Initial Llik is NaN");
@@ -42,8 +42,16 @@ Rcpp::List run_mcmc(Rcpp::List args)
         Rcpp::checkUserInterrupt();
         mcmc.burnin(step);
         ++step;
-        pb.set_llik(mcmc.get_llik());
-        p.increment();
+        if (params.verbose && params.simple_verbose && (step % 100) == 0)
+        {
+            UtilFunctions::print("Chain", params.chain_number, ":", step, "/",
+                                 params.burnin + params.samples, "completed");
+        }
+        else if (!params.simple_verbose)
+        {
+            pb.set_llik(mcmc.get_llik());
+            p.increment();
+        }
     }
 
     step = 0;
@@ -52,8 +60,16 @@ Rcpp::List run_mcmc(Rcpp::List args)
         Rcpp::checkUserInterrupt();
         mcmc.sample(step);
         ++step;
-        pb.set_llik(mcmc.get_llik());
-        p.increment();
+        if (params.verbose && params.simple_verbose && (step % 100) == 0)
+        {
+            UtilFunctions::print("Chain ", params.chain_number, ":", step, "/",
+                                 params.burnin + params.samples, "completed");
+        }
+        else if (!params.simple_verbose)
+        {
+            pb.set_llik(mcmc.get_llik());
+            p.increment();
+        }
     }
 
     Rcpp::List acceptance_rates;

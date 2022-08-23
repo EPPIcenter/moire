@@ -4,7 +4,12 @@
 \alias{summarize_he}
 \title{Summarize locus heterozygosity}
 \usage{
-summarize_he(mcmc_results, lower_quantile = 0.025, upper_quantile = 0.975)
+summarize_he(
+  mcmc_results,
+  lower_quantile = 0.025,
+  upper_quantile = 0.975,
+  merge_chains = TRUE
+)
 }
 \arguments{
 \item{mcmc_results}{Result of calling run_mcmc()}
@@ -14,6 +19,9 @@ to return}
 
 \item{upper_quantile}{The upper quantile of the posterior distribution
 to return}
+
+\item{merge_chains}{Merge the results of multiple chains into a single
+summary}
 }
 \description{
 Summarize locus heterozygosity

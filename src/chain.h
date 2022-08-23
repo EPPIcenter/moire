@@ -5,7 +5,6 @@
 
 #include "combination_indices_generator.h"
 #include "genotyping_data.h"
-#include "lookup.h"
 #include "parameters.h"
 #include "prob_any_missing.h"
 #include "sampler.h"
@@ -16,7 +15,6 @@ class Chain
 {
    private:
     GenotypingData genotyping_data;
-    Lookup lookup;
     Parameters params;
     Sampler sampler;
     probAnyMissingFunctor probAnyMissing_;
@@ -116,7 +114,7 @@ class Chain
 
     std::vector<int> individual_accept{};
 
-    Chain(GenotypingData genotyping_data, Lookup lookup, Parameters params);
+    Chain(GenotypingData genotyping_data, Parameters params);
     void update_m(int iteration);
     void update_p(int iteration);
     void update_eps(int iteration);

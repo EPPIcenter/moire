@@ -9,6 +9,8 @@ class Parameters
    public:
     // MCMC Parameters
     bool verbose;
+    bool simple_verbose;
+    int chain_number;
     int thin;
     int burnin;
     int samples;
@@ -16,8 +18,7 @@ class Parameters
 
     // Model Parameters
     // Complexity of Infection
-    // int mean_coi;
-    double max_coi;
+    int max_coi;
     double mean_coi_var;
     double mean_coi_prior_shape;
     double mean_coi_prior_scale;
@@ -41,7 +42,6 @@ class Parameters
     bool adapt_allele_freq_vars;
 
     // constructors
-    Parameters(){};
     Parameters(const Rcpp::List &args);
 };
 

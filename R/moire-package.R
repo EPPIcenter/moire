@@ -7,3 +7,8 @@ NULL
 #' @importFrom Rcpp sourceCpp
 ## usethis namespace: end
 NULL
+
+## usethis namespace: start
+#' @import RcppProgress
+## usethis namepace: end
+NULL

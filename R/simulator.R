@@ -2,6 +2,7 @@
 #'
 #' @details Implementation of random sampling from a Dirichlet distribution
 #'
+#' @importFrom stats rgamma
 #' @export
 #'
 #' @param n total number of draws
@@ -34,6 +35,8 @@ simulate_allele_frequencies <- function(alpha, num_loci) {
 #'
 #' @details Simulate sample COIs from a zero-truncated Poisson distribution
 #'
+#' @importFrom stats qpois runif dpois
+#'
 #' @export
 #'
 #' @param num_samples the total number of biological samples to simulate
@@ -45,6 +48,10 @@ simulate_sample_coi <- function(num_samples, mean_coi) {
 #' Simulate sample genotype
 #' @details Simulates sampling the genetics at a single locus given an allele
 #'   frequency distribution and a vector of sample COIs
+#'
+#' @importFrom stats rmultinom rbinom quantile
+#'
+#' @export
 #'
 #' @param sample_cois Numeric vector indicating the multiplicity of infection
 #'   for each biological sample
@@ -58,17 +65,18 @@ simulate_sample_genotype <- function(sample_cois, locus_allele_dist, internal_re
     genotypes <- matrix(nrow = coi, ncol = length(locus_allele_dist))
     for (i in 1:coi) {
       if (i == 1) {
-        genotypes[i,] = rmultinom(1, 1, locus_allele_dist)
+        genotypes[i, ] <- rmultinom(1, 1, locus_allele_dist)
       } else {
-        sample_internal = as.logical(rbinom(1, 1, internal_relatedness))
+        sample_internal <- as.logical(rbinom(1, 1, internal_relatedness))
         if (sample_internal) {
-          genotypes[i,] <- genotypes[sample(1:(i - 1), 1),]
+          genotypes[i, ] <- genotypes[sample(1:(i - 1), 1), ]
         } else {
-          genotypes[i,] <- rmultinom(1, 1, locus_allele_dist)
+          genotypes[i, ] <- rmultinom(1, 1, locus_allele_dist)
         }
       }
     }
     g <- colSums(genotypes)
+    names(g) <- names(locus_allele_dist)
     g
   })
 }
@@ -79,29 +87,39 @@ simulate_sample_genotype <- function(sample_cois, locus_allele_dist, internal_re
 #'  the number of strains contributing an allele and returns a binary vector
 #'  indicating the presence or absence of the allele.
 #'
+#' @importFrom stats rbinom
+#' @export
+#'
 #' @param alleles A numeric vector representing the number of strains
 #'  contributing each allele
 #' @param epsilon_pos expected number of false negatives
 #' @param epsilon_neg expected number of false positives
-simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg) {
+#' @param missingness probability that the data is missing
+simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg, missingness) {
   positive_indices <- which(as.logical(alleles)) # True Positives
   negative_indices <- which(!as.logical(alleles)) # True Negatives
 
   # scale eps to the number of alleles so that given a fixed COI, there is a fixed
   # number of expected false positives or negatives across loci of varying
   # diversity.
-  eps_pos_prob = epsilon_pos / length(alleles)
-  eps_neg_prob = epsilon_neg / length(alleles)
+  eps_pos_prob <- epsilon_pos / length(alleles)
+  eps_neg_prob <- epsilon_neg / length(alleles)
 
-  alleles <- sapply(alleles, function(allele) {
-    if (allele > 0) {
-      rbinom(1, 1, prob = 1 - eps_neg_prob)
-    } else {
-      rbinom(1, 1, prob = eps_pos_prob)
-    }
-  })
+  if (runif(1) < missingness) {
+    obs_alleles <- rep(0, length(alleles))
+  } else {
+    obs_alleles <- sapply(alleles, function(allele) {
+      if (allele > 0) {
+        rbinom(1, 1, prob = 1 - eps_neg_prob)
+      } else {
+        rbinom(1, 1, prob = eps_pos_prob)
+      }
+    })
+  }
 
-  return(alleles)
+  names(obs_alleles) <- names(alleles)
+
+  return(obs_alleles)
 }
 
 #' Simulate observed genotypes
@@ -115,11 +133,13 @@ simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg) {
 #'  to sim_observed_allele
 #' @param epsilon_pos expected number of false positives
 #' @param epsilon_neg expected number of false negatives
+#' @param missingness probability of data being missing
 simulate_observed_genotype <- function(true_genotypes,
                                        epsilon_pos,
-                                       epsilon_neg) {
+                                       epsilon_neg,
+                                       missingness) {
   lapply(true_genotypes, function(x) {
-    simulate_observed_allele(x, epsilon_pos, epsilon_neg)
+    simulate_observed_allele(x, epsilon_pos, epsilon_neg, missingness)
   })
 }
 
@@ -135,6 +155,9 @@ simulate_observed_genotype <- function(true_genotypes,
 #' @param epsilon_neg False negative rate, expected number of false negatives
 #' @param allele_freqs List of allele frequencies to be used instead of
 #'  simulating allele frequencies
+#' @param internal_relatedness Probability of allele to be drawn from a within-
+#' host infection
+#' @param missingness probability of data being missing
 #' @return Simulated data that is structured to go into the MCMC sampler
 #'
 simulate_data <- function(mean_coi,
@@ -143,12 +166,18 @@ simulate_data <- function(mean_coi,
                           epsilon_neg,
                           locus_freq_alphas = NULL,
                           allele_freqs = NULL,
-                          internal_relatedness = 0) {
-  if(is.null(allele_freqs)) {
+                          internal_relatedness = 0,
+                          missingness = 0) {
+  if (is.null(allele_freqs)) {
     allele_freqs <- list()
+    allele_freq_names <- paste0("L", 1:length(locus_freq_alphas))
     for (i in 1:length(locus_freq_alphas)) {
-      allele_freqs[[i]] <- simulate_allele_frequencies(locus_freq_alphas[[i]], 1)
+      total_alleles <- length(locus_freq_alphas[[i]])
+      allele_names <- 1:total_alleles
+      allele_freqs[[allele_freq_names[i]]] <- simulate_allele_frequencies(locus_freq_alphas[[i]], 1)[, 1]
+      names(allele_freqs[[i]]) <- paste(allele_freq_names[i], allele_names, sep = "_")
     }
+    names(allele_freqs) <- allele_freq_names
   }
 
 
@@ -160,14 +189,21 @@ simulate_data <- function(mean_coi,
 
   observed_sample_genotypes <- lapply(
     true_sample_genotypes, function(locus_genotypes) {
-      simulate_observed_genotype(locus_genotypes, epsilon_pos, epsilon_neg)
+      simulate_observed_genotype(locus_genotypes, epsilon_pos, epsilon_neg, missingness)
     }
   )
+
+  suppressWarnings({
+    is_missing <- !t(sapply(observed_sample_genotypes, function(loc) {
+      sapply(loc, any)
+    }))
+  })
 
   list(
     data = observed_sample_genotypes,
     sample_ids = paste0("S", seq.int(1, num_samples)),
     loci = paste0("L", seq.int(1, length(allele_freqs))),
+    is_missing = is_missing,
     allele_freqs = allele_freqs,
     sample_cois = sample_cois,
     true_genotypes = true_sample_genotypes,

@@ -5,11 +5,10 @@
 
 #include <Rcpp.h>
 
-MCMC::MCMC(GenotypingData genotyping_data, Lookup lookup, Parameters params)
+MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     : genotyping_data(genotyping_data),
-      lookup(lookup),
       params(params),
-      chain(genotyping_data, lookup, params)
+      chain(genotyping_data, params)
 {
     p_store.resize(genotyping_data.num_loci);
     m_store.resize(genotyping_data.num_samples);

@@ -4,7 +4,7 @@
 \alias{simulate_observed_allele}
 \title{Simulates the observation process}
 \usage{
-simulate_observed_allele(alleles, epsilon_pos, epsilon_neg)
+simulate_observed_allele(alleles, epsilon_pos, epsilon_neg, missingness)
 }
 \arguments{
 \item{alleles}{A numeric vector representing the number of strains
@@ -13,6 +13,8 @@ contributing each allele}
 \item{epsilon_pos}{expected number of false negatives}
 
 \item{epsilon_neg}{expected number of false positives}
+
+\item{missingness}{probability that the data is missing}
 }
 \description{
 Simulates the observation process

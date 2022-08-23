@@ -11,7 +11,7 @@
 
 std::random_device Sampler::rd;
 
-Sampler::Sampler(Lookup lookup) : lookup(lookup)
+Sampler::Sampler()
 {
     eng = std::ranlux24_base(rd());
     unif_distr = std::uniform_real_distribution<double>(0, 1);
