@@ -1,93 +1,93 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://m-murphy.github.io/moire/404.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/404.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/articles/index.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/LICENSE.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/articles/mcmc_demo.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/articles/index.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/authors.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/articles/mcmc_demo.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/index.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/authors.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/news/index.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/index.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/calculate_he.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/news/index.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/calculate_naive_allele_frequencies.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/calculate_he.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/calculate_naive_coi.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/calculate_naive_allele_frequencies.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/calculate_naive_coi_offset.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/calculate_naive_coi.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/index.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/calculate_naive_coi_offset.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/load_delimited_data.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/index.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/load_long_form_data.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/load_delimited_data.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/mcmc_results.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/load_long_form_data.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/pipe.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/mcmc_results.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/rdirichlet.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/rdirichlet.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/run_mcmc.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/run_mcmc.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/simulate_allele_frequencies.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/simulate_allele_frequencies.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/simulate_data.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/simulate_data.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/simulate_observed_allele.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/simulate_observed_allele.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/simulate_observed_genotype.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/simulate_observed_genotype.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/simulate_sample_coi.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/simulate_sample_coi.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/simulate_sample_genotype.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/simulate_sample_genotype.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/simulated_data.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/simulated_data.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/summarize_allele_freq_fn.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/summarize_allele_freq_fn.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/summarize_allele_freqs.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/summarize_allele_freqs.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/summarize_coi.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/summarize_coi.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/summarize_epsilon_neg.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/summarize_epsilon_neg.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/summarize_epsilon_pos.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/summarize_epsilon_pos.html</loc>
   </url>
   <url>
-    <loc>https://m-murphy.github.io/moire/reference/summarize_he.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/summarize_he.html</loc>
   </url>
 </urlset>
