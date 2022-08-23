@@ -1,3 +1,8 @@
+# moire 2.2.0
+- Added support for running multiple chains simultaneously, then pooling output
+- fix bug with missing data
+- various other bugfixes and improvements
+
 # moire 2.1.0
 - Implemented a new error model that removes sensitivity to total number of alleles at a locus
 - Removed option to marginalize out latent genotypes below some complexity threshold
