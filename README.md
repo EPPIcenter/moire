@@ -10,7 +10,7 @@ polyallelic genomics data.
 
 ``` r
 # Install development version from Github
-remotes::install_github("m-murphy/moire")
+remotes::install_github("EPPIcenter/moire")
 ```
 
 ## Usage
