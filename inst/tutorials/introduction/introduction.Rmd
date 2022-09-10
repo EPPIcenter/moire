@@ -1,0 +1,310 @@
+---
+title: "MOIRE Tutorial"
+output: 
+  learnr::tutorial:
+    progressive: true
+runtime: shiny_prerendered
+---
+
+```{r setup, include=FALSE}
+rlang::check_installed(c("learnr", "forcats", "ggplot2", "readr", "dplyr"))
+
+library(learnr)
+library(moire)
+library(ggplot2)
+library(readr)
+knitr::opts_chunk$set(echo = FALSE)
+tutorial_options(exercise.timelimit = 600)
+```
+
+## Introduction
+Calculating allele frequencies and complexity of infection (COI) can be complicated in malaria due to the presence of multiple strains with overlapping genotypes. For example, if there are more than 2 strains present, a single nucleotide polymorphism (SNP) would not be able to distinguish how many strains are present. Alternatively, approaches such as microsatellite genotyping at highly polymorphic genetic loci have been used to estimate the number of strains present, however they are still sensitive to the fact that distinct strains may carry the same allele at a genetic locus, as well as the possibility of genotyping error leading to false positives or negatives. To address this, a probabilistic approach should be taken to estimate complexity of infection and allele frequencies from all available data across many samples and genetic loci. We will explore these issues with `moire`, an R tool we have developed to provide Bayesian estimates of sample COIs and population allele frequencies.
+
+## Simulated Data
+To better understand the limitations of empirical estimation, we can simulate data according to a simple model of malaria infections. We'll assume that individuals are randomly infected by parasites with genetics that could be described as draws from a multinomial distribution. 
+
+### What is a multinomial distribution?
+We can think of a multinomial distribution as like a box containing a very large number of colored balls, where we get to decide how many colors there are and in what proportion. A single draw from a multinomial distribution would then be like drawing a fixed number of balls from this box, and recording how many of each color we get. For example, we can simulate a single draw of **6 colored balls** from a multinomial distribution with the following code
+
+```{r multinomial-dist, echo=TRUE}
+total_balls <- 6
+color_proportions <- c(red=.1, green=.2, blue=.3, yellow=.4)
+number_draws <- 1
+draw <- rmultinom(number_draws, total_balls, color_proportions)
+draw
+```
+
+###
+We can replace the idea of balls in a box with malaria parasites in an individual, representing a simple model of parasite transmission that accounts for multiple strains with overlapping genotypes.
+  
+```{r multinom-dist-q-1}
+question("When converting our analogy of balls in a box to the context of malaria infections, what would a box would be equivalent to?",
+           answer("All parasite strains"),
+           answer("The collection of alleles at a genetic locus", correct=TRUE, message="The proportions of each 'ball' in the box are the allele frequencies in the population"), 
+           incorrect = "Not quite.",
+           allow_retry=TRUE)
+```
+  
+We generally have data from multiple genetic loci, so in fact, we actually have multiple boxes to draw from, one for each genetic locus with it's own allele frequencies.
+  
+```{r multinom-dist-q-2}
+question("How do we represent COI with our model?",
+           answer("The number of balls removed from the box", correct=TRUE),
+           answer("The total number of balls in the box", message="In a multinomial distribution, the number of balls in the box is actually very large, so removing a ball does not really change your chances of drawing other balls. You might also think of this as sampling with replacement, where the ball is put back into the box."),
+           incorrect = "Not quite.",
+           allow_retry = TRUE)
+```
+
+###
+Given this simple model of malaria infections within individuals, we can simulate data for a single individual at one genetic locus. In this example, the genetic locus has 4 possible alleles and the individual is infected by 3 distinct strains.
+  
+```{r sample-simulation, echo=TRUE}
+COI <- 3
+allele_frequencies <- c(A1=.1, A2=.2, A3=.3, A4=.4)
+number_individuals <- 1
+infection_genotype <- rmultinom(number_individuals, COI, allele_frequencies)
+infection_genotype
+
+# In reality, we don't know how many strains contribute each allele, so the observed data actually look something like this
+
+as.numeric(infection_genotype > 0)
+
+```   
+
+###
+We have simulated genetic data for one individual at one genetic locus. In reality, we'll have data available for many genetic loci. To model this, we would draw from several multinomial distributions, each representing a single genetic locus.
+
+```{r sample-simulation-q}
+question("What will stay the same across all multinomial distributions when modeling multiple genetic loci?",
+         answer("COI, i.e. the number of balls drawn from the box", correct=TRUE, message="An individual has a single value for COI, so we must draw the same number of parasite strain genetics from each multinomial distribution"),
+         answer("Allele frequencies, i.e. the relative proportion of balls in the box", message="Remember, each box represents a different genetic locus, which will have its own set of relative allele frequencies"),
+         incorrect = "Not quite.",
+         allow_retry = TRUE)
+```
+
+### Discussion Question
+This is a very simple model of malaria infections. How might the real world be more complicated and violate this model?
+
+### Possible Answers
+- This model doesn't currently account for error in sequencing or undetected strains. Errors may result in false positives while undetected strains may result in false negatives.
+- It also assumes independence of parasite strains. In very low diversity settings, strains may be highly related, violating the independence assumption
+
+## Simulation Exercise
+
+Now that we have a simple model of malaria infections, let's simulate some data to better understand how estimation can go wrong. `moire` includes functionality to sample from this model, as well as allowing for false positives and false negatives in the measured genetic signal. Try adjusting some of the settings below to see how it impacts estimation.
+
+```{r simulate-data, exercise=TRUE, exercise.lines=23}
+total_individuals <- 100
+
+# Mean complexity of infection from all individuals
+mean_coi <- 3
+
+# Total number of genetic loci
+num_loci <- 10
+
+# number of alleles at each locus
+num_alleles <- 5
+
+# Concentration of the allele frequency vector. Set to between 0 and 1 to make 
+# allele frequencies more concentrated on a single allele, and greater than 1 
+# to make allele frequencies more evenly distributed
+allele_frequency_concentration <- 1
+
+# The expected number of false positives or false negatives at a locus
+false_positive_rate <- 0
+false_negative_rate <- 0
+
+# Method used to estimate complexity of infection, comment one out
+## Naive estimation estimates COI as the maximum number of observed alleles
+## across loci.
+coi_estimation_method = moire::calculate_naive_coi
+
+## Offset naive estimation tries to account for the potential effect of false
+## positives by ignoring the maximum observed and taking the next highest 
+## number of alleles.
+# coi_estimation_method = purrr::partial(moire::calculate_naive_coi_offset, offset=2)
+
+################################################################################
+# The code below runs the simulation and plots the estimated COI and allele
+# frequency against the true COI and allele frequency. You should not 
+# change anything below.
+################################################################################
+allele_counts <- rep(num_alleles, num_loci)
+locus_freq_alphas <- lapply(allele_counts, function(allele) rep(allele_frequency_concentration, allele))
+
+simulated_data <- moire::simulate_data(
+  mean_coi,
+  total_individuals,
+  false_positive_rate, false_negative_rate,
+  locus_freq_alphas = locus_freq_alphas
+)
+names(simulated_data$data) <- NULL
+
+estimated_coi <- coi_estimation_method(simulated_data$data)
+estimated_af <- unlist(moire::calculate_naive_allele_frequencies(simulated_data$data))
+
+coi_plot_data <- data.frame(
+  true_coi=simulated_data$sample_cois,
+  estimated_coi=estimated_coi
+)
+
+af_plot_data <- data.frame(
+  true_af = unlist(simulated_data$allele_freqs),
+  estimated_af = estimated_af
+)
+
+max_coi = max(estimated_coi, simulated_data$sample_cois)
+
+ggplot(data=coi_plot_data, aes(x=true_coi, y=estimated_coi)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  scale_x_continuous(expand = c(0,0), limits = c(0, max_coi + 1), breaks = seq(from = 1, to = max_coi + 1, 1)) +
+  scale_y_continuous(expand = c(0,0), limits = c(0, max_coi + 1), breaks = seq(from = 1, to = max_coi + 1, 1)) + 
+  xlab("True COI") +
+  ylab("Estimated COI") +
+  theme_classic()
+
+ggplot(data=af_plot_data, aes(x = true_af, y = estimated_af)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  scale_x_continuous(expand = c(0,0), limits = c(0, 1)) +
+  scale_y_continuous(expand = c(0,0), limits = c(0, 1)) + 
+  xlab("True Allele Freq.") +
+  ylab("Estimated Allele Freq.") +
+  theme_classic()
+```
+
+###
+After exploring with the code above, answer the following questions
+
+```{r simulate-data-q}
+quiz(
+  question("If there are 100 genetic loci and each locus is a SNP (so it has 2 alelles), what's the maximum COI we can estimate naively?",
+           answer("100"),
+           answer("2", correct=TRUE, "Without a statistical model, we cannot estimate COI beyond the maximum number of alleles"),
+           answer("5"),
+           incorrect = "Not quite.",
+           allow_retry = TRUE
+  ),
+  question("If there is some non-zero rate of false positives, and we estimate COI with the naive estimator, then increasing the number of genetic loci will:",
+           answer("underestimate COI"),
+           answer("overestimate COI", correct=TRUE, "Counterintuitively, increasing the amount of data we have available leads to a worse estimate when using the naive estimator without accounting for false positives"),
+           answer("accurately estimate COI"),
+           allow_retry = TRUE,
+           incorrect = "Not quite."
+  )
+)
+```
+
+
+## Running MOIRE
+We have demonstrated that naive estimation can have pretty significant biases, especially if there's any amount of false positives or false negatives. Even worse, the bias increases as we increase the amount of data available! To address these issues, we will explore applying `moire` to a real world data set to better estimate COI and allele frequencies.
+
+### `moire` Overview
+`moire` is an implementation of a Markov Chain Monte Carlo (MCMC) algorithm for estimating COI and allele frequencies. Rather than just a point estimate, `moire` allows us to generate a distribution of possible values given our observed data. This is important for allowing us to assess the uncertainty around our estimates.
+
+### Loading Data
+`moire` takes data in either a wide format or a long format. The long format has 3 columns, [`sample_id`, `locus`, `allele`], where each row is a single observation of an allele at a particular locus for a particular sample. The wide format consists of a column `sample_id` which identifies the sample, and the rest of the columns define the observed alleles at each locus. Because more than one allele may be observed at a locus, they will have to be delimited by some character (`moire` assumes by default this character is `;`). We will work with long format data through these exercises.
+
+```{r run-moire-load-data, echo=TRUE}
+# Here is an example of what long form data look like
+moz <- readr::read_csv("data/mozambique.csv", show_col_types = FALSE)
+head(moz)
+dat <- moire::load_long_form_data(moz)
+```
+
+```{r run-moire-setup, echo=TRUE}
+moz <- readr::read_csv("data/mozambique.csv", show_col_types = FALSE)
+dat <- moire::load_long_form_data(moz)
+```
+
+### Running MCMC
+After loading the data, we will run the MCMC with `moire`. This should take about a minute with default settings. Here we run the MCMC for 1000 steps as "burnin", the initial sample that is discarded, followed by 1000 more samples that are retained. These retained samples make up the estimate of the posterior distribution of COI and allele frequencies.
+```{r run-moire, exercise=TRUE}
+burnin <- 1e3
+num_samples <- 1e3
+num_chains <- 1
+num_cores <- 1
+
+mcmc_results <- moire::run_mcmc(
+  dat$data, dat$sample_ids, dat$loci, is_missing = dat$is_missing,
+  verbose = F, burnin = burnin, samples_per_chain = num_samples / num_chains,
+  num_chains = num_chains, num_cores = num_cores
+)
+
+# we need to write out the data to be able to use it in later exercises
+readr::write_rds(mcmc_results, file='../mcmc_results.rds')
+```
+
+In this example, we have only run the MCMC for a rather short period of time due to time constraints. In practice, you will want to run the MCMC for much longer with multiple chains. A good starting point would be `1e4` burnin steps, followed by `1e4` samples and careful assessment of estimated parameter distributions. If you do not run the MCMC for long enough, you risk faulty estimates because the MCMC has not converged and adequately explored the parameter space.
+
+### Analyzing results
+Now that we've run our MCMC and have our results, let's analyze using some of the tools built into `moire`. First, we'll evaluate the estimated distribution of COI.
+
+```{r moire-eval-coi, exercise=TRUE}
+# Load the data from the previous exercise
+mcmc_results <- readr::read_rds(file = '../mcmc_results.rds')
+
+coi_summary <- moire::summarize_coi(mcmc_results)
+head(coi_summary)
+```
+
+###
+`summarize_coi` will automatically process the MCMC output and generate a data.frame that provides a summary of COI for each observation. Specifically, it will generate the columns `[post_coi_lower, post_coi_med, post_coi_upper]` representing the `[.025, .5, .975]` quantiles from the posterior distribution of each observation's COI. We can then use these values to provide an overall summary of COI
+
+```{r moire-eval-coi-plot, exercise=TRUE}
+# Load the data from the previous exercise
+mcmc_results <- readr::read_rds(file = '../mcmc_results.rds')
+coi_summary <- moire::summarize_coi(mcmc_results)
+max_coi = max(coi_summary$post_coi_med, coi_summary$naive_coi)
+
+ggplot(coi_summary, aes(x=post_coi_med)) + 
+  geom_histogram(binwidth=1) +
+  theme_classic() +
+  xlab("Posterior Median COI") + 
+  ggtitle("Distribution of COI")
+
+# We can also compare these estimates against a naive estimate of COI
+ggplot(coi_summary, aes(y=post_coi_med, x=naive_coi)) + 
+  geom_point() +
+  geom_abline(slope=1, intercept=0) +
+  scale_x_continuous(expand = c(0,0), limits = c(0, max_coi + 1), breaks = seq(from = 1, to = max_coi + 1, 1)) +
+  scale_y_continuous(expand = c(0,0), limits = c(0, max_coi + 1), breaks = seq(from = 1, to = max_coi + 1, 1)) + 
+  theme_classic() +
+  xlab("Naive COI") +
+  ylab("Posterior Median COI") +
+  ggtitle("Estimates of COI")
+```
+
+###
+Next, we can estimate summaries of allele frequencies, such as mean heterozygosity ($H_e$). As before with COI, moire can summarize the posterior distribution to provide quantile estimates of $H_e$.
+
+```{r moire-eval-he-plot, exercise=TRUE}
+mcmc_results <- readr::read_rds(file = '../mcmc_results.rds')
+he_summary <- moire::summarize_he(mcmc_results)
+
+# let's reorder the loci so that they are in order of descending heterozygosity
+forcats::fct_reorder(he_summary$loci, he_summary$post_stat_med)
+
+ggplot(he_summary |> arrange(post_stat_med), aes(y = post_stat_med, x = locus)) +
+  geom_errorbar(aes(ymin = post_stat_lower, ymax = post_stat_upper)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("Locus") +
+  ylab("Expected Heterozygosity")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

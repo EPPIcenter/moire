@@ -415,7 +415,7 @@ summarize_allele_freqs <- function(mcmc_results,
     rbind,
     purrr::imap(
       mcmc_results$args$data,
-      ~ data.frame(locus = mcmc_results$args$loci[.y], allele = names(.x[[1]]))
+      ~ data.frame(locus = .y, allele = names(.x[[1]]))
     )
   )
 
@@ -489,4 +489,35 @@ summarize_allele_freqs <- function(mcmc_results,
     }
     return(do.call(rbind, res))
   }
+}
+
+
+#' Calculate the maximum a posteriori (MAP) estimate of allele frequencies
+#' from the estimated posterior joint distribution of allele frequencies
+#'
+#' @details Returns the sampled allele frequencies at the maximum sampled
+#' likelihood
+#'
+#' @import purrr
+#'
+#' @export
+#'
+#' @param mcmc_results Result of calling run_mcmc()
+#'
+#' @param merge_chains boolean indicating that all chain results should be merged
+calculate_map_allele_frequencies <- function(mcmc_results, merge_chains = TRUE) {
+  if (merge_chains) {
+    max_llik <- which.max(purrr::flatten(
+      purrr::map(mcmc_results$chains, ~ .x$llik_sample)
+    ))
+    map_afs <- purrr::flatten(
+      purrr::map(mcmc_results$chains, ~ purrr::transpose(.x$allele_freqs))
+    )[[max_llik]]
+  } else {
+    map_afs <- purrr::map(mcmc_results$chains, function(x) {
+      max_llik <- which.max(x$llik_sample)
+      return(purrr::transpose(x$allele_freqs)[[max_llik]])
+    })
+  }
+  return(map_afs)
 }
