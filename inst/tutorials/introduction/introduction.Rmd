@@ -8,7 +8,6 @@ runtime: shiny_prerendered
 
 ```{r setup, include=FALSE}
 rlang::check_installed(c("learnr", "forcats", "ggplot2", "readr", "dplyr"))
-
 library(learnr)
 library(moire)
 library(ggplot2)
@@ -284,9 +283,9 @@ mcmc_results <- readr::read_rds(file = '../mcmc_results.rds')
 he_summary <- moire::summarize_he(mcmc_results)
 
 # let's reorder the loci so that they are in order of descending heterozygosity
-forcats::fct_reorder(he_summary$loci, he_summary$post_stat_med)
+forcats::fct_reorder(he_summary$locus, he_summary$post_stat_med)
 
-ggplot(he_summary |> arrange(post_stat_med), aes(y = post_stat_med, x = locus)) +
+ggplot(he_summary, aes(y = post_stat_med, x = locus)) +
   geom_errorbar(aes(ymin = post_stat_lower, ymax = post_stat_upper)) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
