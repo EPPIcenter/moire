@@ -10,12 +10,35 @@
 #' @param df data frame with 3 columns: `sample_id`, `locus`, `allele`.
 #' Each row is a single observation of an allele at a particular
 #' locus for a given sample.
+#' @param warn_uninformative boolean whether or not to print message when
+#'  removing uninformative loci
 #'
 #' @importFrom rlang .data
-load_long_form_data <- function(df) {
+load_long_form_data <- function(df, warn_uninformative=TRUE) {
+  uninformative_loci <- df |>
+    dplyr::group_by(.data$locus) |>
+    dplyr::summarise(total_alleles = length(unique(.data$allele))) |>
+    dplyr::filter(total_alleles == 1) |>
+    dplyr::pull(.data$locus)
+
+  if (length(uninformative_loci) > 0 ) {
+    if (warn_uninformative) {
+      message("Uninformative loci with only 1 allele included. Removing...")
+      message(paste0("Loci: ", paste(uninformative_loci, sep = ", ")))
+    }
+    df <- df |>
+      dplyr::filter(!(.data$locus %in% uninformative_loci))
+  }
+
   unique_alleles <- df |>
     dplyr::group_by(.data$locus) |>
     dplyr::summarise(unique_alleles = list(sort(unique(.data$allele))))
+
+  uninformative_loci <- unique_alleles |>
+    dplyr::mutate(total_alleles = length(.data$unique_alleles)) |>
+    dplyr::filter(total_alleles == 1)
+
+
 
   num_loci <- df |>
     dplyr::pull(.data$locus) |>
@@ -77,9 +100,11 @@ load_long_form_data <- function(df) {
 #'
 #' @param data data.frame containing the described data
 #' @param sep string used to separate alleles
+#' @param warn_uninformative boolean whether or not to print message when
+#'  removing uninformative loci
 #'
 #' @importFrom rlang .data
-load_delimited_data <- function(data, sep = ";") {
+load_delimited_data <- function(data, sep = ";", warn_uninformative = TRUE) {
   df <- data |>
     tidyr::pivot_longer(-.data$sample_id,
       names_to = "locus",
