@@ -24,7 +24,7 @@ load_long_form_data <- function(df, warn_uninformative=TRUE) {
   if (length(uninformative_loci) > 0 ) {
     if (warn_uninformative) {
       message("Uninformative loci with only 1 allele included. Removing...")
-      message(paste0("Loci: ", paste(uninformative_loci, sep = ", ")))
+      message(paste0("Loci: ", paste(uninformative_loci, collapse = ", ")))
     }
     df <- df |>
       dplyr::filter(!(.data$locus %in% uninformative_loci))

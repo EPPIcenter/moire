@@ -14,7 +14,8 @@ knitr::opts_chunk$set(
   fig.align = "center"
 )
 # 
-do.call(knitr::read_chunk, list(path = system.file(c("data-raw", "mcmc_results.R"), package="moire")))
+do.call(knitr::read_chunk, list(path = "../data-raw/mcmc_results.R"))
+# do.call(knitr::read_chunk, list(path = system.file(c("data-raw", "mcmc_results.R"), package="moire")))
 ```
 
 ```{r setup, message=FALSE}
