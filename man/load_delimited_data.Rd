@@ -4,12 +4,15 @@
 \alias{load_delimited_data}
 \title{Load delimited data}
 \usage{
-load_delimited_data(data, sep = ";")
+load_delimited_data(data, sep = ";", warn_uninformative = TRUE)
 }
 \arguments{
 \item{data}{data.frame containing the described data}
 
 \item{sep}{string used to separate alleles}
+
+\item{warn_uninformative}{boolean whether or not to print message when
+removing uninformative loci}
 }
 \description{
 Load delimited data

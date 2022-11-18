@@ -7,6 +7,8 @@
 #include "mcmc_utils.h"
 #include "parameters.h"
 
+#include <cmath>
+
 #include <Rcpp/utils/tinyformat.h>
 
 #include <progress.hpp>
@@ -27,7 +29,19 @@ Rcpp::List run_mcmc(Rcpp::List args)
     }
 
     MCMC mcmc(genotyping_data, params);
-    if (std::isnan(mcmc.get_llik()))
+
+    // Sometimes when initializing, the likelihood is too extreme and results in
+    // a NaN
+    bool ill_conditioned = std::isnan(mcmc.get_llik());
+    int max_tries = 1000;
+    while (ill_conditioned and max_tries != 0)
+    {
+        mcmc = MCMC(genotyping_data, params);
+        max_tries--;
+        ill_conditioned = std::isnan(mcmc.get_llik());
+    }
+
+    if (ill_conditioned)
     {
         Rcpp::stop("Error: Initial Llik is NaN");
     }

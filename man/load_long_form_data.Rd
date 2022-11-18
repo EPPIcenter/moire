@@ -4,12 +4,15 @@
 \alias{load_long_form_data}
 \title{Load long form data}
 \usage{
-load_long_form_data(df)
+load_long_form_data(df, warn_uninformative = TRUE)
 }
 \arguments{
 \item{df}{data frame with 3 columns: \code{sample_id}, \code{locus}, \code{allele}.
 Each row is a single observation of an allele at a particular
 locus for a given sample.}
+
+\item{warn_uninformative}{boolean whether or not to print message when
+removing uninformative loci}
 }
 \description{
 Load long form data
