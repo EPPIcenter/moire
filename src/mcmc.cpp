@@ -12,6 +12,7 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
 {
     p_store.resize(genotyping_data.num_loci);
     m_store.resize(genotyping_data.num_samples);
+    r_store.resize(genotyping_data.num_samples);
     eps_neg_store.resize(genotyping_data.num_samples);
     eps_pos_store.resize(genotyping_data.num_samples);
 };
@@ -22,6 +23,11 @@ void MCMC::burnin(int step)
     chain.update_eps_pos(step);
     chain.update_p(step);
     chain.update_m(step);
+    if (params.allow_relatedness)
+    {
+        chain.update_r(step);
+    }
+    chain.update_samples(step);
     llik_burnin.push_back(chain.get_llik());
 }
 
@@ -31,6 +37,12 @@ void MCMC::sample(int step)
     chain.update_eps_pos(params.burnin + step);
     chain.update_p(params.burnin + step);
     chain.update_m(params.burnin + step);
+
+    if (params.allow_relatedness)
+    {
+        chain.update_r(params.burnin + step);
+    }
+    chain.update_samples(params.burnin + step);
 
     if (params.thin == 0 || step % params.thin == 0)
     {
@@ -44,6 +56,7 @@ void MCMC::sample(int step)
             m_store[jj].push_back(chain.m[jj]);
             eps_neg_store[jj].push_back(chain.eps_neg[jj]);
             eps_pos_store[jj].push_back(chain.eps_pos[jj]);
+            r_store[jj].push_back(chain.r[jj]);
         }
         llik_sample.push_back(chain.get_llik());
     }

@@ -8,6 +8,7 @@ Parameters::Parameters(const Rcpp::List &args)
     // MCMC
     verbose = UtilFunctions::r_to_bool(args["verbose"]);
     simple_verbose = UtilFunctions::r_to_bool(args["simple_verbose"]);
+    allow_relatedness = UtilFunctions::r_to_bool(args["allow_relatedness"]);
     chain_number = UtilFunctions::r_to_int(args["chain_number"]);
     thin = UtilFunctions::r_to_int(args["thin"]);
     burnin = UtilFunctions::r_to_int(args["burnin"]);

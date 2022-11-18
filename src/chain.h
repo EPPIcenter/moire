@@ -27,11 +27,13 @@ class Chain
     void initialize_m();
     void initialize_eps_neg();
     void initialize_eps_pos();
+    void initialize_r();
     void initialize_likelihood();
 
     double calc_transmission_process(
         std::vector<int> const &allele_index_vec,
-        std::vector<double> const &allele_frequencies, int coi);
+        std::vector<double> const &allele_frequencies, int coi,
+        double relatedness);
 
     double calc_observation_process(std::vector<int> const &allele_index_vec,
                                     std::vector<int> const &obs_genotype,
@@ -41,7 +43,7 @@ class Chain
     double calc_genotype_log_pmf(std::vector<int> const &allele_index_vec,
                                  std::vector<int> const &obs_genotype,
                                  double epsilon_pos, double epsilon_neg,
-                                 int coi,
+                                 int coi, double relatedness,
                                  std::vector<double> const &allele_frequencies);
 
     std::vector<double> calc_obs_genotype_lliks(
@@ -87,9 +89,13 @@ class Chain
 
     // COI
     std::vector<int> m{};
-    int prop_m;
     std::vector<int> m_accept{};
     std::vector<double> m_prop_mean{};
+
+    // Relatedness
+    std::vector<double> r{};
+    std::vector<int> r_accept{};
+    std::vector<double> r_var{};
 
     // Allele Frequencies
     std::vector<std::vector<double>> p{};
@@ -101,25 +107,25 @@ class Chain
     // Epsilon Positive
     // double eps_pos;
     std::vector<double> eps_pos{};
-    double prop_eps_pos;
     std::vector<int> eps_pos_accept{};
     double eps_pos_var;
 
     // Epsilon Negative
     // double eps_neg;
     std::vector<double> eps_neg{};
-    double prop_eps_neg;
     std::vector<int> eps_neg_accept{};
     double eps_neg_var;
 
-    std::vector<int> individual_accept{};
+    std::vector<int> sample_accept{};
 
     Chain(GenotypingData genotyping_data, Parameters params);
     void update_m(int iteration);
+    void update_r(int iteration);
     void update_p(int iteration);
     void update_eps(int iteration);
     void update_eps_pos(int iteration);
     void update_eps_neg(int iteration);
+    void update_samples(int iteration);
     double get_llik();
 };
 

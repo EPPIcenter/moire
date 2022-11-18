@@ -11,6 +11,8 @@
 #'  should be treated as missing data and ignored. Number of rows equals the
 #'  number of loci, number of columns equals the number samples. Alternatively,
 #'  the user may pass in FALSE if no data should be considered missing.
+#' @param allow_relatedness Bool indicating whether or not to allow relatedness within
+#' host
 #' @param thin Positive Integer. How often to sample from mcmc,
 #'  1 means do not thin
 #' @param burnin Positive Integer. Number of MCMC samples to
@@ -34,7 +36,6 @@
 #'  Beta distribution for eps_neg prior
 #' @param max_eps_pos Numeric. Maximum allowed value for eps_pos
 #' @param max_eps_neg Numeric. Maximum allowed value for eps_neg
-
 #' @param max_coi Positive Numeric. Maximum allowed complexity of infection
 #' @param allele_freq_vars Positive Numeric. Variance used in sampling allele
 #'  frequencies
@@ -47,6 +48,7 @@ run_mcmc <-
            sample_ids,
            loci,
            is_missing = FALSE,
+           allow_relatedness = TRUE,
            thin = 1,
            burnin = 1e4,
            samples_per_chain = 1e3,

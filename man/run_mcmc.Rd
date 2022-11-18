@@ -9,6 +9,7 @@ run_mcmc(
   sample_ids,
   loci,
   is_missing = FALSE,
+  allow_relatedness = TRUE,
   thin = 1,
   burnin = 10000,
   samples_per_chain = 1000,
@@ -44,6 +45,9 @@ collection of observations across samples at a single genetic locus.}
 should be treated as missing data and ignored. Number of rows equals the
 number of loci, number of columns equals the number samples. Alternatively,
 the user may pass in FALSE if no data should be considered missing.}
+
+\item{allow_relatedness}{Bool indicating whether or not to allow relatedness within
+host}
 
 \item{thin}{Positive Integer. How often to sample from mcmc,
 1 means do not thin}
