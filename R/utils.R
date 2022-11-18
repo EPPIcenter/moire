@@ -14,17 +14,16 @@
 #'  removing uninformative loci
 #'
 #' @importFrom rlang .data
-load_long_form_data <- function(df, warn_uninformative=TRUE) {
+load_long_form_data <- function(df, warn_uninformative = TRUE) {
   uninformative_loci <- df |>
     dplyr::group_by(.data$locus) |>
     dplyr::summarise(total_alleles = length(unique(.data$allele))) |>
     dplyr::filter(total_alleles == 1) |>
     dplyr::pull(.data$locus)
 
-  if (length(uninformative_loci) > 0 ) {
+  if (length(uninformative_loci) > 0) {
     if (warn_uninformative) {
       message("Uninformative loci with only 1 allele included. Removing...")
-      message(paste0("Loci: ", paste(uninformative_loci, collapse = ", ")))
     }
     df <- df |>
       dplyr::filter(!(.data$locus %in% uninformative_loci))
@@ -33,12 +32,6 @@ load_long_form_data <- function(df, warn_uninformative=TRUE) {
   unique_alleles <- df |>
     dplyr::group_by(.data$locus) |>
     dplyr::summarise(unique_alleles = list(sort(unique(.data$allele))))
-
-  uninformative_loci <- unique_alleles |>
-    dplyr::mutate(total_alleles = length(.data$unique_alleles)) |>
-    dplyr::filter(total_alleles == 1)
-
-
 
   num_loci <- df |>
     dplyr::pull(.data$locus) |>
@@ -84,7 +77,8 @@ load_long_form_data <- function(df, warn_uninformative=TRUE) {
     sample_ids = sample_ids,
     data = sample_locus_barcodes$locus_barcodes,
     loci = sample_locus_barcodes$locus,
-    is_missing = is_missing
+    is_missing = is_missing,
+    uninformative_loci = uninformative_loci
   ))
 }
 
