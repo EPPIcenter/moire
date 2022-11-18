@@ -84,7 +84,8 @@
 
 
 
-<script src="mcmc_demo_files/accessible-code-block-0.0.1/empty-anchor.js"></script><div class="row">
+
+<div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="../logo.svg" class="logo" alt=""><h1>MCMC Demonstration</h1>
             
@@ -100,10 +101,43 @@
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://tidyr.tidyverse.org" class="external-link">tidyr</a></span><span class="op">)</span></span></code></pre></div>
-<p>To demonstrate the usage of the package, we can simulate some genotyping data according to our model.</p>
-<p>Now that we have our data, let’s go ahead and run the MCMC.</p>
-<p>After running the MCMC, we can access the draws from the posterior distribution and analyze.</p>
+<p>To demonstrate the usage of the package, we can simulate some
+genotyping data according to our model.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">17325</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">mean_moi</span> <span class="op">&lt;-</span> <span class="fl">4</span></span>
+<span><span class="va">num_biological_samples</span> <span class="op">&lt;-</span> <span class="fl">100</span></span>
+<span><span class="va">epsilon_pos</span> <span class="op">&lt;-</span> <span class="fl">.05</span></span>
+<span><span class="va">epsilon_neg</span> <span class="op">&lt;-</span> <span class="fl">.1</span></span>
+<span></span>
+<span><span class="co"># Generate the number of alleles at each locus</span></span>
+<span><span class="va">allele_counts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">15</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">15</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">15</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># We'll use flat alpha vectors for our draws from the Dirichlet</span></span>
+<span><span class="va">locus_freq_alphas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">allele_counts</span>, <span class="kw">function</span><span class="op">(</span><span class="va">allele</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span>, <span class="va">allele</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">simulated_data</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/simulate_data.html">simulate_data</a></span><span class="op">(</span></span>
+<span>  <span class="va">mean_moi</span>,</span>
+<span>  <span class="va">num_biological_samples</span>,</span>
+<span>  <span class="va">epsilon_pos</span>, <span class="va">epsilon_neg</span>,</span>
+<span>  locus_freq_alphas <span class="op">=</span> <span class="va">locus_freq_alphas</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Now that we have our data, let’s go ahead and run the MCMC.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">burnin</span> <span class="op">&lt;-</span> <span class="fl">1e5</span></span>
+<span><span class="va">num_samples</span> <span class="op">&lt;-</span> <span class="fl">1e4</span></span>
+<span><span class="va">num_chains</span> <span class="op">&lt;-</span> <span class="fl">10</span></span>
+<span><span class="va">num_cores</span> <span class="op">&lt;-</span> <span class="fl">10</span></span>
+<span></span>
+<span><span class="va">mcmc_results</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/run_mcmc.html">run_mcmc</a></span><span class="op">(</span></span>
+<span>  <span class="va">simulated_data</span><span class="op">$</span><span class="va">data</span>, <span class="va">simulated_data</span><span class="op">$</span><span class="va">sample_ids</span>, <span class="va">simulated_data</span><span class="op">$</span><span class="va">loci</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">F</span>, burnin <span class="op">=</span> <span class="va">burnin</span>, samples_per_chain <span class="op">=</span> <span class="va">num_samples</span> <span class="op">/</span> <span class="va">num_chains</span>,</span>
+<span>  num_chains <span class="op">=</span> <span class="va">num_chains</span>, num_cores <span class="op">=</span> <span class="va">num_cores</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>After running the MCMC, we can access the draws from the posterior
+distribution and analyze.</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Estimate the COI for each sample</span></span>
 <span><span class="va">coi_summary</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/summarize_coi.html">summarize_coi</a></span><span class="op">(</span><span class="va">mcmc_results</span><span class="op">)</span></span>
 <span></span>
@@ -137,8 +171,10 @@
 <span>    <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/calculate_naive_allele_frequencies.html">calculate_naive_allele_frequencies</a></span><span class="op">(</span><span class="va">simulated_data</span><span class="op">$</span><span class="va">true_genotypes</span><span class="op">)</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>Here we demonstrate the difference in distribution of the estimate of MOI using our approach vs the naive method of taking the maximum number of alleles observed or the second highest number of alleles observed</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<p>Here we demonstrate the difference in distribution of the estimate of
+MOI using our approach vs the naive method of taking the maximum number
+of alleles observed or the second highest number of alleles observed</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">coi_estimates</span> <span class="op">&lt;-</span> <span class="va">coi_data</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">post_coi_med</span>, <span class="va">naive_coi</span>, <span class="va">offset_naive_coi</span>, <span class="va">true_coi</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">tidyr</span><span class="fu">::</span><span class="fu"><a href="https://tidyr.tidyverse.org/reference/pivot_longer.html" class="external-link">pivot_longer</a></span><span class="op">(</span><span class="fu">tidyr</span><span class="fu">::</span><span class="fu"><a href="https://tidyselect.r-lib.org/reference/everything.html" class="external-link">everything</a></span><span class="op">(</span><span class="op">)</span>,</span>
@@ -162,10 +198,13 @@
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">"Complexity of Infection"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">"Total Count"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_classic</a></span><span class="op">(</span>base_size <span class="op">=</span> <span class="fl">12</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>axis.text.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>angle <span class="op">=</span> <span class="fl">90</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>axis.text.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>angle <span class="op">=</span> <span class="fl">90</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: `stat(count)` was deprecated in ggplot2 3.4.0.</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Please use `after_stat(count)` instead.</span></span></code></pre></div>
 <p><img src="mcmc_demo_files/figure-html/plot_distribution-1.png" width="700" style="display: block; margin: auto;"></p>
-<p>Since we simulated data, we know the true complexity of infection and allele frequencies and can compare to our estimates.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<p>Since we simulated data, we know the true complexity of infection and
+allele frequencies and can compare to our estimates.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">coi_data</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">true_coi</span>, y <span class="op">=</span> <span class="va">post_coi_mean</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_boxplot.html" class="external-link">geom_boxplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>group <span class="op">=</span> <span class="va">true_coi</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"black"</span>, alpha <span class="op">=</span> <span class="fl">.1</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_jitter.html" class="external-link">geom_jitter</a></span><span class="op">(</span>shape <span class="op">=</span> <span class="fl">1</span>, alpha <span class="op">=</span> <span class="fl">.5</span>, color <span class="op">=</span> <span class="st">"black"</span>, width <span class="op">=</span> <span class="fl">.1</span>, height <span class="op">=</span> <span class="fl">.1</span><span class="op">)</span> <span class="op">+</span></span>
@@ -179,8 +218,11 @@
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_classic</a></span><span class="op">(</span>base_size <span class="op">=</span> <span class="fl">12</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/expand_limits.html" class="external-link">expand_limits</a></span><span class="op">(</span>x <span class="op">=</span> <span class="fl">0</span>, y <span class="op">=</span> <span class="fl">0</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">"Estimates of COI vs Truth"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="mcmc_demo_files/figure-html/plot_coi_concordance-1.png" width="700" style="display: block; margin: auto;"> As expected, the naive estimator (in red) and the offset naive estimator (in green) are pretty heavily biased and. Complexity of infection is well estimated, but there’s some difficulty in the upper range.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<p><img src="mcmc_demo_files/figure-html/plot_coi_concordance-1.png" width="700" style="display: block; margin: auto;">
+As expected, the naive estimator (in red) and the offset naive estimator
+(in green) are pretty heavily biased and. Complexity of infection is
+well estimated, but there’s some difficulty in the upper range.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">allele_freq_data</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_linerange.html" class="external-link">geom_errorbar</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
 <span>    y <span class="op">=</span> <span class="va">post_allele_freqs_mean</span>,</span>
@@ -195,8 +237,16 @@
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_classic</a></span><span class="op">(</span>base_size <span class="op">=</span> <span class="fl">12</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/expand_limits.html" class="external-link">expand_limits</a></span><span class="op">(</span>x <span class="op">=</span> <span class="fl">0</span>, y <span class="op">=</span> <span class="fl">0</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">"Estimates of Allele Frequencies vs Truth"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="mcmc_demo_files/figure-html/plot_allele_freq_concordance-1.png" width="700" style="display: block; margin: auto;"> Again, naive estimation of allele frequencies (red) is heavily biased and lacks any estimates of uncertainty. Allele frequencies are very well estimated by MOIRE (black), recovering values from the entire range along with measures of uncertainty at the 95% credible interval. Since we have access to the full distribution of sample allele frequencies, we can also look at distributions of other summary statistics that might be of interest. For example, let’s take a look at expected heterozygosity.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<p><img src="mcmc_demo_files/figure-html/plot_allele_freq_concordance-1.png" width="700" style="display: block; margin: auto;">
+Again, naive estimation of allele frequencies (red) is heavily biased
+and lacks any estimates of uncertainty. Allele frequencies are very well
+estimated by MOIRE (black), recovering values from the entire range
+along with measures of uncertainty at the 95% credible interval. Since
+we have access to the full distribution of sample allele frequencies, we
+can also look at distributions of other summary statistics that might be
+of interest. For example, let’s take a look at expected
+heterozygosity.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">he_data</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">true_he</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_linerange.html" class="external-link">geom_errorbar</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">post_stat_mean</span>, ymax <span class="op">=</span> <span class="va">post_stat_upper</span>, ymin <span class="op">=</span> <span class="va">post_stat_lower</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">post_stat_mean</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"blue"</span><span class="op">)</span> <span class="op">+</span></span>
@@ -205,7 +255,11 @@
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">"True Heterozygosity"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">"Mean Posterior Heterozygosity"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_classic</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p><img src="mcmc_demo_files/figure-html/plot_he_concordance-1.png" width="700" style="display: block; margin: auto;"> Naive estimation (green) results in a severe upward bias, especially at lower levels of expected heterozygosity. MOIRE maintains high accuracy (blue), including measures of uncertainty at the 95% credible interval.</p>
+<p><img src="mcmc_demo_files/figure-html/plot_he_concordance-1.png" width="700" style="display: block; margin: auto;">
+Naive estimation (green) results in a severe upward bias, especially at
+lower levels of expected heterozygosity. MOIRE maintains high accuracy
+(blue), including measures of uncertainty at the 95% credible
+interval.</p>
   </main>
 </div>
 

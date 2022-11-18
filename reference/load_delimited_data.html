@@ -63,7 +63,7 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">load_delimited_data</span><span class="op">(</span><span class="va">data</span>, sep <span class="op">=</span> <span class="st">";"</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">load_delimited_data</span><span class="op">(</span><span class="va">data</span>, sep <span class="op">=</span> <span class="st">";"</span>, warn_uninformative <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -74,6 +74,11 @@
 
 <dt>sep</dt>
 <dd><p>string used to separate alleles</p></dd>
+
+
+<dt>warn_uninformative</dt>
+<dd><p>boolean whether or not to print message when
+removing uninformative loci</p></dd>
 
 </dl></div>
     <div class="section level2">
