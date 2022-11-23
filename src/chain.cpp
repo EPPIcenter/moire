@@ -90,7 +90,10 @@ void Chain::initialize_r()
 {
     if (params.allow_relatedness)
     {
-        r.resize(genotyping_data.num_samples, 0.5);
+        for (size_t i = 0; i < genotyping_data.num_samples; ++i)
+        {
+            r.push_back(sampler.sample_unif() * .5);
+        }
     }
     else
     {
@@ -515,11 +518,23 @@ double Chain::calc_transmission_process(
                std::log(constrained_set_total_prob) * coi;
     }
 
-    for (size_t i = total_alleles; i <= coi; ++i)
+    // for (size_t i = total_alleles; i <= coi; ++i)
+    // {
+    //     double pr = R::dbinom(i, coi, 1 - relatedness, true);
+    //     double i_res = std::log(1 - probAnyMissing_(prVec_, i)) +
+    //                    std::log(constrained_set_total_prob) * i;
+    //     res.push_back(pr + i_res);
+    // }
+
+    // Only go up to coi - total_alleles because there must be at least
+    // total_alleles unrelated strains at this locus
+    for (size_t i = 0; i <= coi - total_alleles; ++i)
     {
-        double pr = R::dbinom(i, coi, 1 - relatedness, true);
-        double i_res = std::log(1 - probAnyMissing_(prVec_, i)) +
-                       std::log(constrained_set_total_prob) * i;
+        // Calculate the probability of `i` related strains being present, where
+        // there are at most coi - total_alleles related strains
+        double pr = R::dbinom(i, coi - 1, relatedness, true);
+        double i_res = std::log(1 - probAnyMissing_(prVec_, coi - i)) +
+                       std::log(constrained_set_total_prob) * (coi - i);
         res.push_back(pr + i_res);
     }
 
@@ -609,7 +624,7 @@ double Chain::calc_old_likelihood()
         old_llik += ll;
     }
 
-    return old_llik;
+    return old_llik * temp;
 }
 
 double Chain::calc_new_likelihood()
@@ -627,7 +642,7 @@ double Chain::calc_new_likelihood()
         new_llik += ll;
     }
 
-    return new_llik;
+    return new_llik * temp;
 }
 
 double Chain::get_llik() { return llik; }
@@ -739,7 +754,13 @@ void Chain::restore_eps_pos_likelihood(int sample_idx)
     eps_pos_prior_new[sample_idx] = eps_pos_prior_old[sample_idx];
 }
 
-Chain::Chain(GenotypingData genotyping_data, Parameters params)
+void Chain::set_llik(double llik) { this->llik = llik; }
+
+void Chain::set_temp(double temp) { this->temp = temp; }
+
+double Chain::get_temp() { return this->temp; }
+
+Chain::Chain(GenotypingData genotyping_data, Parameters params, double temp)
     : genotyping_data(genotyping_data), params(params), sampler()
 
 {
@@ -750,6 +771,7 @@ Chain::Chain(GenotypingData genotyping_data, Parameters params)
     p_accept = std::vector<std::vector<int>>(genotyping_data.num_loci);
 
     llik = std::numeric_limits<double>::lowest();
+    this->temp = temp;
 
     initialize_m();
     initialize_eps_neg();

@@ -80,6 +80,7 @@ class Chain
     std::vector<double> llik_store{};
 
     double llik;
+    double temp;
 
     // Latent Genotypes
     std::vector<std::vector<std::vector<int>>> latent_genotypes_old{};
@@ -118,7 +119,7 @@ class Chain
 
     std::vector<int> sample_accept{};
 
-    Chain(GenotypingData genotyping_data, Parameters params);
+    Chain(GenotypingData genotyping_data, Parameters params, double temp = 1.0);
     void update_m(int iteration);
     void update_r(int iteration);
     void update_p(int iteration);
@@ -127,6 +128,10 @@ class Chain
     void update_eps_neg(int iteration);
     void update_samples(int iteration);
     double get_llik();
+    void set_llik(double llik);
+
+    void set_temp(double temp);
+    double get_temp();
 };
 
 #endif  // CHAIN_H_

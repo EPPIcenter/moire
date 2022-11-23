@@ -15,6 +15,9 @@ class Parameters
     int thin;
     int burnin;
     int samples;
+    int pt_chains;
+    double pt_grad;
+    int pt_num_threads;
     double allele_freq_threshold;
 
     // Model Parameters

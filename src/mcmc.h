@@ -16,7 +16,7 @@ class MCMC
    public:
     GenotypingData genotyping_data;
     Parameters params;
-    Chain chain;
+    std::vector<Chain> chains{};
 
     std::vector<std::vector<int>> m_store{};
     std::vector<std::vector<std::vector<double>>> p_store{};
@@ -24,12 +24,16 @@ class MCMC
     std::vector<std::vector<double>> eps_neg_store{};
     std::vector<std::vector<double>> r_store{};
     std::vector<double> mean_coi_store{};
+    std::vector<double> swap_store{};
 
     std::vector<double> llik_burnin{};
     std::vector<double> llik_sample{};
+    std::vector<size_t> swap_indices{};
+    size_t num_swaps = 0;
 
     void burnin(int step);
     void sample(int step);
+    void swap_chains();
     double get_llik();
 
     MCMC(GenotypingData genotyping_data, Parameters params);

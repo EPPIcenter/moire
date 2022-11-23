@@ -8,11 +8,13 @@
 #include "parameters.h"
 
 #include <cmath>
+#include <omp.h>
 
 #include <Rcpp/utils/tinyformat.h>
 
 #include <progress.hpp>
 //----------------------------------------------
+// [[Rcpp::plugins(openmp)]]
 // [[Rcpp::export(name='run_mcmc_rcpp')]]
 Rcpp::List run_mcmc(Rcpp::List args)
 {
@@ -22,6 +24,8 @@ Rcpp::List run_mcmc(Rcpp::List args)
     int chain_number = args["chain_number"];
 
     UtilFunctions::print("Allow Relatedness:", params.allow_relatedness);
+    UtilFunctions::print("Parallel Tempering:", params.pt_chains,
+                         params.pt_grad);
 
     if (params.verbose && !params.simple_verbose)
     {
@@ -32,23 +36,6 @@ Rcpp::List run_mcmc(Rcpp::List args)
     }
 
     MCMC mcmc(genotyping_data, params);
-
-    // Sometimes when initializing, the likelihood is too extreme and results in
-    // a NaN
-    bool ill_conditioned = std::isnan(mcmc.get_llik());
-    int max_tries = 1000;
-    while (ill_conditioned and max_tries != 0)
-    {
-        mcmc = MCMC(genotyping_data, params);
-        max_tries--;
-        ill_conditioned = std::isnan(mcmc.get_llik());
-    }
-
-    if (ill_conditioned)
-    {
-        Rcpp::stop("Error: Initial Llik is NaN");
-    }
-
     MCMCProgressBar pb(params.burnin, params.samples);
     Progress p(params.burnin + params.samples, params.verbose, pb);
     pb.set_llik(mcmc.get_llik());
@@ -89,32 +76,33 @@ Rcpp::List run_mcmc(Rcpp::List args)
         }
     }
 
-    Rcpp::List acceptance_rates;
-    acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.p_accept));
-    acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.m_accept));
-    acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.eps_neg_accept));
-    acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.eps_pos_accept));
-    acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.r_accept));
-    acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.sample_accept));
+    // Rcpp::List acceptance_rates;
+    // acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.p_accept));
+    // acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.m_accept));
+    // acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.eps_neg_accept));
+    // acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.eps_pos_accept));
+    // acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.r_accept));
+    // acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.sample_accept));
 
-    Rcpp::StringVector acceptance_rate_names;
-    acceptance_rate_names.push_back("allele_freq_accept");
-    acceptance_rate_names.push_back("coi_accept");
-    acceptance_rate_names.push_back("eps_neg_accept");
-    acceptance_rate_names.push_back("eps_pos_accept");
-    acceptance_rate_names.push_back("r_accept");
-    acceptance_rate_names.push_back("full_sample_accept");
-    acceptance_rates.names() = acceptance_rate_names;
+    // Rcpp::StringVector acceptance_rate_names;
+    // acceptance_rate_names.push_back("allele_freq_accept");
+    // acceptance_rate_names.push_back("coi_accept");
+    // acceptance_rate_names.push_back("eps_neg_accept");
+    // acceptance_rate_names.push_back("eps_pos_accept");
+    // acceptance_rate_names.push_back("r_accept");
+    // acceptance_rate_names.push_back("full_sample_accept");
+    // acceptance_rates.names() = acceptance_rate_names;
 
-    Rcpp::List sampling_variances;
-    sampling_variances.push_back(Rcpp::wrap(mcmc.chain.p_prop_var));
-    sampling_variances.push_back(Rcpp::wrap(mcmc.chain.eps_neg_var));
-    sampling_variances.push_back(Rcpp::wrap(mcmc.chain.eps_pos_var));
-    sampling_variances.push_back(Rcpp::wrap(mcmc.chain.r_var));
+    // Rcpp::List sampling_variances;
+    // sampling_variances.push_back(Rcpp::wrap(mcmc.chain.p_prop_var));
+    // sampling_variances.push_back(Rcpp::wrap(mcmc.chain.eps_neg_var));
+    // sampling_variances.push_back(Rcpp::wrap(mcmc.chain.eps_pos_var));
+    // sampling_variances.push_back(Rcpp::wrap(mcmc.chain.r_var));
 
-    Rcpp::StringVector sampling_variance_names{"allele_freq_var", "eps_neg_var",
-                                               "eps_pos_var", "r_var"};
-    sampling_variances.names() = sampling_variance_names;
+    // Rcpp::StringVector sampling_variance_names{"allele_freq_var",
+    // "eps_neg_var",
+    //                                            "eps_pos_var", "r_var"};
+    // sampling_variances.names() = sampling_variance_names;
 
     Rcpp::List res;
     res.push_back(Rcpp::wrap(mcmc.llik_burnin));
@@ -125,8 +113,9 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res.push_back(Rcpp::wrap(mcmc.eps_pos_store));
     res.push_back(Rcpp::wrap(mcmc.r_store));
     res.push_back(Rcpp::wrap(mcmc.genotyping_data.observed_coi));
-    res.push_back(Rcpp::wrap(acceptance_rates));
-    res.push_back(Rcpp::wrap(sampling_variances));
+    res.push_back(Rcpp::wrap(mcmc.swap_store));
+    // res.push_back(Rcpp::wrap(acceptance_rates));
+    // res.push_back(Rcpp::wrap(sampling_variances));
 
     Rcpp::StringVector res_names;
     res_names.push_back("llik_burnin");
@@ -137,8 +126,9 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("eps_pos");
     res_names.push_back("relatedness");
     res_names.push_back("observed_coi");
-    res_names.push_back("acceptance_rates");
-    res_names.push_back("sampling_variances");
+    res_names.push_back("swap_idx");
+    // res_names.push_back("acceptance_rates");
+    // res_names.push_back("sampling_variances");
 
     res.names() = res_names;
     return res;

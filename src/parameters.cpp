@@ -15,6 +15,9 @@ Parameters::Parameters(const Rcpp::List &args)
     samples = UtilFunctions::r_to_int(args["samples"]);
     allele_freq_threshold =
         UtilFunctions::r_to_double(args["allele_freq_threshold"]);
+    pt_chains = UtilFunctions::r_to_int(args["pt_chains"]);
+    pt_grad = UtilFunctions::r_to_double(args["pt_grad"]);
+    pt_num_threads = UtilFunctions::r_to_int(args["pt_num_threads"]);
 
     // Model
     max_coi = UtilFunctions::r_to_int(args["max_coi"]);

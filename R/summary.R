@@ -397,6 +397,7 @@ summarize_he <- function(mcmc_results,
 #'  distribution of sampled allele frequencies
 #'
 #' @importFrom stats quantile
+#' @import purrr
 #'
 #' @export
 #'
@@ -562,6 +563,8 @@ summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_qua
 #'  distribution of effective COI for each biological sample.
 #'
 #' @importFrom stats quantile
+#' @import purrr
+#'
 #' @export
 #'
 #' @param mcmc_results Result of calling run_mcmc()
@@ -575,7 +578,7 @@ summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_q
     effective_coi <- lapply(1:length(mcmc_results$args$sample_ids), function(x) c())
     for (chain in mcmc_results$chains) {
       for (s in 1:length(chain$relatedness)) {
-        effective_coi[[s]] <- c(effective_coi[[s]], (1 - chain$relatedness[[s]]) * chain$coi[[s]])
+        effective_coi[[s]] <- c(effective_coi[[s]], (1 - chain$relatedness[[s]]) * (chain$coi[[s]] - 1) + 1)
       }
     }
     post_effective_coi_lower <- sapply(effective_coi, function(x) {
@@ -595,7 +598,13 @@ summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_q
     ))
   } else {
     chain_effective_coi <- lapply(1:length(mcmc_results$chains), function(idx) {
-      effective_coi <- (1 - mcmc_results$chains[[idx]]$relatedness) * mcmc_results$chains[[idx]]$coi
+      chain <- mcmc_results$chains[[idx]]
+      r <- chain$relatedness
+      coi <- chain$coi
+
+      effective_coi <- purrr::map2(r, coi, ~ (1 - .x) * (.y - 1) + 1)
+
+      # effective_coi <- (1 - mcmc_results$chains[[idx]]$relatedness) * mcmc_results$chains[[idx]]$coi
       post_effective_coi_lower <- sapply(effective_coi, function(x) {
         quantile(x, lower_quantile)
       })
