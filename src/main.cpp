@@ -14,7 +14,6 @@
 
 #include <progress.hpp>
 //----------------------------------------------
-// [[Rcpp::plugins(openmp)]]
 // [[Rcpp::export(name='run_mcmc_rcpp')]]
 Rcpp::List run_mcmc(Rcpp::List args)
 {
@@ -126,7 +125,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("eps_pos");
     res_names.push_back("relatedness");
     res_names.push_back("observed_coi");
-    res_names.push_back("swap_idx");
+    res_names.push_back("swap_store");
     // res_names.push_back("acceptance_rates");
     // res_names.push_back("sampling_variances");
 

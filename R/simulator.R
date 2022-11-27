@@ -61,23 +61,10 @@ simulate_sample_coi <- function(num_samples, mean_coi) {
 #'   strain's allele to come from an existing lineage within host
 #' @export
 simulate_sample_genotype <- function(sample_cois, locus_allele_dist, internal_relatedness) {
-  lapply(sample_cois, function(coi) {
-    genotypes <- matrix(nrow = coi, ncol = length(locus_allele_dist))
-    for (i in 1:coi) {
-      if (i == 1) {
-        genotypes[i, ] <- rmultinom(1, 1, locus_allele_dist)
-      } else {
-        sample_internal <- as.logical(rbinom(1, 1, internal_relatedness))
-        if (sample_internal) {
-          genotypes[i, ] <- genotypes[sample(1:(i - 1), 1), ]
-        } else {
-          genotypes[i, ] <- rmultinom(1, 1, locus_allele_dist)
-        }
-      }
-    }
-    g <- colSums(genotypes)
-    names(g) <- names(locus_allele_dist)
-    g
+  purrr::map2(sample_cois, internal_relatedness, function(coi, r) {
+    related_strains <- rbinom(1, coi - 1, r)
+    genotypes <- rmultinom(1, coi - related_strains, locus_allele_dist)
+    t(genotypes)
   })
 }
 
@@ -96,9 +83,6 @@ simulate_sample_genotype <- function(sample_cois, locus_allele_dist, internal_re
 #' @param epsilon_neg expected number of false positives
 #' @param missingness probability that the data is missing
 simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg, missingness) {
-  positive_indices <- which(as.logical(alleles)) # True Positives
-  negative_indices <- which(!as.logical(alleles)) # True Negatives
-
   # scale eps to the number of alleles so that given a fixed COI, there is a fixed
   # number of expected false positives or negatives across loci of varying
   # diversity.
@@ -166,7 +150,8 @@ simulate_data <- function(mean_coi,
                           epsilon_neg,
                           locus_freq_alphas = NULL,
                           allele_freqs = NULL,
-                          internal_relatedness = 0,
+                          internal_relatedness_alpha = 0,
+                          internal_relatedness_beta = 1,
                           missingness = 0) {
   if (is.null(allele_freqs)) {
     allele_freqs <- list()
@@ -182,6 +167,7 @@ simulate_data <- function(mean_coi,
 
 
   sample_cois <- simulate_sample_coi(num_samples, mean_coi)
+  internal_relatedness <- rbeta(num_samples, internal_relatedness_alpha, internal_relatedness_beta)
 
   true_sample_genotypes <- lapply(allele_freqs, function(dist) {
     simulate_sample_genotype(sample_cois, dist, internal_relatedness)
@@ -206,6 +192,7 @@ simulate_data <- function(mean_coi,
     is_missing = is_missing,
     allele_freqs = allele_freqs,
     sample_cois = sample_cois,
+    sample_relatedness = internal_relatedness,
     true_genotypes = true_sample_genotypes,
     input = list(
       mean_coi = mean_coi,
