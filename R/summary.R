@@ -413,8 +413,9 @@ summarize_allele_freqs <- function(mcmc_results,
                                    merge_chains = TRUE) {
   locus_alleles <- do.call(
     rbind,
-    purrr::imap(
+    purrr::map2(
       mcmc_results$args$data,
+      seq_along(mcmc_results$args$data),
       ~ data.frame(locus = mcmc_results$args$loci[.y], allele = names(.x[[1]]))
     )
   )
@@ -625,4 +626,51 @@ summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_q
     relatedness_data <- do.call(rbind, chain_effective_coi)
     return(relatedness_data)
   }
+}
+
+
+#' Calculate the geometric median of the posterior distribution of allele
+#' frequencies
+#'
+#' @details Returns the geometric median of the posterior distribution, defined
+#' as the point minimizing the L2 distance from each sampled point.
+#'
+#' @import purrr, Gmedian
+#'
+#' @export
+#'
+#' @param mcmc_results Result of calling run_mcmc()
+#'
+#' @param merge_chains boolean indicating that all chain results should be merged
+calculate_median_allele_frequencies <- function(mcmc_results, merge_chains = TRUE) {
+  if (merge_chains) {
+    chains <- mcmc_results$chains
+    post_af <- purrr::transpose(purrr::map(chains, ~ .x$allele_freqs))
+    medians <- purrr::map(post_af, function(loc) {
+      samples <- purrr::flatten(loc)
+      total_samples <- length(samples)
+      num_alleles <- length(samples[[1]])
+      median <- Gmedian::Gmedian(
+        matrix(unlist(samples), nrow = total_samples, ncol = num_alleles, byrow = TRUE)
+      )
+      return(median)
+    })
+    names(medians) <- mcmc_results$args$loci
+  } else {
+    chains <- mcmc_results$chains
+    medians <- lapply(chains, function(chain) {
+      post_af <- chain$allele_freqs
+      res <- purrr::map(post_af, function(samples) {
+        total_samples <- length(samples)
+        num_alleles <- length(samples[[1]])
+        median <- Gmedian::Gmedian(
+          matrix(unlist(samples), nrow = total_samples, ncol = num_alleles, byrow = TRUE)
+        )
+        return(median)
+      })
+      names(res) <- mcmc_results$args$loci
+      return(res)
+    })
+  }
+  return(medians)
 }
