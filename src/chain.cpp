@@ -78,12 +78,14 @@ void Chain::initialize_eps_neg()
 {
     eps_neg.resize(genotyping_data.num_samples, params.eps_neg_0);
     eps_neg_accept.resize(genotyping_data.num_samples, 0);
+    eps_neg_var.resize(genotyping_data.num_samples, params.eps_neg_var);
 }
 
 void Chain::initialize_eps_pos()
 {
     eps_pos.resize(genotyping_data.num_samples, params.eps_pos_0);
     eps_pos_accept.resize(genotyping_data.num_samples, 0);
+    eps_pos_var.resize(genotyping_data.num_samples, params.eps_pos_var);
 }
 
 void Chain::initialize_r()
@@ -92,7 +94,7 @@ void Chain::initialize_r()
     {
         for (size_t i = 0; i < genotyping_data.num_samples; ++i)
         {
-            r.push_back(sampler.sample_unif() * .5);
+            r.push_back(sampler.sample_unif());
         }
     }
     else
@@ -101,11 +103,17 @@ void Chain::initialize_r()
     }
     r_accept.resize(genotyping_data.num_samples, 0);
     r_var.resize(genotyping_data.num_samples, 1);
+    m_r_accept.resize(genotyping_data.num_samples, 0);
+    m_r_var.resize(genotyping_data.num_samples, 1);
 }
 
 void Chain::update_m(int iteration)
 {
-    for (size_t ii = 0; ii < genotyping_data.num_samples; ii++)
+    auto indices = std::vector<int>(genotyping_data.num_samples);
+    std::iota(indices.begin(), indices.end(), 0);
+    sampler.shuffle_vec(indices);
+
+    for (const auto ii : indices)
     {
         int prop_m = m[ii] + sampler.sample_coi_delta(2);
         if (prop_m > 0 and prop_m <= params.max_coi)
@@ -156,43 +164,127 @@ void Chain::update_m(int iteration)
 
 void Chain::update_r(int iteration)
 {
-    for (size_t i = 0; i < m.size(); i++)
+    auto indices = std::vector<int>(genotyping_data.num_samples);
+    std::iota(indices.begin(), indices.end(), 0);
+    sampler.shuffle_vec(indices);
+
+    for (const auto i : indices)
     {
         auto prop_adj = sampler.sample_constrained(r[i], r_var[i], 0, 1);
         double prop_r = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
-        if (prop_r < 1 && prop_r > 1e-32)
-        {
-            double prev_r = r[i];
-            r[i] = prop_r;
+        double prev_r = r[i];
+        r[i] = prop_r;
 
+        for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+        {
+            calculate_genotype_likelihood(i, jj);
+        }
+
+        double new_llik = calc_new_likelihood();
+
+        // Reject
+        if (std::isnan(new_llik) or
+            sampler.sample_log_mh_acceptance() > (new_llik - llik + adj))
+        {
+            r[i] = prev_r;
             for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
-                calculate_genotype_likelihood(i, jj);
+                restore_genotype_likelihood(i, jj);
             }
-
-            double new_llik = calc_new_likelihood();
-
-            // Reject
-            if (std::isnan(new_llik) or
-                sampler.sample_log_mh_acceptance() > (new_llik - llik + adj))
+        }
+        else
+        {
+            llik = new_llik;
+            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
-                r[i] = prev_r;
-                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
-                {
-                    restore_genotype_likelihood(i, jj);
-                }
+                save_genotype_likelihood(i, jj);
             }
-            else
+            r_accept[i] += 1;
+        }
+
+        if (iteration < params.burnin and
+            iteration > 15)  // don't start adapting until there are
+                             // at least a few samples
+        {
+            double acceptanceRate = r_accept[i] / double(iteration);
+            double update =
+                (acceptanceRate - .23) / std::pow(iteration + 1, .5);
+            r_var[i] = std::max(r_var[i] + update, .01);
+        }
+    }
+}
+
+void Chain::update_m_r(int iteration)
+{
+    auto indices = std::vector<int>(genotyping_data.num_samples);
+    std::iota(indices.begin(), indices.end(), 0);
+    sampler.shuffle_vec(indices);
+
+    for (const auto i : indices)
+    {
+        auto prop_adj = sampler.sample_constrained(r[i], m_r_var[i], 0, 1);
+        double prop_r = std::get<0>(prop_adj);
+        double adj = std::get<1>(prop_adj);
+
+        int prop_m = m[i] + sampler.sample_coi_delta(1);
+
+        if (prop_m <= 0 or prop_m > params.max_coi) return;
+
+        double prev_m = m[i];
+        double prev_r = r[i];
+        r[i] = prop_r;
+        m[i] = prop_m;
+
+        double adj_ratio = 0;
+
+        for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+        {
+            auto lg = sampler.sample_latent_genotype(
+                genotyping_data.get_observed_alleles(jj, i), m[i], eps_pos[i],
+                eps_neg[i]);
+            latent_genotypes_new[jj][i] = lg.value;
+            lg_adj_new[jj][i] = lg.log_prob;
+            adj_ratio = adj_ratio + lg_adj_new[jj][i] - lg_adj_old[jj][i];
+            calculate_genotype_likelihood(i, jj);
+        }
+
+        double new_llik = calc_new_likelihood();
+
+        // Reject
+        if (std::isnan(new_llik) or
+            sampler.sample_log_mh_acceptance() > (new_llik - llik + adj))
+        {
+            r[i] = prev_r;
+            m[i] = prev_m;
+            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
-                llik = new_llik;
-                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
-                {
-                    save_genotype_likelihood(i, jj);
-                }
-                r_accept[i] += 1;
+                restore_genotype_likelihood(i, jj);
+                lg_adj_new[jj][i] = lg_adj_old[jj][i];
+                latent_genotypes_new[jj][i] = latent_genotypes_old[jj][i];
             }
+        }
+        else
+        {
+            llik = new_llik;
+            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+            {
+                save_genotype_likelihood(i, jj);
+                lg_adj_old[jj][i] = lg_adj_new[jj][i];
+                latent_genotypes_old[jj][i] = latent_genotypes_new[jj][i];
+            }
+            m_r_accept[i] += 1;
+        }
+
+        if (iteration < params.burnin and
+            iteration > 15)  // don't start adapting until there are
+                             // at least a few samples
+        {
+            double acceptanceRate = m_r_accept[i] / double(iteration);
+            double update =
+                (acceptanceRate - .23) / std::pow(iteration + 1, .5);
+            m_r_var[i] = std::max(m_r_var[i] + update, .01);
         }
     }
 }
@@ -203,7 +295,11 @@ void Chain::update_r(int iteration)
  */
 void Chain::update_p(int iteration)
 {
-    for (size_t j = 0; j < genotyping_data.num_loci; j++)
+    auto indices = std::vector<int>(genotyping_data.num_loci);
+    std::iota(indices.begin(), indices.end(), 0);
+    sampler.shuffle_vec(indices);
+
+    for (const auto j : indices)
     {
         int k = p[j].size();
         int rep = k;
@@ -282,10 +378,9 @@ void Chain::update_p(int iteration)
                 p_attempt[j][idx] > 15)  // don't start adapting until there are
                                          // at least a few samples
             {
-                double acceptanceRate = std::min(
-                    (p_accept[j][idx] + 1) / (double(p_attempt[j][idx]) + 1),
-                    1.0);
-                p_prop_var[j][idx] += (acceptanceRate - .43) /
+                double acceptanceRate =
+                    (p_accept[j][idx] + 1) / (double(p_attempt[j][idx]) + 1);
+                p_prop_var[j][idx] += (acceptanceRate - .23) /
                                       std::pow(p_attempt[j][idx] + 1, .5);
                 p_prop_var[j][idx] = std::max(p_prop_var[j][idx], .01);
             }
@@ -295,10 +390,14 @@ void Chain::update_p(int iteration)
 
 void Chain::update_eps_pos(int iteration)
 {
-    for (size_t i = 0; i < m.size(); i++)
+    auto indices = std::vector<int>(genotyping_data.num_samples);
+    std::iota(indices.begin(), indices.end(), 0);
+    sampler.shuffle_vec(indices);
+
+    for (const auto i : indices)
     {
         auto prop_adj =
-            sampler.sample_constrained(eps_pos[i], eps_pos_var, 0, 1);
+            sampler.sample_constrained(eps_pos[i], eps_pos_var[i], 0, 1);
         double prop_eps_pos = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
@@ -336,16 +435,30 @@ void Chain::update_eps_pos(int iteration)
                 }
                 eps_pos_accept[i] += 1;
             }
+
+            if (iteration < params.burnin and
+                iteration > 15)  // don't start adapting until there are
+                                 // at least a few samples
+            {
+                double acceptanceRate = eps_pos_accept[i] / double(iteration);
+                double update =
+                    (acceptanceRate - .23) / std::pow(iteration + 1, .5);
+                eps_pos_var[i] = std::max(eps_pos_var[i] + update, .01);
+            }
         }
     }
 }
 
 void Chain::update_eps_neg(int iteration)
 {
-    for (size_t i = 0; i < m.size(); i++)
+    auto indices = std::vector<int>(genotyping_data.num_samples);
+    std::iota(indices.begin(), indices.end(), 0);
+    sampler.shuffle_vec(indices);
+
+    for (const auto i : indices)
     {
         auto prop_adj =
-            sampler.sample_constrained(eps_neg[i], eps_neg_var, 0, 1);
+            sampler.sample_constrained(eps_neg[i], eps_neg_var[i], 0, 1);
         double prop_eps_neg = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
@@ -383,22 +496,36 @@ void Chain::update_eps_neg(int iteration)
                 }
                 eps_neg_accept[i] += 1;
             }
+
+            if (iteration < params.burnin and
+                iteration > 15)  // don't start adapting until there are
+                                 // at least a few samples
+            {
+                double acceptanceRate = eps_neg_accept[i] / double(iteration);
+                double update =
+                    (acceptanceRate - .23) / std::pow(iteration + 1, .5);
+                eps_neg_var[i] = std::max(eps_neg_var[i] + update, .01);
+            }
         }
     }
 }
 
 void Chain::update_samples(int iteration)
 {
-    for (size_t ii = 0; ii < m.size(); ii++)
+    auto indices = std::vector<int>(genotyping_data.num_samples);
+    std::iota(indices.begin(), indices.end(), 0);
+    sampler.shuffle_vec(indices);
+
+    for (const auto ii : indices)
     {
         auto eps_neg_prop_adj =
-            sampler.sample_constrained(eps_neg[ii], eps_neg_var, 0, 1);
+            sampler.sample_constrained(eps_neg[ii], eps_neg_var[ii], 0, 1);
         double prop_eps_neg = std::get<0>(eps_neg_prop_adj);
         double eps_neg_adj = std::get<1>(eps_neg_prop_adj);
         bool valid_prop_eps_neg = prop_eps_neg < 1 && prop_eps_neg > 1e-32;
 
         auto eps_pos_prop_adj =
-            sampler.sample_constrained(eps_pos[ii], eps_pos_var, 0, 1);
+            sampler.sample_constrained(eps_pos[ii], eps_pos_var[ii], 0, 1);
         double prop_eps_pos = std::get<0>(eps_pos_prop_adj);
         double eps_pos_adj = std::get<1>(eps_pos_prop_adj);
         bool valid_prop_eps_pos = prop_eps_pos < 1 && prop_eps_pos > 1e-32;
@@ -764,14 +891,13 @@ Chain::Chain(GenotypingData genotyping_data, Parameters params, double temp)
     : genotyping_data(genotyping_data), params(params), sampler()
 
 {
-    eps_pos_var = params.eps_pos_var;
-    eps_neg_var = params.eps_neg_var;
     m_prop_mean = std::vector<double>(genotyping_data.num_samples, 1);
     p_prop_var = std::vector<std::vector<double>>(genotyping_data.num_loci);
     p_accept = std::vector<std::vector<int>>(genotyping_data.num_loci);
 
     llik = std::numeric_limits<double>::lowest();
     this->temp = temp;
+    UtilFunctions::print("Initializing Temp: ", temp);
 
     initialize_m();
     initialize_eps_neg();

@@ -8,7 +8,6 @@
 #include "parameters.h"
 
 #include <cmath>
-#include <omp.h>
 
 #include <Rcpp/utils/tinyformat.h>
 
@@ -75,33 +74,44 @@ Rcpp::List run_mcmc(Rcpp::List args)
         }
     }
 
-    // Rcpp::List acceptance_rates;
-    // acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.p_accept));
-    // acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.m_accept));
-    // acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.eps_neg_accept));
-    // acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.eps_pos_accept));
-    // acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.r_accept));
-    // acceptance_rates.push_back(Rcpp::wrap(mcmc.chain.sample_accept));
+    Rcpp::List acceptance_rates;
+    Rcpp::List sampling_variances;
 
-    // Rcpp::StringVector acceptance_rate_names;
-    // acceptance_rate_names.push_back("allele_freq_accept");
-    // acceptance_rate_names.push_back("coi_accept");
-    // acceptance_rate_names.push_back("eps_neg_accept");
-    // acceptance_rate_names.push_back("eps_pos_accept");
-    // acceptance_rate_names.push_back("r_accept");
-    // acceptance_rate_names.push_back("full_sample_accept");
-    // acceptance_rates.names() = acceptance_rate_names;
+    for (const auto &chain : mcmc.chains)
+    {
+        Rcpp::List chain_acceptance_rates;
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.p_accept));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.m_accept));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.eps_neg_accept));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.eps_pos_accept));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.r_accept));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.m_r_accept));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.sample_accept));
 
-    // Rcpp::List sampling_variances;
-    // sampling_variances.push_back(Rcpp::wrap(mcmc.chain.p_prop_var));
-    // sampling_variances.push_back(Rcpp::wrap(mcmc.chain.eps_neg_var));
-    // sampling_variances.push_back(Rcpp::wrap(mcmc.chain.eps_pos_var));
-    // sampling_variances.push_back(Rcpp::wrap(mcmc.chain.r_var));
+        Rcpp::StringVector acceptance_rate_names;
+        acceptance_rate_names.push_back("allele_freq_accept");
+        acceptance_rate_names.push_back("coi_accept");
+        acceptance_rate_names.push_back("eps_neg_accept");
+        acceptance_rate_names.push_back("eps_pos_accept");
+        acceptance_rate_names.push_back("r_accept");
+        acceptance_rate_names.push_back("m_r_accept");
+        acceptance_rate_names.push_back("full_sample_accept");
+        chain_acceptance_rates.names() = acceptance_rate_names;
+        acceptance_rates.push_back(chain_acceptance_rates);
 
-    // Rcpp::StringVector sampling_variance_names{"allele_freq_var",
-    // "eps_neg_var",
-    //                                            "eps_pos_var", "r_var"};
-    // sampling_variances.names() = sampling_variance_names;
+        Rcpp::List chain_sampling_variances;
+        chain_sampling_variances.push_back(Rcpp::wrap(chain.p_prop_var));
+        chain_sampling_variances.push_back(Rcpp::wrap(chain.eps_neg_var));
+        chain_sampling_variances.push_back(Rcpp::wrap(chain.eps_pos_var));
+        chain_sampling_variances.push_back(Rcpp::wrap(chain.r_var));
+        chain_sampling_variances.push_back(Rcpp::wrap(chain.m_r_var));
+
+        Rcpp::StringVector sampling_variance_names{"allele_freq_var",
+                                                   "eps_neg_var", "eps_pos_var",
+                                                   "r_var", "m_r_var"};
+        chain_sampling_variances.names() = sampling_variance_names;
+        sampling_variances.push_back(chain_sampling_variances);
+    }
 
     Rcpp::List res;
     res.push_back(Rcpp::wrap(mcmc.llik_burnin));
@@ -113,8 +123,8 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res.push_back(Rcpp::wrap(mcmc.r_store));
     res.push_back(Rcpp::wrap(mcmc.genotyping_data.observed_coi));
     res.push_back(Rcpp::wrap(mcmc.swap_store));
-    // res.push_back(Rcpp::wrap(acceptance_rates));
-    // res.push_back(Rcpp::wrap(sampling_variances));
+    res.push_back(Rcpp::wrap(acceptance_rates));
+    res.push_back(Rcpp::wrap(sampling_variances));
 
     Rcpp::StringVector res_names;
     res_names.push_back("llik_burnin");
@@ -126,8 +136,8 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("relatedness");
     res_names.push_back("observed_coi");
     res_names.push_back("swap_store");
-    // res_names.push_back("acceptance_rates");
-    // res_names.push_back("sampling_variances");
+    res_names.push_back("acceptance_rates");
+    res_names.push_back("sampling_variances");
 
     res.names() = res_names;
     return res;

@@ -24,7 +24,8 @@ Imports:
     tidyr,
     stats,
     purrr,
-    rlang
+    rlang,
+    Gmedian
 URL: https://github.com/EPPIcenter/moire
 BugReports: https://github.com/EPPIcenter/moire/issues
 Roxygen: list(markdown = TRUE)

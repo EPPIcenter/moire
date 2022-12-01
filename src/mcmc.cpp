@@ -65,6 +65,7 @@ void MCMC::burnin(int step)
         if (params.allow_relatedness)
         {
             chain.update_r(step);
+            chain.update_m_r(step);
         }
         chain.update_samples(step);
     }
@@ -114,6 +115,7 @@ void MCMC::sample(int step)
         if (params.allow_relatedness)
         {
             chain.update_r(params.burnin + step);
+            chain.update_m_r(params.burnin + step);
         }
         chain.update_samples(params.burnin + step);
 

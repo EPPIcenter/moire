@@ -76,9 +76,6 @@ class Chain
     std::vector<double> eps_pos_prior_old{};
     std::vector<double> eps_pos_prior_new{};
 
-    // stores the importance sampled estimates
-    std::vector<double> llik_store{};
-
     double llik;
     double temp;
 
@@ -98,6 +95,9 @@ class Chain
     std::vector<int> r_accept{};
     std::vector<double> r_var{};
 
+    std::vector<int> m_r_accept{};
+    std::vector<double> m_r_var{};
+
     // Allele Frequencies
     std::vector<std::vector<double>> p{};
     std::vector<double> prop_p{};
@@ -109,19 +109,20 @@ class Chain
     // double eps_pos;
     std::vector<double> eps_pos{};
     std::vector<int> eps_pos_accept{};
-    double eps_pos_var;
+    std::vector<double> eps_pos_var{};
 
     // Epsilon Negative
     // double eps_neg;
     std::vector<double> eps_neg{};
     std::vector<int> eps_neg_accept{};
-    double eps_neg_var;
+    std::vector<double> eps_neg_var{};
 
     std::vector<int> sample_accept{};
 
     Chain(GenotypingData genotyping_data, Parameters params, double temp = 1.0);
     void update_m(int iteration);
     void update_r(int iteration);
+    void update_m_r(int iteration);
     void update_p(int iteration);
     void update_eps(int iteration);
     void update_eps_pos(int iteration);

@@ -101,7 +101,7 @@ simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg, missingn
     })
   }
 
-  names(obs_alleles) <- names(alleles)
+  names(obs_alleles) <- colnames(alleles)
 
   return(obs_alleles)
 }
