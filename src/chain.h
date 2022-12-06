@@ -37,8 +37,7 @@ class Chain
 
     double calc_observation_process(std::vector<int> const &allele_index_vec,
                                     std::vector<int> const &obs_genotype,
-                                    int coi, double epsilon_neg,
-                                    double epsilon_pos);
+                                    double epsilon_neg, double epsilon_pos);
 
     double calc_genotype_log_pmf(std::vector<int> const &allele_index_vec,
                                  std::vector<int> const &obs_genotype,

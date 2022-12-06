@@ -635,7 +635,8 @@ summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_q
 #' @details Returns the geometric median of the posterior distribution, defined
 #' as the point minimizing the L2 distance from each sampled point.
 #'
-#' @import purrr, Gmedian
+#' @import purrr
+#' @import Gmedian
 #'
 #' @export
 #'

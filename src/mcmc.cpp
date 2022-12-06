@@ -89,7 +89,8 @@ void MCMC::swap_chains()
 
         long double acceptanceRatio =
             prop_llik_a + prop_llik_b - curr_llik_a - curr_llik_b;
-        if (acceptanceRatio > 0 || log(R::runif(0, 1)) < acceptanceRatio)
+        if ((acceptanceRatio > 0 || log(R::runif(0, 1)) < acceptanceRatio) and
+            !std::isnan(acceptanceRatio))
         {
             std::swap(swap_indices[i], swap_indices[i + 1]);
             chain_a.set_temp(temp_b);

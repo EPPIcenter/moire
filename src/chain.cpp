@@ -170,7 +170,7 @@ void Chain::update_r(int iteration)
 
     for (const auto i : indices)
     {
-        auto prop_adj = sampler.sample_constrained(r[i], r_var[i], 0, 1);
+        auto prop_adj = sampler.sample_constrained(r[i], r_var[i], 1e-8, 1);
         double prop_r = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
@@ -224,7 +224,7 @@ void Chain::update_m_r(int iteration)
 
     for (const auto i : indices)
     {
-        auto prop_adj = sampler.sample_constrained(r[i], m_r_var[i], 0, 1);
+        auto prop_adj = sampler.sample_constrained(r[i], m_r_var[i], 1e-8, 1);
         double prop_r = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
@@ -397,7 +397,7 @@ void Chain::update_eps_pos(int iteration)
     for (const auto i : indices)
     {
         auto prop_adj =
-            sampler.sample_constrained(eps_pos[i], eps_pos_var[i], 0, 1);
+            sampler.sample_constrained(eps_pos[i], eps_pos_var[i], 1e-8, 1);
         double prop_eps_pos = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
@@ -458,7 +458,7 @@ void Chain::update_eps_neg(int iteration)
     for (const auto i : indices)
     {
         auto prop_adj =
-            sampler.sample_constrained(eps_neg[i], eps_neg_var[i], 0, 1);
+            sampler.sample_constrained(eps_neg[i], eps_neg_var[i], 1e-8, 1);
         double prop_eps_neg = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
@@ -519,13 +519,13 @@ void Chain::update_samples(int iteration)
     for (const auto ii : indices)
     {
         auto eps_neg_prop_adj =
-            sampler.sample_constrained(eps_neg[ii], eps_neg_var[ii], 0, 1);
+            sampler.sample_constrained(eps_neg[ii], eps_neg_var[ii], 1e-8, 1);
         double prop_eps_neg = std::get<0>(eps_neg_prop_adj);
         double eps_neg_adj = std::get<1>(eps_neg_prop_adj);
         bool valid_prop_eps_neg = prop_eps_neg < 1 && prop_eps_neg > 1e-32;
 
         auto eps_pos_prop_adj =
-            sampler.sample_constrained(eps_pos[ii], eps_pos_var[ii], 0, 1);
+            sampler.sample_constrained(eps_pos[ii], eps_pos_var[ii], 1e-8, 1);
         double prop_eps_pos = std::get<0>(eps_pos_prop_adj);
         double eps_pos_adj = std::get<1>(eps_pos_prop_adj);
         bool valid_prop_eps_pos = prop_eps_pos < 1 && prop_eps_pos > 1e-32;
@@ -536,7 +536,7 @@ void Chain::update_samples(int iteration)
         if (params.allow_relatedness)
         {
             auto r_prop_adj =
-                sampler.sample_constrained(r[ii], r_var[ii], 0, 1);
+                sampler.sample_constrained(r[ii], r_var[ii], 1e-8, 1);
             double prop_r = std::get<0>(r_prop_adj);
             double r_adj = std::get<1>(r_prop_adj);
             bool valid_prop_r = prop_r < 1 && prop_r > 1e-32;
@@ -671,8 +671,7 @@ double Chain::calc_transmission_process(
 
 double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
                                        std::vector<int> const &obs_genotype,
-                                       int coi, double epsilon_neg,
-                                       double epsilon_pos)
+                                       double epsilon_neg, double epsilon_pos)
 {
     double res = 0;
     unsigned int fp = 0;
@@ -730,8 +729,8 @@ double Chain::calc_genotype_log_pmf(
     double res = 0.0;
     res += calc_transmission_process(allele_index_vec, allele_frequencies, coi,
                                      relatedness);
-    res += calc_observation_process(allele_index_vec, obs_genotype, coi,
-                                    epsilon_neg, epsilon_pos);
+    res += calc_observation_process(allele_index_vec, obs_genotype, epsilon_neg,
+                                    epsilon_pos);
 
     return res;
 }
@@ -790,7 +789,7 @@ void Chain::calculate_genotype_likelihood(int sample_idx, int locus_idx)
         double obs_prob = calc_observation_process(
             latent_genotypes_new[locus_idx][sample_idx],
             genotyping_data.get_observed_alleles(locus_idx, sample_idx),
-            m[sample_idx], eps_neg[sample_idx], eps_pos[sample_idx]);
+            eps_neg[sample_idx], eps_pos[sample_idx]);
         res = transmission_prob + obs_prob;
         genotyping_llik_new[idx] = res;
     }
