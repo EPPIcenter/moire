@@ -55,10 +55,13 @@ coi_summary <- moire::summarize_coi(mcmc_results)
 # We can also summarize statistics about the allele frequency distribution
 he_summary <- moire::summarize_he(mcmc_results)
 allele_freq_summary <- moire::summarize_allele_freqs(mcmc_results)
+relatedness_summary <- moire::summarize_relatedness(mcmc_results)
+effective_coi_summary <- moire::summarize_effective_coi(mcmc_results)
 
 # Let's append the true values for use later
-coi_data <- data.frame(coi_summary,
-  true_coi = simulated_data$sample_cois
+coi_data <- data.frame(coi_summary, effective_coi_summary,
+  true_coi = simulated_data$sample_cois,
+  true_effective_coi = (simulated_data$sample_cois - 1) * (1 - simulated_data$sample_relatedness) + 1
   )
 
 he_data <- data.frame(

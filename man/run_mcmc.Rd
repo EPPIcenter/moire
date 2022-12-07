@@ -29,7 +29,10 @@ run_mcmc(
   allele_freq_vars = 1,
   adapt_allele_freq_vars = TRUE,
   num_chains = 1,
-  num_cores = 1
+  num_cores = 1,
+  pt_chains = 1,
+  pt_grad = 1,
+  pt_num_threads = 1
 )
 }
 \arguments{
