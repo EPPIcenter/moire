@@ -109,9 +109,9 @@ std::vector<double> Sampler::rlogit_norm(std::vector<double> const &p,
     return ret;
 }
 
-double Sampler::sample_mean_coi(double mean_shape, double mean_rate)
+double Sampler::sample_mean_coi(double mean_shape, double mean_scale)
 {
-    return rgamma2(mean_shape, mean_rate) + 1;
+    return rgamma(mean_shape, mean_scale);
 }
 
 int Sampler::sample_random_int(int lower, int upper)
@@ -121,12 +121,13 @@ int Sampler::sample_random_int(int lower, int upper)
     return unif_int_distr(eng);
 }
 
-double Sampler::get_coi_log_prob(int coi, double mean)
+double Sampler::get_coi_log_prior(int coi, double mean)
 {
     return dztpois(coi, mean);
 }
 
-double Sampler::get_coi_mean_log_prior(double mean, double shape, double scale)
+double Sampler::get_coi_mean_log_hyper_prior(double mean, double shape,
+                                             double scale)
 {
     return dgamma(mean, shape, scale, true);
 }

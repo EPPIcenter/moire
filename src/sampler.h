@@ -43,8 +43,9 @@ class Sampler
     boost::random::mt19937 r;
 
     double get_epsilon_log_prior(double x, double alpha, double beta);
-    double get_coi_log_prob(int coi, double mean);
-    double get_coi_mean_log_prior(double mean, double shape, double scale);
+    double get_coi_log_prior(int coi, double mean);
+    double get_coi_mean_log_hyper_prior(double mean, double shape,
+                                        double scale);
 
     double sample_epsilon(double curr_epsilon, double variance);
     std::tuple<double, double> sample_constrained(double curr, double var,

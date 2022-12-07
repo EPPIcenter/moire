@@ -17,6 +17,7 @@ class MCMCProgressBar : public ProgressBar
     void update(float progress);
     void end_display();
     void set_llik(double llik);
+    void set_hot_chain(int idx);
 
    private:
     enum events
@@ -34,6 +35,7 @@ class MCMCProgressBar : public ProgressBar
     int burnin_;
     int sample_;
     double llik_;
+    int hot_chain_;
     Timer<events> clock_;
     bool finalized_ = false;
     bool timer_flag_ = false;

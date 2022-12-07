@@ -65,6 +65,8 @@ run_mcmc <-
            max_eps_pos = 2,
            max_eps_neg = 2,
            max_coi = 20,
+           mean_coi_shape = .1,
+           mean_coi_scale = 10,
            allele_freq_vars = 1,
            adapt_allele_freq_vars = TRUE,
            num_chains = 1,

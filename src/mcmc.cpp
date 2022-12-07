@@ -68,8 +68,11 @@ void MCMC::burnin(int step)
             chain.update_m_r(step);
         }
         chain.update_samples(step);
+        chain.update_mean_coi(step);
     }
     llik_burnin.push_back(get_llik());
+    prior_burnin.push_back(get_prior());
+    posterior_burnin.push_back(get_posterior());
     swap_chains();
 }
 
@@ -79,16 +82,24 @@ void MCMC::swap_chains()
     {
         auto &chain_a = chains[swap_indices[i]];
         auto &chain_b = chains[swap_indices[i + 1]];
+
         double curr_llik_a = chain_a.get_llik();
+        double curr_prior_a = chain_a.get_prior();
+        double curr_post_a = chain_a.get_posterior();
         double temp_a = chain_a.get_temp();
+
         double curr_llik_b = chain_b.get_llik();
+        double curr_prior_b = chain_b.get_prior();
+        double curr_post_b = chain_b.get_posterior();
         double temp_b = chain_b.get_temp();
 
         double prop_llik_a = curr_llik_a / temp_a * temp_b;
+        double prop_post_a = prop_llik_a + curr_prior_a;
         double prop_llik_b = curr_llik_b / temp_b * temp_a;
+        double prop_post_b = prop_llik_b + curr_prior_b;
 
         long double acceptanceRatio =
-            prop_llik_a + prop_llik_b - curr_llik_a - curr_llik_b;
+            prop_post_a + prop_post_b - curr_post_a - curr_post_b;
         if ((acceptanceRatio > 0 || log(R::runif(0, 1)) < acceptanceRatio) and
             !std::isnan(acceptanceRatio))
         {
@@ -97,11 +108,14 @@ void MCMC::swap_chains()
             chain_a.set_llik(prop_llik_a);
             chain_b.set_temp(temp_a);
             chain_b.set_llik(prop_llik_b);
+            swap_acceptances[i]++;
         }
     }
     swap_store.push_back(swap_indices[0]);
     num_swaps++;
 }
+
+int MCMC::get_hot_chain() { return swap_indices[0]; }
 
 void MCMC::sample(int step)
 {
@@ -119,6 +133,7 @@ void MCMC::sample(int step)
             chain.update_m_r(params.burnin + step);
         }
         chain.update_samples(params.burnin + step);
+        chain.update_mean_coi(params.burnin + step);
 
         if ((params.thin == 0 or step % params.thin == 0) and
             chain.get_temp() == 1.0)
@@ -135,10 +150,16 @@ void MCMC::sample(int step)
                 eps_pos_store[jj].push_back(chain.eps_pos[jj]);
                 r_store[jj].push_back(chain.r[jj]);
             }
+            mean_coi_store.push_back(chain.mean_coi);
         }
     }
     llik_sample.push_back(get_llik());
+    prior_sample.push_back(get_prior());
+    posterior_sample.push_back(get_posterior());
+
     swap_chains();
 }
 
 double MCMC::get_llik() { return chains[swap_indices[0]].get_llik(); }
+double MCMC::get_prior() { return chains[swap_indices[0]].get_prior(); }
+double MCMC::get_posterior() { return chains[swap_indices[0]].get_posterior(); }

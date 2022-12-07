@@ -114,7 +114,7 @@ std::string MCMCProgressBar::construct_ticks_display_string_(int ticks)
 std::string MCMCProgressBar::current_llik_string_()
 {
     std::stringstream ss;
-    ss << "(Llik: " << llik_ << ")";
+    ss << "(Llik: " << llik_ << ", Hot Chain: " << hot_chain_ << ")";
     return ss.str();
 }
 
@@ -127,3 +127,4 @@ void MCMCProgressBar::finalize_display_()
 }
 
 void MCMCProgressBar::set_llik(double llik) { llik_ = llik; }
+void MCMCProgressBar::set_hot_chain(int idx) { hot_chain_ = idx; }

@@ -28,13 +28,23 @@ class MCMC
 
     std::vector<double> llik_burnin{};
     std::vector<double> llik_sample{};
+    std::vector<double> prior_burnin{};
+    std::vector<double> prior_sample{};
+    std::vector<double> posterior_burnin{};
+    std::vector<double> posterior_sample{};
+
     std::vector<size_t> swap_indices{};
+    std::vector<size_t> swap_acceptances{};
+    std::vector<double> temp_gradient{};
     size_t num_swaps = 0;
 
     void burnin(int step);
     void sample(int step);
     void swap_chains();
     double get_llik();
+    double get_prior();
+    double get_posterior();
+    int get_hot_chain();
 
     MCMC(GenotypingData genotyping_data, Parameters params);
 };

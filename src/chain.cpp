@@ -72,6 +72,8 @@ void Chain::initialize_m()
     }
     m_accept.resize(genotyping_data.num_samples, 0);
     sample_accept.resize(genotyping_data.num_samples, 0);
+    mean_coi =
+        sampler.sample_mean_coi(params.mean_coi_shape, params.mean_coi_scale);
 }
 
 void Chain::initialize_eps_neg()
@@ -120,6 +122,7 @@ void Chain::update_m(int iteration)
         {
             double prev_m = m[ii];
             m[ii] = prop_m;
+            calculate_coi_likelihood(ii);
 
             double adj_ratio = 0;
 
@@ -135,11 +138,15 @@ void Chain::update_m(int iteration)
             }
 
             double new_llik = calc_new_likelihood();
+            double new_prior = calc_new_prior();
+            double new_post = new_llik + new_prior;
             double alpha = sampler.sample_log_mh_acceptance();
-            if (!std::isnan(new_llik) and
-                alpha <= (new_llik - llik + adj_ratio))
+            if (!std::isnan(new_post) and
+                alpha <= (new_post - get_posterior() + adj_ratio))
             {
                 llik = new_llik;
+                prior = new_prior;
+                save_coi_likelihood(ii);
                 for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
                     save_genotype_likelihood(ii, jj);
@@ -151,6 +158,7 @@ void Chain::update_m(int iteration)
             else
             {
                 m[ii] = prev_m;
+                restore_coi_likelihood(ii);
                 for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
                     restore_genotype_likelihood(ii, jj);
@@ -183,10 +191,12 @@ void Chain::update_r(int iteration)
         }
 
         double new_llik = calc_new_likelihood();
+        double new_prior = calc_new_prior();
+        double new_post = new_llik + new_prior;
 
         // Reject
-        if (std::isnan(new_llik) or
-            sampler.sample_log_mh_acceptance() > (new_llik - llik + adj))
+        if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
+                                        (new_post - get_posterior() + adj))
         {
             r[i] = prev_r;
             for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
@@ -197,6 +207,7 @@ void Chain::update_r(int iteration)
         else
         {
             llik = new_llik;
+            prior = new_prior;
             for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 save_genotype_likelihood(i, jj);
@@ -236,6 +247,7 @@ void Chain::update_m_r(int iteration)
         double prev_r = r[i];
         r[i] = prop_r;
         m[i] = prop_m;
+        calculate_coi_likelihood(i);
 
         double adj_ratio = 0;
 
@@ -251,13 +263,16 @@ void Chain::update_m_r(int iteration)
         }
 
         double new_llik = calc_new_likelihood();
+        double new_prior = calc_new_prior();
+        double new_post = new_llik + new_prior;
 
         // Reject
-        if (std::isnan(new_llik) or
-            sampler.sample_log_mh_acceptance() > (new_llik - llik + adj))
+        if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
+                                        (new_post - get_posterior() + adj))
         {
             r[i] = prev_r;
             m[i] = prev_m;
+            restore_coi_likelihood(i);
             for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 restore_genotype_likelihood(i, jj);
@@ -268,6 +283,8 @@ void Chain::update_m_r(int iteration)
         else
         {
             llik = new_llik;
+            prior = new_prior;
+            save_coi_likelihood(i);
             for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 save_genotype_likelihood(i, jj);
@@ -352,10 +369,12 @@ void Chain::update_p(int iteration)
             }
 
             double new_llik = calc_new_likelihood();
+            double new_prior = calc_new_prior();
+            double new_post = new_llik + new_prior;
 
-            double acceptanceRatio = new_llik - llik + logAdj;
+            double acceptanceRatio = new_post - get_posterior() + logAdj;
 
-            if (std::isnan(new_llik) or
+            if (std::isnan(new_post) or
                 sampler.sample_log_mh_acceptance() > acceptanceRatio)
             {
                 p[j] = prev_p;
@@ -367,6 +386,7 @@ void Chain::update_p(int iteration)
             else
             {
                 llik = new_llik;
+                prior = new_prior;
                 for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
                 {
                     save_genotype_likelihood(ii, j);
@@ -413,10 +433,12 @@ void Chain::update_eps_pos(int iteration)
             }
 
             double new_llik = calc_new_likelihood();
+            double new_prior = calc_new_prior();
+            double new_post = new_llik + new_prior;
 
             // Reject
-            if (std::isnan(new_llik) or
-                sampler.sample_log_mh_acceptance() > (new_llik - llik + adj))
+            if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
+                                            (new_post - get_posterior() + adj))
             {
                 eps_pos[i] = prev_eps_pos;
                 restore_eps_pos_likelihood(i);
@@ -428,6 +450,7 @@ void Chain::update_eps_pos(int iteration)
             else
             {
                 llik = new_llik;
+                prior = new_prior;
                 save_eps_pos_likelihood(i);
                 for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
@@ -474,10 +497,12 @@ void Chain::update_eps_neg(int iteration)
             }
 
             double new_llik = calc_new_likelihood();
+            double new_prior = calc_new_prior();
+            double new_post = new_llik + new_prior;
 
             // Reject
-            if (std::isnan(new_llik) or
-                sampler.sample_log_mh_acceptance() > (new_llik - llik + adj))
+            if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
+                                            (new_post - get_posterior() + adj))
             {
                 eps_neg[i] = prev_eps_neg;
                 restore_eps_neg_likelihood(i);
@@ -489,6 +514,7 @@ void Chain::update_eps_neg(int iteration)
             else
             {
                 llik = new_llik;
+                prior = new_prior;
                 save_eps_neg_likelihood(i);
                 for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
@@ -561,6 +587,7 @@ void Chain::update_samples(int iteration)
 
             double prev_m = m[ii];
             m[ii] = prop_m;
+            calculate_coi_likelihood(ii);
 
             double adj_ratio = eps_neg_adj + eps_pos_adj + r_adj;
 
@@ -576,14 +603,18 @@ void Chain::update_samples(int iteration)
             }
 
             double new_llik = calc_new_likelihood();
+            double new_prior = calc_new_prior();
+            double new_post = new_llik + new_prior;
             double alpha = sampler.sample_log_mh_acceptance();
 
-            if (!std::isnan(new_llik) and
-                alpha <= (new_llik - llik + adj_ratio))
+            if (!std::isnan(new_post) and
+                alpha <= (new_post - get_posterior() + adj_ratio))
             {
                 llik = new_llik;
+                prior = new_prior;
                 save_eps_neg_likelihood(ii);
                 save_eps_pos_likelihood(ii);
+                save_coi_likelihood(ii);
                 for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
                     save_genotype_likelihood(ii, jj);
@@ -600,6 +631,7 @@ void Chain::update_samples(int iteration)
                 r[ii] = prev_r;
                 restore_eps_neg_likelihood(ii);
                 restore_eps_pos_likelihood(ii);
+                restore_coi_likelihood(ii);
                 for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
                     restore_genotype_likelihood(ii, jj);
@@ -608,6 +640,54 @@ void Chain::update_samples(int iteration)
                 }
             }
         }
+    }
+}
+
+void Chain::update_mean_coi(int iteration)
+{
+    auto prop_adj =
+        sampler.sample_constrained(mean_coi, mean_coi_var, 1e-8, 40);
+    double prop_mean_coi = std::get<0>(prop_adj);
+    double adj = std::get<1>(prop_adj);
+
+    double prev_mean_coi = mean_coi;
+    mean_coi = prop_mean_coi;
+    calculate_mean_coi_likelihood();
+    for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+    {
+        calculate_coi_likelihood(ii);
+    }
+    double new_llik = calc_new_likelihood();
+    double new_prior = calc_new_prior();
+    double new_post = new_llik + new_prior;
+
+    double alpha = sampler.sample_log_mh_acceptance();
+    if (!std::isnan(new_post) and alpha <= (new_post - get_posterior() + adj))
+    {
+        llik = new_llik;
+        prior = new_prior;
+        save_mean_coi_likelihood();
+        for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+        {
+            save_coi_likelihood(ii);
+        }
+        mean_coi_accept += 1;
+    }
+    else
+    {
+        mean_coi = prev_mean_coi;
+        restore_mean_coi_likelihood();
+        for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+        {
+            restore_coi_likelihood(ii);
+        }
+    }
+
+    if (iteration < params.burnin and iteration > 15)
+    {
+        double acceptance_rate = mean_coi_accept / (iteration + 1);
+        double update = (acceptance_rate - .23) / std::pow(iteration + 1, .5);
+        mean_coi_var = std::max(mean_coi_var + update, .1);
     }
 }
 
@@ -644,14 +724,6 @@ double Chain::calc_transmission_process(
         return std::log(1 - probAnyMissing_(prVec_, coi)) +
                std::log(constrained_set_total_prob) * coi;
     }
-
-    // for (size_t i = total_alleles; i <= coi; ++i)
-    // {
-    //     double pr = R::dbinom(i, coi, 1 - relatedness, true);
-    //     double i_res = std::log(1 - probAnyMissing_(prVec_, i)) +
-    //                    std::log(constrained_set_total_prob) * i;
-    //     res.push_back(pr + i_res);
-    // }
 
     // Only go up to coi - total_alleles because there must be at least
     // total_alleles unrelated strains at this locus
@@ -739,12 +811,6 @@ double Chain::calc_old_likelihood()
 {
     double old_llik = 0;
 
-    for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
-    {
-        old_llik += eps_neg_prior_old[ii];
-        old_llik += eps_pos_prior_old[ii];
-    }
-
     for (const double ll : genotyping_llik_old)
     {
         old_llik += ll;
@@ -753,15 +819,24 @@ double Chain::calc_old_likelihood()
     return old_llik * temp;
 }
 
-double Chain::calc_new_likelihood()
+double Chain::calc_old_prior()
 {
-    double new_llik = 0;
+    double prior = 0;
 
     for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
     {
-        new_llik += eps_neg_prior_new[ii];
-        new_llik += eps_pos_prior_new[ii];
+        prior += eps_neg_prior_old[ii];
+        prior += eps_pos_prior_old[ii];
+        prior += coi_prior_old[ii];
     }
+    prior += mean_coi_hyper_prior_old;
+
+    return prior;
+}
+
+double Chain::calc_new_likelihood()
+{
+    double new_llik = 0;
 
     for (const double ll : genotyping_llik_new)
     {
@@ -771,7 +846,24 @@ double Chain::calc_new_likelihood()
     return new_llik * temp;
 }
 
+double Chain::calc_new_prior()
+{
+    double prior = 0;
+
+    for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+    {
+        prior += eps_neg_prior_new[ii];
+        prior += eps_pos_prior_new[ii];
+        prior += coi_prior_new[ii];
+    }
+    prior += mean_coi_hyper_prior_new;
+
+    return prior;
+}
+
 double Chain::get_llik() { return llik; }
+double Chain::get_prior() { return prior; }
+double Chain::get_posterior() { return llik + prior; }
 
 void Chain::calculate_genotype_likelihood(int sample_idx, int locus_idx)
 {
@@ -807,6 +899,18 @@ void Chain::calculate_eps_pos_likelihood(int sample_idx)
         eps_pos[sample_idx], params.eps_pos_alpha, params.eps_pos_beta);
 }
 
+void Chain::calculate_coi_likelihood(int sample_idx)
+{
+    coi_prior_new[sample_idx] =
+        sampler.get_coi_log_prior(m[sample_idx], mean_coi);
+}
+
+void Chain::calculate_mean_coi_likelihood()
+{
+    mean_coi_hyper_prior_new = sampler.get_coi_mean_log_hyper_prior(
+        mean_coi, params.mean_coi_shape, params.mean_coi_scale);
+}
+
 void Chain::initialize_likelihood()
 {
     int num_samples = genotyping_data.num_samples;
@@ -820,6 +924,8 @@ void Chain::initialize_likelihood()
     eps_neg_prior_old.resize(num_samples);
     eps_pos_prior_new.resize(num_samples);
     eps_pos_prior_old.resize(num_samples);
+    coi_prior_new.resize(num_samples);
+    coi_prior_old.resize(num_samples);
     for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
     {
         row_idx = ii * num_loci;
@@ -838,13 +944,23 @@ void Chain::initialize_likelihood()
         double eps_pos_prior = sampler.get_epsilon_log_prior(
             eps_pos[ii], params.eps_pos_alpha, params.eps_pos_beta);
 
+        double coi_prior = sampler.get_coi_log_prior(m[ii], mean_coi);
+
         eps_neg_prior_old[ii] = eps_neg_prior;
         eps_neg_prior_new[ii] = eps_neg_prior;
         eps_pos_prior_old[ii] = eps_pos_prior;
         eps_pos_prior_new[ii] = eps_pos_prior;
+        coi_prior_old[ii] = coi_prior;
+        coi_prior_new[ii] = coi_prior;
     }
 
+    mean_coi_hyper_prior_old = sampler.get_coi_mean_log_hyper_prior(
+        mean_coi, params.mean_coi_shape, params.mean_coi_scale);
+    mean_coi_hyper_prior_new = sampler.get_coi_mean_log_hyper_prior(
+        mean_coi, params.mean_coi_shape, params.mean_coi_scale);
+
     llik = calc_new_likelihood();
+    prior = calc_new_prior();
 }
 
 void Chain::save_genotype_likelihood(int sample_idx, int locus_idx)
@@ -864,6 +980,16 @@ void Chain::save_eps_pos_likelihood(int sample_idx)
     eps_pos_prior_old[sample_idx] = eps_pos_prior_new[sample_idx];
 }
 
+void Chain::save_coi_likelihood(int sample_idx)
+{
+    coi_prior_old[sample_idx] = coi_prior_new[sample_idx];
+}
+
+void Chain::save_mean_coi_likelihood()
+{
+    mean_coi_hyper_prior_old = mean_coi_hyper_prior_new;
+}
+
 void Chain::restore_genotype_likelihood(int sample_idx, int locus_idx)
 {
     int idx = sample_idx * genotyping_data.num_loci + locus_idx;
@@ -880,6 +1006,16 @@ void Chain::restore_eps_pos_likelihood(int sample_idx)
     eps_pos_prior_new[sample_idx] = eps_pos_prior_old[sample_idx];
 }
 
+void Chain::restore_coi_likelihood(int sample_idx)
+{
+    coi_prior_new[sample_idx] = coi_prior_old[sample_idx];
+}
+
+void Chain::restore_mean_coi_likelihood()
+{
+    mean_coi_hyper_prior_new = mean_coi_hyper_prior_old;
+}
+
 void Chain::set_llik(double llik) { this->llik = llik; }
 
 void Chain::set_temp(double temp) { this->temp = temp; }
@@ -893,6 +1029,8 @@ Chain::Chain(GenotypingData genotyping_data, Parameters params, double temp)
     m_prop_mean = std::vector<double>(genotyping_data.num_samples, 1);
     p_prop_var = std::vector<std::vector<double>>(genotyping_data.num_loci);
     p_accept = std::vector<std::vector<int>>(genotyping_data.num_loci);
+    mean_coi_accept = 0;
+    mean_coi_var = 1;
 
     llik = std::numeric_limits<double>::lowest();
     this->temp = temp;

@@ -53,18 +53,28 @@ class Chain
     double calculate_llik(int num_samples);
     double calc_old_likelihood();
     double calc_new_likelihood();
+    double calc_old_prior();
+    double calc_new_prior();
+    double calculate_new_posterior();
+    double calculate_old_posterior();
 
     void calculate_genotype_likelihood(int sample_idx, int locux_idx);
     void calculate_eps_neg_likelihood(int sample_idx);
     void calculate_eps_pos_likelihood(int sample_idx);
+    void calculate_coi_likelihood(int sample_idx);
+    void calculate_mean_coi_likelihood();
 
     void save_genotype_likelihood(int sample_idx, int locus_idx);
     void save_eps_neg_likelihood(int sample_idx);
     void save_eps_pos_likelihood(int sample_idx);
+    void save_coi_likelihood(int sample_idx);
+    void save_mean_coi_likelihood();
 
     void restore_genotype_likelihood(int sample_idx, int locus_idx);
     void restore_eps_neg_likelihood(int sample_idx);
     void restore_eps_pos_likelihood(int sample_idx);
+    void restore_coi_likelihood(int sample_idx);
+    void restore_mean_coi_likelihood();
 
    public:
     std::vector<double> genotyping_llik_old{};
@@ -74,8 +84,11 @@ class Chain
     std::vector<double> eps_neg_prior_new{};
     std::vector<double> eps_pos_prior_old{};
     std::vector<double> eps_pos_prior_new{};
+    std::vector<double> coi_prior_new{};
+    std::vector<double> coi_prior_old{};
 
     double llik;
+    double prior;
     double temp;
 
     // Latent Genotypes
@@ -88,6 +101,11 @@ class Chain
     std::vector<int> m{};
     std::vector<int> m_accept{};
     std::vector<double> m_prop_mean{};
+    double mean_coi;
+    double mean_coi_var;
+    double mean_coi_accept;
+    double mean_coi_hyper_prior_old;
+    double mean_coi_hyper_prior_new;
 
     // Relatedness
     std::vector<double> r{};
@@ -127,9 +145,12 @@ class Chain
     void update_eps_pos(int iteration);
     void update_eps_neg(int iteration);
     void update_samples(int iteration);
+    void update_mean_coi(int iteration);
     double get_llik();
-    void set_llik(double llik);
+    double get_prior();
+    double get_posterior();
 
+    void set_llik(double llik);
     void set_temp(double temp);
     double get_temp();
 };

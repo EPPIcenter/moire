@@ -21,6 +21,8 @@ Parameters::Parameters(const Rcpp::List &args)
 
     // Model
     max_coi = UtilFunctions::r_to_int(args["max_coi"]);
+    mean_coi_shape = UtilFunctions::r_to_double(args["mean_coi_shape"]);
+    mean_coi_scale = UtilFunctions::r_to_double(args["mean_coi_scale"]);
     eps_pos_0 = UtilFunctions::r_to_double(args["eps_pos_0"]);
     max_eps_pos = UtilFunctions::r_to_double(args["max_eps_pos"]);
     eps_pos_alpha = UtilFunctions::r_to_double(args["eps_pos_alpha"]);

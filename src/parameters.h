@@ -23,9 +23,8 @@ class Parameters
     // Model Parameters
     // Complexity of Infection
     int max_coi;
-    double mean_coi_var;
-    double mean_coi_prior_shape;
-    double mean_coi_prior_scale;
+    double mean_coi_shape;
+    double mean_coi_scale;
 
     // False Positive Rate
     double eps_pos_0;      // Initial eps pos
