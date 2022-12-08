@@ -12,6 +12,8 @@
 #include <map>
 #include <numeric>
 
+constexpr double min_sampled = std::numeric_limits<double>::min();
+
 void Chain::initialize_latent_genotypes()
 {
     for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
@@ -72,20 +74,18 @@ void Chain::initialize_m()
     }
     m_accept.resize(genotyping_data.num_samples, 0);
     sample_accept.resize(genotyping_data.num_samples, 0);
-    mean_coi =
-        sampler.sample_mean_coi(params.mean_coi_shape, params.mean_coi_scale);
 }
 
 void Chain::initialize_eps_neg()
 {
-    eps_neg.resize(genotyping_data.num_samples, params.eps_neg_0);
+    eps_neg.resize(genotyping_data.num_samples, sampler.sample_unif() * .1);
     eps_neg_accept.resize(genotyping_data.num_samples, 0);
     eps_neg_var.resize(genotyping_data.num_samples, params.eps_neg_var);
 }
 
 void Chain::initialize_eps_pos()
 {
-    eps_pos.resize(genotyping_data.num_samples, params.eps_pos_0);
+    eps_pos.resize(genotyping_data.num_samples, sampler.sample_unif() * .1);
     eps_pos_accept.resize(genotyping_data.num_samples, 0);
     eps_pos_var.resize(genotyping_data.num_samples, params.eps_pos_var);
 }
@@ -178,7 +178,8 @@ void Chain::update_r(int iteration)
 
     for (const auto i : indices)
     {
-        auto prop_adj = sampler.sample_constrained(r[i], r_var[i], 1e-8, 1);
+        auto prop_adj =
+            sampler.sample_constrained(r[i], r_var[i], min_sampled, 1);
         double prop_r = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
@@ -235,7 +236,8 @@ void Chain::update_m_r(int iteration)
 
     for (const auto i : indices)
     {
-        auto prop_adj = sampler.sample_constrained(r[i], m_r_var[i], 1e-8, 1);
+        auto prop_adj =
+            sampler.sample_constrained(r[i], m_r_var[i], min_sampled, 1);
         double prop_r = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
@@ -416,8 +418,8 @@ void Chain::update_eps_pos(int iteration)
 
     for (const auto i : indices)
     {
-        auto prop_adj =
-            sampler.sample_constrained(eps_pos[i], eps_pos_var[i], 1e-8, 1);
+        auto prop_adj = sampler.sample_constrained(eps_pos[i], eps_pos_var[i],
+                                                   min_sampled, 1);
         double prop_eps_pos = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
@@ -480,8 +482,8 @@ void Chain::update_eps_neg(int iteration)
 
     for (const auto i : indices)
     {
-        auto prop_adj =
-            sampler.sample_constrained(eps_neg[i], eps_neg_var[i], 1e-8, 1);
+        auto prop_adj = sampler.sample_constrained(eps_neg[i], eps_neg_var[i],
+                                                   min_sampled, 1);
         double prop_eps_neg = std::get<0>(prop_adj);
         double adj = std::get<1>(prop_adj);
 
@@ -544,14 +546,14 @@ void Chain::update_samples(int iteration)
 
     for (const auto ii : indices)
     {
-        auto eps_neg_prop_adj =
-            sampler.sample_constrained(eps_neg[ii], eps_neg_var[ii], 1e-8, 1);
+        auto eps_neg_prop_adj = sampler.sample_constrained(
+            eps_neg[ii], eps_neg_var[ii], min_sampled, 1);
         double prop_eps_neg = std::get<0>(eps_neg_prop_adj);
         double eps_neg_adj = std::get<1>(eps_neg_prop_adj);
         bool valid_prop_eps_neg = prop_eps_neg < 1 && prop_eps_neg > 1e-32;
 
-        auto eps_pos_prop_adj =
-            sampler.sample_constrained(eps_pos[ii], eps_pos_var[ii], 1e-8, 1);
+        auto eps_pos_prop_adj = sampler.sample_constrained(
+            eps_pos[ii], eps_pos_var[ii], min_sampled, 1);
         double prop_eps_pos = std::get<0>(eps_pos_prop_adj);
         double eps_pos_adj = std::get<1>(eps_pos_prop_adj);
         bool valid_prop_eps_pos = prop_eps_pos < 1 && prop_eps_pos > 1e-32;
@@ -562,10 +564,10 @@ void Chain::update_samples(int iteration)
         if (params.allow_relatedness)
         {
             auto r_prop_adj =
-                sampler.sample_constrained(r[ii], r_var[ii], 1e-8, 1);
-            double prop_r = std::get<0>(r_prop_adj);
-            double r_adj = std::get<1>(r_prop_adj);
-            bool valid_prop_r = prop_r < 1 && prop_r > 1e-32;
+                sampler.sample_constrained(r[ii], r_var[ii], min_sampled, 1);
+            prop_r = std::get<0>(r_prop_adj);
+            r_adj = std::get<1>(r_prop_adj);
+            valid_prop_r = prop_r < 1 && prop_r > 1e-32;
         }
 
         int prop_m = m[ii] + sampler.sample_coi_delta(2);
@@ -645,8 +647,7 @@ void Chain::update_samples(int iteration)
 
 void Chain::update_mean_coi(int iteration)
 {
-    auto prop_adj =
-        sampler.sample_constrained(mean_coi, mean_coi_var, 1e-8, 40);
+    auto prop_adj = sampler.sample_constrained(mean_coi, mean_coi_var, 0, 40);
     double prop_mean_coi = std::get<0>(prop_adj);
     double adj = std::get<1>(prop_adj);
 
@@ -1026,11 +1027,13 @@ Chain::Chain(GenotypingData genotyping_data, Parameters params, double temp)
     : genotyping_data(genotyping_data), params(params), sampler()
 
 {
-    m_prop_mean = std::vector<double>(genotyping_data.num_samples, 1);
     p_prop_var = std::vector<std::vector<double>>(genotyping_data.num_loci);
     p_accept = std::vector<std::vector<int>>(genotyping_data.num_loci);
     mean_coi_accept = 0;
     mean_coi_var = 1;
+    mean_coi =
+        sampler.sample_mean_coi(params.mean_coi_shape, params.mean_coi_scale) +
+        1;
 
     llik = std::numeric_limits<double>::lowest();
     this->temp = temp;

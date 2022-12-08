@@ -100,7 +100,6 @@ class Chain
     // COI
     std::vector<int> m{};
     std::vector<int> m_accept{};
-    std::vector<double> m_prop_mean{};
     double mean_coi;
     double mean_coi_var;
     double mean_coi_accept;

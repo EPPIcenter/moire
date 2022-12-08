@@ -5,6 +5,7 @@
 
 #include <Rcpp.h>
 #include <Rmath.h>
+#include <cmath>
 #include <algorithm>
 #include <random>
 #include <tuple>
@@ -169,6 +170,7 @@ std::tuple<double, double> Sampler::sample_constrained(double curr, double var,
 
     double adj = std::log(prop - lower) + std::log(upper - prop) -
                  std::log(curr - lower) - std::log(upper - curr);
+
     return std::make_tuple(prop, adj);
 }
 

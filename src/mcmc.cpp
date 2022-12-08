@@ -27,11 +27,14 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     eps_neg_store.resize(genotyping_data.num_samples);
     eps_pos_store.resize(genotyping_data.num_samples);
     omp_set_num_threads(params.pt_num_threads);
+    swap_acceptances.resize(params.pt_chains - 1, 0);
 
+    double temp_gap = 1.0 / (params.pt_chains - 1);
     for (size_t i = 0; i < params.pt_chains; ++i)
     {
-        chains.emplace_back(genotyping_data, params,
-                            1.0 / std::pow(params.pt_grad, i));
+        double temp = std::pow((1.0 - temp_gap * i), params.pt_grad);
+        chains.emplace_back(genotyping_data, params, temp);
+        temp_gradient.push_back(temp);
 
         bool ill_conditioned = std::isnan(chains.back().get_llik());
         int max_tries = 1000;
@@ -78,28 +81,22 @@ void MCMC::burnin(int step)
 
 void MCMC::swap_chains()
 {
-    for (size_t i = 0 + num_swaps % 2; i < chains.size() - 1; i += 2)
+    for (size_t i = 0; i < chains.size() - 1; i += 1)
     {
         auto &chain_a = chains[swap_indices[i]];
         auto &chain_b = chains[swap_indices[i + 1]];
 
         double curr_llik_a = chain_a.get_llik();
-        double curr_prior_a = chain_a.get_prior();
-        double curr_post_a = chain_a.get_posterior();
         double temp_a = chain_a.get_temp();
 
         double curr_llik_b = chain_b.get_llik();
-        double curr_prior_b = chain_b.get_prior();
-        double curr_post_b = chain_b.get_posterior();
         double temp_b = chain_b.get_temp();
 
         double prop_llik_a = curr_llik_a / temp_a * temp_b;
-        double prop_post_a = prop_llik_a + curr_prior_a;
         double prop_llik_b = curr_llik_b / temp_b * temp_a;
-        double prop_post_b = prop_llik_b + curr_prior_b;
 
         long double acceptanceRatio =
-            prop_post_a + prop_post_b - curr_post_a - curr_post_b;
+            prop_llik_a + prop_llik_b - curr_llik_a - curr_llik_b;
         if ((acceptanceRatio > 0 || log(R::runif(0, 1)) < acceptanceRatio) and
             !std::isnan(acceptanceRatio))
         {
