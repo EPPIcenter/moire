@@ -108,42 +108,12 @@
 <p>To demonstrate the usage of the package, we can simulate some
 genotyping data according to our model, allowing for some relatedness
 within samples in the population.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">17325</span><span class="op">)</span></span>
-<span><span class="va">mean_moi</span> <span class="op">&lt;-</span> <span class="fl">5</span></span>
-<span><span class="va">num_biological_samples</span> <span class="op">&lt;-</span> <span class="fl">100</span></span>
-<span><span class="va">epsilon_pos</span> <span class="op">&lt;-</span> <span class="fl">.01</span></span>
-<span><span class="va">epsilon_neg</span> <span class="op">&lt;-</span> <span class="fl">.03</span></span>
-<span><span class="co"># Generate the number of alleles at each locus</span></span>
-<span><span class="va">allele_counts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">15</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">15</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">25</span>, <span class="fl">15</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">50</span>, <span class="fl">15</span><span class="op">)</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># We'll use flat alpha vectors for our draws from the Dirichlet</span></span>
-<span><span class="va">locus_freq_alphas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">allele_counts</span>, <span class="kw">function</span><span class="op">(</span><span class="va">allele</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span>, <span class="va">allele</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">simulated_data</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/simulate_data.html">simulate_data</a></span><span class="op">(</span></span>
-<span>  <span class="va">mean_moi</span>,</span>
-<span>  <span class="va">num_biological_samples</span>,</span>
-<span>  <span class="va">epsilon_pos</span>, <span class="va">epsilon_neg</span>,</span>
-<span>  locus_freq_alphas <span class="op">=</span> <span class="va">locus_freq_alphas</span>,</span>
-<span>  internal_relatedness_alpha <span class="op">=</span> <span class="fl">.1</span>,</span>
-<span>  internal_relatedness_beta <span class="op">=</span> <span class="fl">1</span></span>
-<span><span class="op">)</span></span></code></pre></div>
 <p>Now that we have our data, let’s go ahead and run the MCMC. Here we
 run 20 parallel tempered chains with a temperature gradient ranging from
 <span class="math inline">\([.5, 1]\)</span></p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">burnin</span> <span class="op">&lt;-</span> <span class="fl">1e4</span></span>
-<span><span class="va">num_samples</span> <span class="op">&lt;-</span> <span class="fl">1e4</span></span>
-<span><span class="va">pt_chains</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">.5</span>, length.out <span class="op">=</span> <span class="fl">20</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">mcmc_results</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/run_mcmc.html">run_mcmc</a></span><span class="op">(</span></span>
-<span>  <span class="va">simulated_data</span>,</span>
-<span>  verbose <span class="op">=</span> <span class="cn">T</span>, burnin <span class="op">=</span> <span class="va">burnin</span>, samples_per_chain <span class="op">=</span> <span class="va">num_samples</span>,</span>
-<span>  pt_chains <span class="op">=</span> <span class="va">pt_chains</span>, pt_num_threads <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">pt_chains</span><span class="op">)</span>, thin <span class="op">=</span> <span class="fl">10</span></span>
-<span><span class="op">)</span></span></code></pre></div>
 <p>After running the MCMC, we can access the draws from the posterior
 distribution and analyze.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Estimate the COI for each sample</span></span>
 <span><span class="va">coi_summary</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="../reference/summarize_coi.html">summarize_coi</a></span><span class="op">(</span><span class="va">mcmc_results</span><span class="op">)</span></span>
 <span></span>
@@ -191,7 +161,7 @@ COI using our approach vs the naive method of taking the maximum number
 of alleles observed (Naive Estimate), or the second highest number of
 alleles observed (Offset Naive Estimate). Mean of the distribution is
 annotated by a dotted line.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">coi_estimates</span> <span class="op">&lt;-</span> <span class="va">sample_data</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">post_coi_med</span>, <span class="va">naive_coi</span>, <span class="va">offset_naive_coi</span>, <span class="va">true_coi</span>, <span class="va">sample_id</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">tidyr</span><span class="fu">::</span><span class="fu"><a href="https://tidyr.tidyverse.org/reference/pivot_longer.html" class="external-link">pivot_longer</a></span><span class="op">(</span><span class="op">-</span><span class="va">sample_id</span>,</span>
@@ -230,7 +200,7 @@ annotated by a dotted line.</p>
 <p>Since we simulated data, we know the true complexity of infection and
 can compare to our estimates. Observations are ordered by COI with
 dotted lines delimiting the total COI.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">coi_compare_to_truth</span> <span class="op">&lt;-</span> <span class="va">sample_data</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">post_coi_mean</span>, <span class="va">naive_coi</span>, <span class="va">offset_naive_coi</span>, <span class="va">true_coi</span>, <span class="va">sample_id</span>, <span class="va">post_coi_lower</span>, <span class="va">post_coi_upper</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">tidyr</span><span class="fu">::</span><span class="fu"><a href="https://tidyr.tidyverse.org/reference/pivot_longer.html" class="external-link">pivot_longer</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="va">sample_id</span>, <span class="op">-</span><span class="va">true_coi</span>, <span class="op">-</span><span class="va">post_coi_lower</span>, <span class="op">-</span><span class="va">post_coi_upper</span><span class="op">)</span>,</span>
@@ -306,7 +276,7 @@ being related (and thus with identical genetics) across the genome. This
 results in a continuous metric that shrinks COI towards 1 as relatedness
 increases, and thus differences between mean COI and mean effective COI
 may be a signal of reduced diversity and increased in-breeding.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">sample_data</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">true_effective_coi</span>, y <span class="op">=</span> <span class="va">post_effective_coi_mean</span>, ymin <span class="op">=</span> <span class="va">post_effective_coi_lower</span>, ymax <span class="op">=</span> <span class="va">post_effective_coi_upper</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_abline</a></span><span class="op">(</span>slope <span class="op">=</span> <span class="fl">1</span>, intercept <span class="op">=</span> <span class="fl">0</span>, linetype <span class="op">=</span> <span class="st">"dashed"</span>, alpha <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_linerange.html" class="external-link">geom_errorbar</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
@@ -325,7 +295,7 @@ samples.</p>
 <div class="section level3">
 <h3 id="estimating-relatedness">Estimating Relatedness<a class="anchor" aria-label="anchor" href="#estimating-relatedness"></a>
 </h3>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">sample_data</span>, </span>
 <span>       <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">true_relatedness</span>, y <span class="op">=</span> <span class="va">post_relatedness_mean</span>, ymin <span class="op">=</span> <span class="va">post_relatedness_lower</span>, ymax <span class="op">=</span> <span class="va">post_relatedness_upper</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_abline</a></span><span class="op">(</span>slope <span class="op">=</span> <span class="fl">1</span>, intercept <span class="op">=</span> <span class="fl">0</span>, linetype <span class="op">=</span> <span class="st">"dashed"</span>, alpha <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span> <span class="op">+</span></span>
@@ -344,7 +314,7 @@ information available to actually estimate relatedness, and samples with
 a true COI of 1 would have zero information because relatedness is an
 undefined quantity. If we filter out samples with a low effective COI
 (&gt; 1.2), we find that relatedness is well estimated.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">sample_data</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">post_effective_coi_mean</span> <span class="op">&gt;</span> <span class="fl">1.2</span><span class="op">)</span>, </span>
 <span>       <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">true_relatedness</span>, y <span class="op">=</span> <span class="va">post_relatedness_mean</span>, ymin <span class="op">=</span> <span class="va">post_relatedness_lower</span>, ymax <span class="op">=</span> <span class="va">post_relatedness_upper</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_abline</a></span><span class="op">(</span>slope <span class="op">=</span> <span class="fl">1</span>, intercept <span class="op">=</span> <span class="fl">0</span>, linetype <span class="op">=</span> <span class="st">"dashed"</span>, alpha <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span> <span class="op">+</span></span>
@@ -360,7 +330,7 @@ undefined quantity. If we filter out samples with a low effective COI
 <div class="section level3">
 <h3 id="estimating-allele-frequencies">Estimating allele frequencies<a class="anchor" aria-label="anchor" href="#estimating-allele-frequencies"></a>
 </h3>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">allele_freq_data</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_linerange.html" class="external-link">geom_errorbar</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
 <span>    y <span class="op">=</span> <span class="va">post_allele_freqs_mean</span>,</span>
@@ -387,7 +357,7 @@ heterozygosity.</p>
 <div class="section level4">
 <h4 id="estimating-expected-heterozygosity">Estimating expected heterozygosity<a class="anchor" aria-label="anchor" href="#estimating-expected-heterozygosity"></a>
 </h4>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">he_data</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">true_he</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_linerange.html" class="external-link">geom_errorbar</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">post_stat_mean</span>, ymax <span class="op">=</span> <span class="va">post_stat_upper</span>, ymin <span class="op">=</span> <span class="va">post_stat_lower</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">post_stat_mean</span><span class="op">)</span>, color <span class="op">=</span> <span class="st">"black"</span><span class="op">)</span> <span class="op">+</span></span>
