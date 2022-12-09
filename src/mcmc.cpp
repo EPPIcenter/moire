@@ -1,6 +1,5 @@
 #include "mcmc.h"
 
-#include "chain.h"
 #include "mcmc_utils.h"
 
 #include <Rcpp.h>
@@ -27,12 +26,11 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     eps_neg_store.resize(genotyping_data.num_samples);
     eps_pos_store.resize(genotyping_data.num_samples);
     omp_set_num_threads(params.pt_num_threads);
-    swap_acceptances.resize(params.pt_chains - 1, 0);
+    swap_acceptances.resize(params.pt_chains.size() - 1, 0);
+    swap_indices.resize(params.pt_chains.size(), 0);
 
-    double temp_gap = 1.0 / (params.pt_chains - 1);
-    for (size_t i = 0; i < params.pt_chains; ++i)
+    for (const auto temp : params.pt_chains)
     {
-        double temp = std::pow((1.0 - temp_gap * i), params.pt_grad);
         chains.emplace_back(genotyping_data, params, temp);
         temp_gradient.push_back(temp);
 
@@ -51,9 +49,8 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
         {
             Rcpp::stop("Error: Initial Llik is NaN");
         }
-
-        swap_indices.push_back(i);
     }
+    std::iota(swap_indices.begin(), swap_indices.end(), 0);
 };
 
 void MCMC::burnin(int step)

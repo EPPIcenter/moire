@@ -55,8 +55,7 @@ void Chain::initialize_p()
     for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
     {
         int total_alleles = p[jj].size();
-        p_prop_var[jj] =
-            std::vector<double>(total_alleles, params.allele_freq_vars[jj]);
+        p_prop_var[jj] = std::vector<double>(total_alleles, 1);
         p_accept[jj] = std::vector<int>(total_alleles, 0);
         p_attempt[jj] = std::vector<int>(total_alleles, 0);
     }
@@ -80,14 +79,14 @@ void Chain::initialize_eps_neg()
 {
     eps_neg.resize(genotyping_data.num_samples, sampler.sample_unif() * .1);
     eps_neg_accept.resize(genotyping_data.num_samples, 0);
-    eps_neg_var.resize(genotyping_data.num_samples, params.eps_neg_var);
+    eps_neg_var.resize(genotyping_data.num_samples, 1);
 }
 
 void Chain::initialize_eps_pos()
 {
     eps_pos.resize(genotyping_data.num_samples, sampler.sample_unif() * .1);
     eps_pos_accept.resize(genotyping_data.num_samples, 0);
-    eps_pos_var.resize(genotyping_data.num_samples, params.eps_pos_var);
+    eps_pos_var.resize(genotyping_data.num_samples, 1);
 }
 
 void Chain::initialize_r()
@@ -350,7 +349,9 @@ void Chain::update_p(int iteration)
             bool sub_threshold_flag = false;
             for (const auto &el : prop_p)
             {
-                if (el < params.allele_freq_threshold)
+                // below a very small threshold that can cause numerical
+                // instability
+                if (el < 1e-12)
                 {
                     sub_threshold_flag = true;
                     break;
@@ -396,9 +397,8 @@ void Chain::update_p(int iteration)
                 p_accept[j][idx] += 1;
             }
 
-            if (params.adapt_allele_freq_vars and iteration < params.burnin and
-                p_attempt[j][idx] > 15)  // don't start adapting until there are
-                                         // at least a few samples
+            // don't start adapting until there are at least a few samples
+            if (iteration < params.burnin and p_attempt[j][idx] > 15)
             {
                 double acceptanceRate =
                     (p_accept[j][idx] + 1) / (double(p_attempt[j][idx]) + 1);
@@ -1037,7 +1037,6 @@ Chain::Chain(GenotypingData genotyping_data, Parameters params, double temp)
 
     llik = std::numeric_limits<double>::lowest();
     this->temp = temp;
-    UtilFunctions::print("Initializing Temp: ", temp);
 
     initialize_m();
     initialize_eps_neg();

@@ -131,6 +131,8 @@ simulate_observed_genotype <- function(true_genotypes,
 #'
 #' @export
 #'
+#' @importFrom stats rbeta
+#'
 #' @param mean_coi Mean multiplicity of infection drawn from a Poisson
 #' @param locus_freq_alphas List of alpha vectors to be used to simulate
 #'  from a Dirichlet distribution to generate allele frequencies.
@@ -139,8 +141,10 @@ simulate_observed_genotype <- function(true_genotypes,
 #' @param epsilon_neg False negative rate, expected number of false negatives
 #' @param allele_freqs List of allele frequencies to be used instead of
 #'  simulating allele frequencies
-#' @param internal_relatedness Probability of allele to be drawn from a within-
-#' host infection
+#' @param internal_relatedness_alpha alpha parameter of beta distribution controlling
+#'  the random relatedness draws for each sample
+#' @param internal_relatedness_beta beta parameter of beta distribution controlling
+#'  the random relatedness draws for each sample
 #' @param missingness probability of data being missing
 #' @return Simulated data that is structured to go into the MCMC sampler
 #'

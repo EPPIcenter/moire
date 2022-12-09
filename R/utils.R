@@ -18,7 +18,7 @@ load_long_form_data <- function(df, warn_uninformative = TRUE) {
   uninformative_loci <- df |>
     dplyr::group_by(.data$locus) |>
     dplyr::summarise(total_alleles = length(unique(.data$allele))) |>
-    dplyr::filter(total_alleles == 1) |>
+    dplyr::filter(.data$total_alleles == 1) |>
     dplyr::pull(.data$locus)
 
   if (length(uninformative_loci) > 0) {

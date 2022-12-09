@@ -24,7 +24,5 @@ df <- read.csv("your_data.csv")
 data <- load_long_form_data(df)
 
 # With data in appropriate format, run MCMC as follows
-mcmc_results <- moire::run_mcmc(
-  data$data, data$sample_ids, data$loci, data$is_missing
-)
+mcmc_results <- moire::run_mcmc(data, is_missing = data$is_missing)
 ```

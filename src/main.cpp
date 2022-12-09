@@ -16,14 +16,9 @@
 // [[Rcpp::export(name='run_mcmc_rcpp')]]
 Rcpp::List run_mcmc(Rcpp::List args)
 {
-    UtilFunctions::print("Running Experimental Relatedness Estimationv4.");
     Parameters params(args);
     GenotypingData genotyping_data(args);
     int chain_number = args["chain_number"];
-
-    UtilFunctions::print("Allow Relatedness:", params.allow_relatedness);
-    UtilFunctions::print("Parallel Tempering:", params.pt_chains,
-                         params.pt_grad);
 
     if (params.verbose && !params.simple_verbose)
     {
@@ -31,6 +26,9 @@ Rcpp::List run_mcmc(Rcpp::List args)
         UtilFunctions::print("Total Burnin:", params.burnin);
         UtilFunctions::print("Total Samples:", params.samples);
         UtilFunctions::print("Thinning:", params.thin);
+        UtilFunctions::print("Allow Relatedness:", params.allow_relatedness);
+        UtilFunctions::print("Parallel Tempering:");
+        UtilFunctions::print_vector(params.pt_chains);
     }
 
     MCMC mcmc(genotyping_data, params);

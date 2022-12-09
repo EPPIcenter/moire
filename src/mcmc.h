@@ -8,6 +8,7 @@
 #include "parameters.h"
 
 #include <Rcpp.h>
+#include <numeric>
 #include <progress.hpp>
 
 class MCMC
