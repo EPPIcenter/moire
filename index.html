@@ -104,9 +104,7 @@
 <span><span class="va">data</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/load_long_form_data.html">load_long_form_data</a></span><span class="op">(</span><span class="va">df</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># With data in appropriate format, run MCMC as follows</span></span>
-<span><span class="va">mcmc_results</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="reference/run_mcmc.html">run_mcmc</a></span><span class="op">(</span></span>
-<span>  <span class="va">data</span><span class="op">$</span><span class="va">data</span>, <span class="va">data</span><span class="op">$</span><span class="va">sample_ids</span>, <span class="va">data</span><span class="op">$</span><span class="va">loci</span>, <span class="va">data</span><span class="op">$</span><span class="va">is_missing</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">mcmc_results</span> <span class="op">&lt;-</span> <span class="fu">moire</span><span class="fu">::</span><span class="fu"><a href="reference/run_mcmc.html">run_mcmc</a></span><span class="op">(</span><span class="va">data</span>, is_missing <span class="op">=</span> <span class="va">data</span><span class="op">$</span><span class="va">is_missing</span><span class="op">)</span></span></code></pre></div>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">

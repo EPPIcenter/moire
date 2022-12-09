@@ -70,7 +70,8 @@
 <span>  <span class="va">epsilon_neg</span>,</span>
 <span>  locus_freq_alphas <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  allele_freqs <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  internal_relatedness <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  internal_relatedness_alpha <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  internal_relatedness_beta <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  missingness <span class="op">=</span> <span class="fl">0</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -103,9 +104,14 @@ from a Dirichlet distribution to generate allele frequencies.</p></dd>
 simulating allele frequencies</p></dd>
 
 
-<dt>internal_relatedness</dt>
-<dd><p>Probability of allele to be drawn from a within-
-host infection</p></dd>
+<dt>internal_relatedness_alpha</dt>
+<dd><p>alpha parameter of beta distribution controlling
+the random relatedness draws for each sample</p></dd>
+
+
+<dt>internal_relatedness_beta</dt>
+<dd><p>beta parameter of beta distribution controlling
+the random relatedness draws for each sample</p></dd>
 
 
 <dt>missingness</dt>
