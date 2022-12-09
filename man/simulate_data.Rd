@@ -11,7 +11,8 @@ simulate_data(
   epsilon_neg,
   locus_freq_alphas = NULL,
   allele_freqs = NULL,
-  internal_relatedness = 0,
+  internal_relatedness_alpha = 0,
+  internal_relatedness_beta = 1,
   missingness = 0
 )
 }
@@ -30,8 +31,11 @@ from a Dirichlet distribution to generate allele frequencies.}
 \item{allele_freqs}{List of allele frequencies to be used instead of
 simulating allele frequencies}
 
-\item{internal_relatedness}{Probability of allele to be drawn from a within-
-host infection}
+\item{internal_relatedness_alpha}{alpha parameter of beta distribution controlling
+the random relatedness draws for each sample}
+
+\item{internal_relatedness_beta}{beta parameter of beta distribution controlling
+the random relatedness draws for each sample}
 
 \item{missingness}{probability of data being missing}
 }

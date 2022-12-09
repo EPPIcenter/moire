@@ -1,4 +1,3 @@
-
 #' Calculate naive COI offset
 #'
 #' @details Estimates the complexity of infection using a naive approach
@@ -398,6 +397,7 @@ summarize_he <- function(mcmc_results,
 #'  distribution of sampled allele frequencies
 #'
 #' @importFrom stats quantile
+#' @import purrr
 #'
 #' @export
 #'
@@ -413,8 +413,9 @@ summarize_allele_freqs <- function(mcmc_results,
                                    merge_chains = TRUE) {
   locus_alleles <- do.call(
     rbind,
-    purrr::imap(
+    purrr::map2(
       mcmc_results$args$data,
+      seq_along(mcmc_results$args$data),
       ~ data.frame(locus = mcmc_results$args$loci[.y], allele = names(.x[[1]]))
     )
   )
@@ -489,4 +490,188 @@ summarize_allele_freqs <- function(mcmc_results,
     }
     return(do.call(rbind, res))
   }
+}
+
+
+
+#' Summarize relatedness
+#'
+#' @details Summarize relatedness results from MCMC. Returns
+#'  a dataframe that contains summaries of the posterior
+#'  distribution of relatedness for each biological sample.
+#'
+#' @importFrom stats quantile
+#' @export
+#'
+#' @param mcmc_results Result of calling run_mcmc()
+#' @param lower_quantile The lower quantile of the posterior
+#'  distribution to return
+#' @param upper_quantile The upper quantile of the posterior
+#'  distribution to return
+#' @param merge_chains boolean indicating that all chain results should be merged
+summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
+  if (merge_chains) {
+    relatedness <- lapply(1:length(mcmc_results$args$sample_ids), function(x) c())
+    for (chain in mcmc_results$chains) {
+      for (s in 1:length(chain$relatedness)) {
+        relatedness[[s]] <- c(relatedness[[s]], chain$relatedness[[s]])
+      }
+    }
+    post_relatedness_lower <- sapply(relatedness, function(x) {
+      quantile(x, lower_quantile)
+    })
+    post_relatedness_med <- sapply(relatedness, function(x) {
+      quantile(x, .5)
+    })
+    post_relatedness_upper <- sapply(relatedness, function(x) {
+      quantile(x, upper_quantile)
+    })
+    post_relatedness_mean <- sapply(relatedness, mean)
+
+    return(data.frame(
+      sample_id = mcmc_results$args$sample_ids,
+      post_relatedness_lower, post_relatedness_med, post_relatedness_upper, post_relatedness_mean
+    ))
+  } else {
+    chain_relatedness <- lapply(1:length(mcmc_results$chains), function(idx) {
+      relatedness <- mcmc_results$chains[[idx]]$relatedness
+      post_relatedness_lower <- sapply(relatedness, function(x) {
+        quantile(x, lower_quantile)
+      })
+      post_relatedness_med <- sapply(relatedness, function(x) {
+        quantile(x, .5)
+      })
+      post_relatedness_upper <- sapply(relatedness, function(x) {
+        quantile(x, upper_quantile)
+      })
+      post_relatedness_mean <- sapply(relatedness, mean)
+
+      return(data.frame(
+        sample_id = mcmc_results$args$sample_ids,
+        post_relatedness_lower, post_relatedness_med, post_relatedness_upper, post_relatedness_mean,
+        chain = idx
+      ))
+    })
+    relatedness_data <- do.call(rbind, chain_relatedness)
+    return(relatedness_data)
+  }
+}
+
+#' Summarize effective COI
+#'
+#' @details Summarize effective COI from MCMC. Returns
+#'  a dataframe that contains summaries of the posterior
+#'  distribution of effective COI for each biological sample.
+#'
+#' @importFrom stats quantile
+#' @import purrr
+#'
+#' @export
+#'
+#' @param mcmc_results Result of calling run_mcmc()
+#' @param lower_quantile The lower quantile of the posterior
+#'  distribution to return
+#' @param upper_quantile The upper quantile of the posterior
+#'  distribution to return
+#' @param merge_chains boolean indicating that all chain results should be merged
+summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
+  if (merge_chains) {
+    effective_coi <- lapply(1:length(mcmc_results$args$sample_ids), function(x) c())
+    for (chain in mcmc_results$chains) {
+      for (s in 1:length(chain$relatedness)) {
+        effective_coi[[s]] <- c(effective_coi[[s]], (1 - chain$relatedness[[s]]) * (chain$coi[[s]] - 1) + 1)
+      }
+    }
+    post_effective_coi_lower <- sapply(effective_coi, function(x) {
+      quantile(x, lower_quantile)
+    })
+    post_effective_coi_med <- sapply(effective_coi, function(x) {
+      quantile(x, .5)
+    })
+    post_effective_coi_upper <- sapply(effective_coi, function(x) {
+      quantile(x, upper_quantile)
+    })
+    post_effective_coi_mean <- sapply(effective_coi, mean)
+
+    return(data.frame(
+      sample_id = mcmc_results$args$sample_ids,
+      post_effective_coi_lower, post_effective_coi_med, post_effective_coi_upper, post_effective_coi_mean
+    ))
+  } else {
+    chain_effective_coi <- lapply(1:length(mcmc_results$chains), function(idx) {
+      chain <- mcmc_results$chains[[idx]]
+      r <- chain$relatedness
+      coi <- chain$coi
+
+      effective_coi <- purrr::map2(r, coi, ~ (1 - .x) * (.y - 1) + 1)
+
+      # effective_coi <- (1 - mcmc_results$chains[[idx]]$relatedness) * mcmc_results$chains[[idx]]$coi
+      post_effective_coi_lower <- sapply(effective_coi, function(x) {
+        quantile(x, lower_quantile)
+      })
+      post_effective_coi_med <- sapply(effective_coi, function(x) {
+        quantile(x, .5)
+      })
+      post_effective_coi_upper <- sapply(effective_coi, function(x) {
+        quantile(x, upper_quantile)
+      })
+      post_effective_coi_mean <- sapply(effective_coi, mean)
+
+      return(data.frame(
+        sample_id = mcmc_results$args$sample_ids,
+        post_effective_coi_lower, post_effective_coi_med, post_effective_coi_upper, post_effective_coi_mean,
+        chain = idx
+      ))
+    })
+    relatedness_data <- do.call(rbind, chain_effective_coi)
+    return(relatedness_data)
+  }
+}
+
+
+#' Calculate the geometric median of the posterior distribution of allele
+#' frequencies
+#'
+#' @details Returns the geometric median of the posterior distribution, defined
+#' as the point minimizing the L2 distance from each sampled point.
+#'
+#' @import purrr
+#' @import Gmedian
+#'
+#' @export
+#'
+#' @param mcmc_results Result of calling run_mcmc()
+#'
+#' @param merge_chains boolean indicating that all chain results should be merged
+calculate_median_allele_frequencies <- function(mcmc_results, merge_chains = TRUE) {
+  if (merge_chains) {
+    chains <- mcmc_results$chains
+    post_af <- purrr::transpose(purrr::map(chains, ~ .x$allele_freqs))
+    medians <- purrr::map(post_af, function(loc) {
+      samples <- purrr::flatten(loc)
+      total_samples <- length(samples)
+      num_alleles <- length(samples[[1]])
+      median <- Gmedian::Gmedian(
+        matrix(unlist(samples), nrow = total_samples, ncol = num_alleles, byrow = TRUE)
+      )
+      return(median)
+    })
+    names(medians) <- mcmc_results$args$loci
+  } else {
+    chains <- mcmc_results$chains
+    medians <- lapply(chains, function(chain) {
+      post_af <- chain$allele_freqs
+      res <- purrr::map(post_af, function(samples) {
+        total_samples <- length(samples)
+        num_alleles <- length(samples[[1]])
+        median <- Gmedian::Gmedian(
+          matrix(unlist(samples), nrow = total_samples, ncol = num_alleles, byrow = TRUE)
+        )
+        return(median)
+      })
+      names(res) <- mcmc_results$args$loci
+      return(res)
+    })
+  }
+  return(medians)
 }

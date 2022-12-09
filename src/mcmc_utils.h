@@ -6,7 +6,8 @@
 #include <Rcpp.h>
 #include <algorithm>
 
-#include <boost/math/distributions.hpp>
+// #include <boost/math/distributions.hpp>
+#include <boost/math/special_functions/binomial.hpp>
 #include <boost/random.hpp>
 #include <boost/range/algorithm.hpp>
 

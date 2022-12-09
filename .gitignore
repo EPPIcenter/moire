@@ -20,8 +20,6 @@ config.status
 
 configure
 
-src/Makevars
-
 .ccls-cache
 
 *.tmp
