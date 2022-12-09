@@ -13,9 +13,7 @@ knitr::opts_chunk$set(
   comment = "#>",
   fig.align = "center"
 )
-# 
-# do.call(knitr::read_chunk, list(path = "vignettes/mcmc_results.R"))
-do.call(knitr::read_chunk, list(path = system.file(c("data-raw", "mcmc_results.R"), package="moire")))
+# do.call(knitr::read_chunk, list(path = system.file(c("data-raw", "mcmc_results.R"), package="moire")))
 ```
 
 ```{r setup, message=FALSE}
@@ -29,11 +27,27 @@ library(forcats)
 ### Simulation and MCMC
 To demonstrate the usage of the package, we can simulate some genotyping data according to our model, allowing for some relatedness within samples in the population.
 ```{r load_settings, eval=TRUE, include=TRUE}
+set.seed(17325)
+mean_moi <- 5
+num_biological_samples <- 100
+epsilon_pos <- .01
+epsilon_neg <- .03
+# Generate the number of alleles at each locus
+allele_counts <- c(rep(5, 15), rep(10, 15), rep(25, 15), rep(50, 15))
 
+# We'll use flat alpha vectors for our draws from the Dirichlet
+locus_freq_alphas <- lapply(allele_counts, function(allele) rep(1, allele))
 ```
 
 ```{r simulate_data, eval=FALSE, include=TRUE}
-
+simulated_data <- moire::simulate_data(
+  mean_moi,
+  num_biological_samples,
+  epsilon_pos, epsilon_neg,
+  locus_freq_alphas = locus_freq_alphas,
+  internal_relatedness_alpha = .1,
+  internal_relatedness_beta = 1
+)
 ```
 
 ```{r load_simulated_data, eval=TRUE, include=FALSE}
@@ -43,6 +57,15 @@ simulated_data <- moire::simulated_data
 Now that we have our data, let's go ahead and run the MCMC. Here we run 20 parallel tempered chains with a temperature gradient ranging from $[.5, 1]$
 
 ```{r run_mcmc, eval=FALSE, include=TRUE}
+burnin <- 1e4
+num_samples <- 1e4
+pt_chains <- seq(1, .5, length.out = 20)
+
+mcmc_results <- moire::run_mcmc(
+  simulated_data,
+  verbose = T, burnin = burnin, samples_per_chain = num_samples,
+  pt_chains = pt_chains, pt_num_threads = length(pt_chains), thin = 10
+)
 ```
 
 ```{r run_mcmc_load, eval = TRUE, include = FALSE}
