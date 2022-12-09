@@ -69,6 +69,8 @@ run_mcmc <-
     mcmc_args$data <- data$data
     mcmc_args$sample_ids <- data$sample_ids
     mcmc_args$loci <- data$loci
+    args$sample_ids <- data$sample_ids
+    args$loci <- data$loci
 
     ## if is_missing == FALSE, then generate a default FALSE matrix
     suppressWarnings({
