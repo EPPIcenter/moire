@@ -73,8 +73,8 @@ run_mcmc <-
     ## if is_missing == FALSE, then generate a default FALSE matrix
     suppressWarnings({
       if (inherits(mcmc_args$is_missing, "logical") && mcmc_args$is_missing == FALSE) {
-        num_loci <- length(mcmc_args$data)
-        num_biological_samples <- length(mcmc_args$data[[1]])
+        num_loci <- length(mcmc_args$loci)
+        num_biological_samples <- length(mcmc_args$sample_ids)
         mcmc_args$is_missing <- matrix(
           FALSE,
           nrow = num_loci,
