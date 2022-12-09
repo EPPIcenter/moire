@@ -1,3 +1,6 @@
+# moire 3.0.0
+This is a major revision to moire, introducing a simplified API and functionality to infer within host relatedness and effective MOI. This release also introduces a parallel tempering based approach that leverages OpenMP, greatly improving mixing of the MCMC.
+
 # moire 2.2.0
 - Added support for running multiple chains simultaneously, then pooling output
 - fix bug with missing data

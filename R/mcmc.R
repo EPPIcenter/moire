@@ -83,7 +83,7 @@ run_mcmc <-
       }
     })
 
-    total_alleles <- lapply(data, function(x) {
+    total_alleles <- lapply(mcmc_args$data, function(x) {
       return(length(x[[1]]))
     })
 
