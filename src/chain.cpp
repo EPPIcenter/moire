@@ -250,7 +250,7 @@ void Chain::update_m_r(int iteration)
         m[i] = prop_m;
         calculate_coi_likelihood(i);
 
-        double adj_ratio = 0;
+        double adj_ratio = adj;
 
         for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
         {
@@ -268,8 +268,9 @@ void Chain::update_m_r(int iteration)
         double new_post = new_llik + new_prior;
 
         // Reject
-        if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
-                                        (new_post - get_posterior() + adj))
+        if (std::isnan(new_post) or
+            sampler.sample_log_mh_acceptance() >
+                (new_post - get_posterior() + adj_ratio))
         {
             r[i] = prev_r;
             m[i] = prev_m;
@@ -559,7 +560,7 @@ void Chain::update_samples(int iteration)
         bool valid_prop_eps_pos = prop_eps_pos < 1 && prop_eps_pos > 1e-32;
 
         double prop_r = 0;
-        double r_adj = 1;
+        double r_adj = 0;
         bool valid_prop_r = true;
         if (params.allow_relatedness)
         {
