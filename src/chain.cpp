@@ -919,8 +919,6 @@ void Chain::initialize_likelihood()
 {
     const int num_samples = genotyping_data.num_samples;
     const int num_loci = genotyping_data.num_loci;
-    const int row_idx;
-    const int idx;
 
     genotyping_llik_new.resize(num_samples * num_loci);
     genotyping_llik_old.resize(num_samples * num_loci);
@@ -933,10 +931,10 @@ void Chain::initialize_likelihood()
     coi_prior_old.resize(num_samples);
     for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
     {
-        row_idx = ii * num_loci;
+        const int row_idx = ii * num_loci;
         for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
         {
-            idx = row_idx + jj;
+            const int idx = row_idx + jj;
             calculate_genotype_likelihood(ii, jj);
             genotyping_llik_old[idx] = genotyping_llik_new[idx];
         }
