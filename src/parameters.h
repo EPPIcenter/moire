@@ -34,6 +34,10 @@ class Parameters
     double eps_neg_alpha;  // Alpha parameter prior on beta distribution
     double eps_neg_beta;   // Beta parameter prior on beta distribution
 
+    // Relatedness
+    double r_alpha;
+    double r_beta;
+
     // double allele_freq_var;
 
     // constructors

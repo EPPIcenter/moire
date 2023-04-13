@@ -26,4 +26,6 @@ Parameters::Parameters(const Rcpp::List &args)
     max_eps_neg = UtilFunctions::r_to_double(args["max_eps_neg"]);
     eps_neg_alpha = UtilFunctions::r_to_double(args["eps_neg_alpha"]);
     eps_neg_beta = UtilFunctions::r_to_double(args["eps_neg_beta"]);
+    r_alpha = UtilFunctions::r_to_double(args["r_alpha"]);
+    r_beta = UtilFunctions::r_to_double(args["r_beta"]);
 };

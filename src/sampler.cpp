@@ -149,6 +149,11 @@ double Sampler::get_epsilon_log_prior(double x, double alpha, double beta)
     return dbeta(x, alpha, beta, true);
 }
 
+double Sampler::get_relatedness_log_prior(double x, double alpha, double beta)
+{
+    return dbeta(x, alpha, beta, true);
+}
+
 double Sampler::sample_epsilon(double curr_epsilon, double variance)
 {
     norm_distr.param(

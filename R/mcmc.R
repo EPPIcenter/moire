@@ -24,6 +24,10 @@
 #'  Beta distribution for eps_neg prior
 #' @param eps_neg_beta Positive Numeric. Beta parameter in
 #'  Beta distribution for eps_neg prior
+#' @param r_alpha Positive Numeric. Alpha parameter in Beta
+#' distribution for relatedness prior
+#' @param r_beta Positive Numeric. Beta parameter in Beta
+#' distribution for relatedness prior
 #' @param mean_coi_shape shape parameter for gamma hyperprior on mean COI
 #' @param mean_coi_scale scale parameter for gamma hyperprior on mean COI
 #' @param max_eps_pos Numeric. Maximum allowed value for eps_pos
@@ -54,6 +58,8 @@ run_mcmc <-
            eps_pos_beta = 9.9,
            eps_neg_alpha = .1,
            eps_neg_beta = 9.9,
+           r_alpha = 1,
+           r_beta = 1,
            mean_coi_shape = .1,
            mean_coi_scale = 10,
            max_eps_pos = 2,

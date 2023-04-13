@@ -175,6 +175,8 @@ void Chain::update_r(int iteration)
     std::iota(indices.begin(), indices.end(), 0);
     sampler.shuffle_vec(indices);
 
+    // UtilFunctions::print_vector(relatedness_prior_new);
+
     for (const auto i : indices)
     {
         const auto prop_adj =
@@ -184,6 +186,7 @@ void Chain::update_r(int iteration)
 
         const double prev_r = r[i];
         r[i] = prop_r;
+        calculate_relatedness_likelihood(i);
 
         for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
         {
@@ -199,6 +202,7 @@ void Chain::update_r(int iteration)
                                         (new_post - get_posterior() + adj))
         {
             r[i] = prev_r;
+            restore_relatedness_likelihood(i);
             for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 restore_genotype_likelihood(i, jj);
@@ -208,6 +212,7 @@ void Chain::update_r(int iteration)
         {
             llik = new_llik;
             prior = new_prior;
+            save_relatedness_likelihood(i);
             for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 save_genotype_likelihood(i, jj);
@@ -247,6 +252,7 @@ void Chain::update_m_r(int iteration)
         const double prev_m = m[i];
         const double prev_r = r[i];
         r[i] = prop_r;
+        calculate_relatedness_likelihood(i);
         m[i] = prop_m;
         calculate_coi_likelihood(i);
 
@@ -273,6 +279,7 @@ void Chain::update_m_r(int iteration)
                 (new_post - get_posterior() + adj_ratio))
         {
             r[i] = prev_r;
+            restore_relatedness_likelihood(i);
             m[i] = prev_m;
             restore_coi_likelihood(i);
             for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
@@ -286,6 +293,7 @@ void Chain::update_m_r(int iteration)
         {
             llik = new_llik;
             prior = new_prior;
+            save_relatedness_likelihood(i);
             save_coi_likelihood(i);
             for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
@@ -593,6 +601,7 @@ void Chain::update_samples(int iteration)
 
             const double prev_r = r[ii];
             r[ii] = prop_r;
+            calculate_relatedness_likelihood(ii);
 
             const double prev_m = m[ii];
             m[ii] = prop_m;
@@ -623,6 +632,7 @@ void Chain::update_samples(int iteration)
                 prior = new_prior;
                 save_eps_neg_likelihood(ii);
                 save_eps_pos_likelihood(ii);
+                save_relatedness_likelihood(ii);
                 save_coi_likelihood(ii);
                 for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
@@ -640,6 +650,7 @@ void Chain::update_samples(int iteration)
                 r[ii] = prev_r;
                 restore_eps_neg_likelihood(ii);
                 restore_eps_pos_likelihood(ii);
+                restore_relatedness_likelihood(ii);
                 restore_coi_likelihood(ii);
                 for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
@@ -835,6 +846,8 @@ double Chain::calc_old_prior()
 
     prior_ += std::reduce(eps_neg_prior_old.begin(), eps_neg_prior_old.end());
     prior_ += std::reduce(eps_pos_prior_old.begin(), eps_pos_prior_old.end());
+    prior_ +=
+        std::reduce(relatedness_prior_old.begin(), relatedness_prior_old.end());
     prior_ += std::reduce(coi_prior_old.begin(), coi_prior_old.end());
     prior_ += mean_coi_hyper_prior_old;
 
@@ -859,6 +872,8 @@ double Chain::calc_new_prior()
 
     prior_ += std::reduce(eps_neg_prior_new.begin(), eps_neg_prior_new.end());
     prior_ += std::reduce(eps_pos_prior_new.begin(), eps_pos_prior_new.end());
+    prior_ +=
+        std::reduce(relatedness_prior_new.begin(), relatedness_prior_new.end());
     prior_ += std::reduce(coi_prior_new.begin(), coi_prior_new.end());
     prior_ += mean_coi_hyper_prior_new;
 
@@ -903,6 +918,12 @@ void Chain::calculate_eps_pos_likelihood(int sample_idx)
         eps_pos[sample_idx], params.eps_pos_alpha, params.eps_pos_beta);
 }
 
+void Chain::calculate_relatedness_likelihood(int sample_idx)
+{
+    relatedness_prior_new[sample_idx] = sampler.get_relatedness_log_prior(
+        r[sample_idx], params.r_alpha, params.r_beta);
+}
+
 void Chain::calculate_coi_likelihood(int sample_idx)
 {
     coi_prior_new[sample_idx] =
@@ -927,8 +948,11 @@ void Chain::initialize_likelihood()
     eps_neg_prior_old.resize(num_samples);
     eps_pos_prior_new.resize(num_samples);
     eps_pos_prior_old.resize(num_samples);
+    relatedness_prior_new.resize(num_samples);
+    relatedness_prior_old.resize(num_samples);
     coi_prior_new.resize(num_samples);
     coi_prior_old.resize(num_samples);
+
     for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
     {
         const int row_idx = ii * num_loci;
@@ -947,12 +971,17 @@ void Chain::initialize_likelihood()
         const double eps_pos_prior = sampler.get_epsilon_log_prior(
             eps_pos[ii], params.eps_pos_alpha, params.eps_pos_beta);
 
+        const double relatedness_prior = sampler.get_relatedness_log_prior(
+            r[ii], params.r_alpha, params.r_beta);
+
         const double coi_prior = sampler.get_coi_log_prior(m[ii], mean_coi);
 
         eps_neg_prior_old[ii] = eps_neg_prior;
         eps_neg_prior_new[ii] = eps_neg_prior;
         eps_pos_prior_old[ii] = eps_pos_prior;
         eps_pos_prior_new[ii] = eps_pos_prior;
+        relatedness_prior_old[ii] = relatedness_prior;
+        relatedness_prior_new[ii] = relatedness_prior;
         coi_prior_old[ii] = coi_prior;
         coi_prior_new[ii] = coi_prior;
     }
@@ -983,6 +1012,11 @@ void Chain::save_eps_pos_likelihood(int sample_idx)
     eps_pos_prior_old[sample_idx] = eps_pos_prior_new[sample_idx];
 }
 
+void Chain::save_relatedness_likelihood(int sample_idx)
+{
+    relatedness_prior_old[sample_idx] = relatedness_prior_new[sample_idx];
+}
+
 void Chain::save_coi_likelihood(int sample_idx)
 {
     coi_prior_old[sample_idx] = coi_prior_new[sample_idx];
@@ -1007,6 +1041,11 @@ void Chain::restore_eps_neg_likelihood(int sample_idx)
 void Chain::restore_eps_pos_likelihood(int sample_idx)
 {
     eps_pos_prior_new[sample_idx] = eps_pos_prior_old[sample_idx];
+}
+
+void Chain::restore_relatedness_likelihood(int sample_idx)
+{
+    relatedness_prior_new[sample_idx] = relatedness_prior_old[sample_idx];
 }
 
 void Chain::restore_coi_likelihood(int sample_idx)
