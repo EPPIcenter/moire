@@ -16,6 +16,8 @@ run_mcmc(
   eps_pos_beta = 9.9,
   eps_neg_alpha = 0.1,
   eps_neg_beta = 9.9,
+  r_alpha = 1,
+  r_beta = 1,
   mean_coi_shape = 0.1,
   mean_coi_scale = 10,
   max_eps_pos = 2,
@@ -61,6 +63,12 @@ Beta distribution for eps_neg prior}
 
 \item{eps_neg_beta}{Positive Numeric. Beta parameter in
 Beta distribution for eps_neg prior}
+
+\item{r_alpha}{Positive Numeric. Alpha parameter in Beta
+distribution for relatedness prior}
+
+\item{r_beta}{Positive Numeric. Beta parameter in Beta
+distribution for relatedness prior}
 
 \item{mean_coi_shape}{shape parameter for gamma hyperprior on mean COI}
 
