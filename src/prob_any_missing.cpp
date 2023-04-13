@@ -24,19 +24,26 @@ double probAnyMissingFunctor::operator()(const std::vector<double> &eventProbs,
         c.reset(totalEvents, i);
         while (!c.completed)
         {
-            eventCombo = 0.0;
+            base = 1.0;
             multCounter = numEvents;
 
-            for (const auto &j : c.curr)
+            for (const auto j : c.curr)
             {
-                eventCombo += eventProbs[j];
+                base -= eventProbs[j];
             }
 
             r = sign;
 
-            while (--multCounter >= 0)
+            // squared exponentiation
+            while (multCounter > 0)
             {
-                r *= (1 - eventCombo);
+                if (multCounter & 1)
+                {
+                    r *= base;
+                }
+
+                base = (base * base);
+                multCounter >>= 1;
             }
 
             prob += r;

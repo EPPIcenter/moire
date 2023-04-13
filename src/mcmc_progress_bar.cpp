@@ -26,7 +26,7 @@ void MCMCProgressBar::update(float progress)
     else
     {
         // stop and record time no more than every .1 seconds
-        if (clock_.time_since_event(events::UPDATE_CONSOLE).count() < 100)
+        if (clock_.time_since_event(events::UPDATE_CONSOLE).count() < 1000)
         {
             return;
         }
