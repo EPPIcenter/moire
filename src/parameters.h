@@ -17,6 +17,9 @@ class Parameters
     int samples;
     std::vector<double> pt_chains;
     int pt_num_threads;
+    bool adapt_temp;
+    int pre_adapt_steps;
+    int temp_adapt_steps;
 
     // Model Parameters
     // Complexity of Infection

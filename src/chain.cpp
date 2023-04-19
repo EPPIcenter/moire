@@ -138,7 +138,7 @@ void Chain::update_m(int iteration)
 
             const double new_llik = calc_new_likelihood();
             const double new_prior = calc_new_prior();
-            const double new_post = new_llik + new_prior;
+            const double new_post = new_llik * temp + new_prior;
             const double alpha = sampler.sample_log_mh_acceptance();
             if (!std::isnan(new_post) and
                 alpha <= (new_post - get_posterior() + adj_ratio))
@@ -195,7 +195,7 @@ void Chain::update_r(int iteration)
 
         const double new_llik = calc_new_likelihood();
         const double new_prior = calc_new_prior();
-        const double new_post = new_llik + new_prior;
+        const double new_post = new_llik * temp + new_prior;
 
         // Reject
         if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
@@ -271,7 +271,7 @@ void Chain::update_m_r(int iteration)
 
         const double new_llik = calc_new_likelihood();
         const double new_prior = calc_new_prior();
-        const double new_post = new_llik + new_prior;
+        const double new_post = new_llik * temp + new_prior;
 
         // Reject
         if (std::isnan(new_post) or
@@ -384,7 +384,7 @@ void Chain::update_p(int iteration)
 
             const double new_llik = calc_new_likelihood();
             const double new_prior = calc_new_prior();
-            const double new_post = new_llik + new_prior;
+            const double new_post = new_llik * temp + new_prior;
 
             const double acceptanceRatio = new_post - get_posterior() + logAdj;
 
@@ -447,7 +447,7 @@ void Chain::update_eps_pos(int iteration)
 
             const double new_llik = calc_new_likelihood();
             const double new_prior = calc_new_prior();
-            const double new_post = new_llik + new_prior;
+            const double new_post = new_llik * temp + new_prior;
 
             // Reject
             if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
@@ -512,7 +512,7 @@ void Chain::update_eps_neg(int iteration)
 
             const double new_llik = calc_new_likelihood();
             const double new_prior = calc_new_prior();
-            const double new_post = new_llik + new_prior;
+            const double new_post = new_llik * temp + new_prior;
 
             // Reject
             if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
@@ -622,7 +622,7 @@ void Chain::update_samples(int iteration)
 
             const double new_llik = calc_new_likelihood();
             const double new_prior = calc_new_prior();
-            const double new_post = new_llik + new_prior;
+            const double new_post = new_llik * temp + new_prior;
             const double alpha = sampler.sample_log_mh_acceptance();
 
             if (!std::isnan(new_post) and
@@ -679,7 +679,7 @@ void Chain::update_mean_coi(int iteration)
     }
     const double new_llik = calc_new_likelihood();
     const double new_prior = calc_new_prior();
-    const double new_post = new_llik + new_prior;
+    const double new_post = new_llik * temp + new_prior;
 
     const double alpha = sampler.sample_log_mh_acceptance();
     if (!std::isnan(new_post) and alpha <= (new_post - get_posterior() + adj))
@@ -863,7 +863,7 @@ double Chain::calc_new_likelihood()
         new_llik += ll;
     }
 
-    return new_llik * temp;
+    return new_llik;
 }
 
 double Chain::calc_new_prior()
@@ -882,7 +882,7 @@ double Chain::calc_new_prior()
 
 double Chain::get_llik() { return llik; }
 double Chain::get_prior() { return prior; }
-double Chain::get_posterior() { return llik + prior; }
+double Chain::get_posterior() { return llik * temp + prior; }
 
 void Chain::calculate_genotype_likelihood(int sample_idx, int locus_idx)
 {

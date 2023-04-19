@@ -3,6 +3,8 @@
 #include <cmath>
 #include <vector>
 
+// todo: try implementing this with simd intrinsics by precomputing the event
+// probabilities
 double probAnyMissingFunctor::operator()(const std::vector<double> &eventProbs,
                                          int numEvents)
 {

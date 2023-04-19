@@ -15,6 +15,9 @@ Parameters::Parameters(const Rcpp::List &args)
     samples = UtilFunctions::r_to_int(args["samples"]);
     pt_chains = UtilFunctions::r_to_vector_double(args["pt_chains"]);
     pt_num_threads = UtilFunctions::r_to_int(args["pt_num_threads"]);
+    adapt_temp = UtilFunctions::r_to_bool(args["adapt_temp"]);
+    pre_adapt_steps = UtilFunctions::r_to_int(args["pre_adapt_steps"]);
+    temp_adapt_steps = UtilFunctions::r_to_int(args["temp_adapt_steps"]);
 
     // Model
     max_coi = UtilFunctions::r_to_int(args["max_coi"]);
