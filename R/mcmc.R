@@ -74,7 +74,7 @@ run_mcmc <-
            mean_coi_scale = 10,
            max_eps_pos = 2,
            max_eps_neg = 2,
-           max_coi = 20,
+           max_coi = 40,
            num_chains = 1,
            num_cores = 1,
            pt_chains = 1,
