@@ -1,6 +1,6 @@
 Package: moire
 Title: Multiplicity of Infection and Allele Frequency Recovery from Noisy Polyallelic Genetics Data
-Version: 3.0.0
+Version: 3.1.0
 Authors@R: 
     person(given = "Maxwell",
            family = "Murphy",
