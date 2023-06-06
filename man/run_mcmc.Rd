@@ -16,6 +16,8 @@ run_mcmc(
   eps_pos_beta = 9.9,
   eps_neg_alpha = 0.1,
   eps_neg_beta = 9.9,
+  r_alpha = 1,
+  r_beta = 1,
   mean_coi_shape = 0.1,
   mean_coi_scale = 10,
   max_eps_pos = 2,
@@ -25,7 +27,10 @@ run_mcmc(
   num_cores = 1,
   pt_chains = 1,
   pt_grad = 1,
-  pt_num_threads = 1
+  pt_num_threads = 1,
+  adapt_temp = FALSE,
+  pre_adapt_steps = 50,
+  temp_adapt_steps = 100
 )
 }
 \arguments{
@@ -62,6 +67,12 @@ Beta distribution for eps_neg prior}
 \item{eps_neg_beta}{Positive Numeric. Beta parameter in
 Beta distribution for eps_neg prior}
 
+\item{r_alpha}{Positive Numeric. Alpha parameter in Beta
+distribution for relatedness prior}
+
+\item{r_beta}{Positive Numeric. Beta parameter in Beta
+distribution for relatedness prior}
+
 \item{mean_coi_shape}{shape parameter for gamma hyperprior on mean COI}
 
 \item{mean_coi_scale}{scale parameter for gamma hyperprior on mean COI}
@@ -83,12 +94,25 @@ vector containing the temperatures that should be used for parallel tempering.}
 
 \item{pt_grad}{Power to raise parallel tempering chains to. A value of 1
 results in evenly distributed temperatures between [0,1], below 1 will bias
-towards 1 and above 1 will bias towards 0.}
+towards 1 and above 1 will bias towards 0. Only used if pt_chains is a
+single value (i.e. not a vector).}
 
 \item{pt_num_threads}{Total number of OMP parallel threads to be used to
 process parallel tempered chains
 num_cores * pt_num_threads should not exceed the number of cores available
 on your system.}
+
+\item{adapt_temp}{Logical indicating whether or not to adapt the parallel
+tempering temperatures. If TRUE, the temperatures will be adapted during the
+\code{burnin} period, starting after \code{pre_adapt_steps} steps. The adaptation will
+occur every \code{temp_adapt_steps} steps until burnin is complete. The range of
+temperatures will remain the same as specified by \code{pt_chains}.}
+
+\item{pre_adapt_steps}{Number of steps to take before starting to adapt the
+parallel tempering temperatures. Only used if \code{adapt_temp} is TRUE.}
+
+\item{temp_adapt_steps}{Number of steps to take between temperature
+adaptation steps. Only used if \code{adapt_temp} is TRUE.}
 }
 \description{
 Sample from the target distribution using MCMC

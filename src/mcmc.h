@@ -36,12 +36,16 @@ class MCMC
 
     std::vector<size_t> swap_indices{};
     std::vector<size_t> swap_acceptances{};
+    std::vector<double> swap_barriers{};
     std::vector<double> temp_gradient{};
     size_t num_swaps = 0;
+    bool even_swap = true;
 
     void burnin(int step);
     void sample(int step);
-    void swap_chains();
+    void swap_chains(int step, bool burnin = false);
+    void finalize();
+    void adapt_temp();
     double get_llik();
     double get_prior();
     double get_posterior();

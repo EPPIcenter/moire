@@ -22,13 +22,16 @@ Rcpp::List run_mcmc(Rcpp::List args)
 
     if (params.verbose && !params.simple_verbose)
     {
-        UtilFunctions::print("Starting MCMC -- Chain", params.chain_number);
+        UtilFunctions::print("-- Starting MCMC --");
         UtilFunctions::print("Total Burnin:", params.burnin);
         UtilFunctions::print("Total Samples:", params.samples);
         UtilFunctions::print("Thinning:", params.thin);
-        UtilFunctions::print("Allow Relatedness:", params.allow_relatedness);
-        UtilFunctions::print("Parallel Tempering:");
-        UtilFunctions::print_vector(params.pt_chains);
+        UtilFunctions::print("Allow Relatedness:",
+                             params.allow_relatedness ? "Yes" : "No");
+        UtilFunctions::print("Parallel Tempering:",
+                             params.pt_chains.size() > 1 ? "Yes" : "No");
+        UtilFunctions::print("Adapt Temperature:",
+                             params.adapt_temp ? "Yes" : "No");
     }
 
     MCMC mcmc(genotyping_data, params);
@@ -73,6 +76,8 @@ Rcpp::List run_mcmc(Rcpp::List args)
             p.increment();
         }
     }
+
+    mcmc.finalize();
 
     Rcpp::List acceptance_rates;
     Rcpp::List sampling_variances;
@@ -132,6 +137,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res.push_back(Rcpp::wrap(mcmc.genotyping_data.observed_coi));
     res.push_back(Rcpp::wrap(mcmc.swap_store));
     res.push_back(Rcpp::wrap(mcmc.swap_acceptances));
+    res.push_back(Rcpp::wrap(mcmc.swap_barriers));
     res.push_back(Rcpp::wrap(mcmc.temp_gradient));
     res.push_back(Rcpp::wrap(acceptance_rates));
     res.push_back(Rcpp::wrap(sampling_variances));
@@ -152,6 +158,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("observed_coi");
     res_names.push_back("swap_store");
     res_names.push_back("swap_acceptances");
+    res_names.push_back("swap_barriers");
     res_names.push_back("temp_gradient");
     res_names.push_back("acceptance_rates");
     res_names.push_back("sampling_variances");

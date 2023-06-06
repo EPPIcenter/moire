@@ -11,7 +11,7 @@ struct probAnyMissingFunctor
 
     double operator()(const std::vector<double> &eventProbs, int numEvents);
 
-    double eventCombo{};
+    double base{};
     CombinationIndicesGenerator c;
 };
 

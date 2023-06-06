@@ -17,6 +17,9 @@ class Parameters
     int samples;
     std::vector<double> pt_chains;
     int pt_num_threads;
+    bool adapt_temp;
+    int pre_adapt_steps;
+    int temp_adapt_steps;
 
     // Model Parameters
     // Complexity of Infection
@@ -33,6 +36,10 @@ class Parameters
     double max_eps_neg;    // Max allowed value
     double eps_neg_alpha;  // Alpha parameter prior on beta distribution
     double eps_neg_beta;   // Beta parameter prior on beta distribution
+
+    // Relatedness
+    double r_alpha;
+    double r_beta;
 
     // double allele_freq_var;
 

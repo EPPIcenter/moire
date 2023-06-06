@@ -62,18 +62,21 @@ class Chain
     void calculate_eps_neg_likelihood(int sample_idx);
     void calculate_eps_pos_likelihood(int sample_idx);
     void calculate_coi_likelihood(int sample_idx);
+    void calculate_relatedness_likelihood(int sample_idx);
     void calculate_mean_coi_likelihood();
 
     void save_genotype_likelihood(int sample_idx, int locus_idx);
     void save_eps_neg_likelihood(int sample_idx);
     void save_eps_pos_likelihood(int sample_idx);
     void save_coi_likelihood(int sample_idx);
+    void save_relatedness_likelihood(int sample_idx);
     void save_mean_coi_likelihood();
 
     void restore_genotype_likelihood(int sample_idx, int locus_idx);
     void restore_eps_neg_likelihood(int sample_idx);
     void restore_eps_pos_likelihood(int sample_idx);
     void restore_coi_likelihood(int sample_idx);
+    void restore_relatedness_likelihood(int sample_idx);
     void restore_mean_coi_likelihood();
 
    public:
@@ -86,6 +89,8 @@ class Chain
     std::vector<double> eps_pos_prior_new{};
     std::vector<double> coi_prior_new{};
     std::vector<double> coi_prior_old{};
+    std::vector<double> relatedness_prior_new{};
+    std::vector<double> relatedness_prior_old{};
 
     double llik;
     double prior;

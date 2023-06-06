@@ -391,6 +391,15 @@ summarize_he <- function(mcmc_results,
   return(res)
 }
 
+names_or_idxs <- function(vec) {
+  if (is.null(names(vec))) {
+    return(sapply(seq(1, length(vec)), as.character))
+  } else {
+    return(names(vec))
+  }
+}
+
+
 #' Summarize allele frequencies
 #'
 #' @details Summarize individual allele frequencies from the posterior
@@ -416,7 +425,7 @@ summarize_allele_freqs <- function(mcmc_results,
     purrr::map2(
       mcmc_results$args$data$data,
       seq_along(mcmc_results$args$data$data),
-      ~ data.frame(locus = mcmc_results$args$data$loci[.y], allele = names(.x[[1]]))
+      ~ data.frame(locus = mcmc_results$args$data$loci[.y], allele = names_or_idxs(.x[[1]]))
     )
   )
 

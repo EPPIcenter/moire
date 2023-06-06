@@ -43,6 +43,7 @@ class Sampler
     boost::random::mt19937 r;
 
     double get_epsilon_log_prior(double x, double alpha, double beta);
+    double get_relatedness_log_prior(double x, double alpha, double beta);
     double get_coi_log_prior(int coi, double mean);
     double get_coi_mean_log_hyper_prior(double mean, double shape,
                                         double scale);

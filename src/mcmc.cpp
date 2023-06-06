@@ -1,5 +1,6 @@
 #include "mcmc.h"
 
+#include "include/spline/src/spline.h"
 #include "mcmc_utils.h"
 
 #include <Rcpp.h>
@@ -27,6 +28,7 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     eps_pos_store.resize(genotyping_data.num_samples);
     omp_set_num_threads(params.pt_num_threads);
     swap_acceptances.resize(params.pt_chains.size() - 1, 0);
+    swap_barriers.resize(params.pt_chains.size() - 1, 0.0);
     swap_indices.resize(params.pt_chains.size(), 0);
 
     for (const auto temp : params.pt_chains)
@@ -73,43 +75,125 @@ void MCMC::burnin(int step)
     llik_burnin.push_back(get_llik());
     prior_burnin.push_back(get_prior());
     posterior_burnin.push_back(get_posterior());
-    swap_chains();
+
+    if (chains.size() > 1)
+    {
+        swap_chains(step, true);
+        if (num_swaps % params.temp_adapt_steps == 0 and
+            step > params.pre_adapt_steps and params.adapt_temp)
+        {
+            adapt_temp();
+        }
+    }
 }
 
-void MCMC::swap_chains()
+void MCMC::swap_chains(int step, bool burnin)
 {
-    for (size_t i = 0; i < chains.size() - 1; i += 1)
+    for (size_t i = even_swap; i < chains.size() - 1; i += 2)
     {
         auto &chain_a = chains[swap_indices[i]];
         auto &chain_b = chains[swap_indices[i + 1]];
 
-        double curr_llik_a = chain_a.get_llik();
+        double V_a = -chain_a.get_llik();
         double temp_a = chain_a.get_temp();
 
-        double curr_llik_b = chain_b.get_llik();
+        double V_b = -chain_b.get_llik();
         double temp_b = chain_b.get_temp();
 
-        double prop_llik_a = curr_llik_a / temp_a * temp_b;
-        double prop_llik_b = curr_llik_b / temp_b * temp_a;
+        long double acceptanceRatio = (temp_b - temp_a) * (V_b - V_a);
 
-        long double acceptanceRatio =
-            prop_llik_a + prop_llik_b - curr_llik_a - curr_llik_b;
+        double acceptanceRate =
+            std::min(1.0, (double)std::exp(acceptanceRatio));
+
+        if (burnin and step > params.pre_adapt_steps)
+        {
+            swap_barriers[i] += 1.0 - acceptanceRate;
+        }
+
         if ((acceptanceRatio > 0 || log(R::runif(0, 1)) < acceptanceRatio) and
             !std::isnan(acceptanceRatio))
         {
             std::swap(swap_indices[i], swap_indices[i + 1]);
             chain_a.set_temp(temp_b);
-            chain_a.set_llik(prop_llik_a);
             chain_b.set_temp(temp_a);
-            chain_b.set_llik(prop_llik_b);
-            swap_acceptances[i]++;
+
+            if (!burnin)
+            {
+                swap_acceptances[i]++;
+            }
         }
     }
     swap_store.push_back(swap_indices[0]);
-    num_swaps++;
+
+    if (burnin and step > params.pre_adapt_steps)
+    {
+        num_swaps++;
+    }
+    even_swap = !even_swap;
 }
 
 int MCMC::get_hot_chain() { return swap_indices[0]; }
+
+void MCMC::adapt_temp()
+{
+    // swap rate starts at t = 1 so we need to reverse the swap rate
+    std::vector<double> reversed_swap_barriers{swap_barriers.rbegin(),
+                                               swap_barriers.rend()};
+
+    // cumulative swap rate starts from t = 0
+    std::vector<double> cumulative_swap_rate =
+        std::vector<double>(params.pt_chains.size(), 0);
+
+    cumulative_swap_rate[0] = 0.0;
+    for (size_t i = 1; i < cumulative_swap_rate.size(); i++)
+    {
+        cumulative_swap_rate[i] = cumulative_swap_rate[i - 1] +
+                                  reversed_swap_barriers[i - 1] / num_swaps;
+    }
+
+    // gradient starts at t = 1 so we need to reverse the gradient
+    std::vector<double> reversed_gradient{temp_gradient.rbegin(),
+                                          temp_gradient.rend()};
+
+    tk::spline s(reversed_gradient, cumulative_swap_rate, tk::spline::cspline,
+                 true);
+
+    // target swap rates
+    std::vector<double> cumulative_swap_grid =
+        std::vector<double>(cumulative_swap_rate.size());
+    cumulative_swap_grid[0] = cumulative_swap_rate[0];
+    cumulative_swap_grid[cumulative_swap_grid.size() - 1] =
+        cumulative_swap_rate.back();
+    double step = (cumulative_swap_rate.back() - cumulative_swap_rate[0]) /
+                  (cumulative_swap_grid.size() - 1);
+
+    for (size_t i = 1; i < cumulative_swap_grid.size() - 1; i++)
+    {
+        cumulative_swap_grid[i] = cumulative_swap_grid[0] + i * step;
+    }
+
+    // start the gradient at t = 0 and end at t = 1
+    std::vector<double> new_temp_gradient(temp_gradient.size());
+    new_temp_gradient[0] = temp_gradient.back();
+    new_temp_gradient[temp_gradient.size() - 1] = 1.0;
+    for (size_t i = 1; i < temp_gradient.size() - 1; i++)
+    {
+        new_temp_gradient[i] = s.solve(cumulative_swap_grid[i])[0];
+    }
+
+    // reverse the gradient to start at t = 1 and end at t = 0
+    std::reverse(new_temp_gradient.begin(), new_temp_gradient.end());
+
+    // update the temperatures using the new gradient
+    for (size_t i = 1; i < chains.size() - 1; i++)
+    {
+        chains[swap_indices[i]].set_temp(new_temp_gradient[i]);
+    }
+
+    temp_gradient = new_temp_gradient;
+    num_swaps = 0;
+    std::fill(swap_barriers.begin(), swap_barriers.end(), 0);
+}
 
 void MCMC::sample(int step)
 {
@@ -151,7 +235,15 @@ void MCMC::sample(int step)
     prior_sample.push_back(get_prior());
     posterior_sample.push_back(get_posterior());
 
-    swap_chains();
+    swap_chains(step, false);
+}
+
+void MCMC::finalize()
+{
+    for (size_t i = 0; i < swap_barriers.size(); ++i)
+    {
+        swap_barriers[i] /= num_swaps;
+    }
 }
 
 double MCMC::get_llik() { return chains[swap_indices[0]].get_llik(); }
