@@ -30,7 +30,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
                              params.allow_relatedness ? "Yes" : "No");
         UtilFunctions::print("Parallel Tempering:",
                              params.pt_chains.size() > 1 ? "Yes" : "No");
-        UtilFunctions::print("Adapter Temperature:",
+        UtilFunctions::print("Adapt Temperature:",
                              params.adapt_temp ? "Yes" : "No");
     }
 

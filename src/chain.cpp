@@ -666,7 +666,7 @@ void Chain::update_samples(int iteration)
 void Chain::update_mean_coi(int iteration)
 {
     const auto prop_adj =
-        sampler.sample_constrained(mean_coi, mean_coi_var, 0, 40);
+        sampler.sample_constrained(mean_coi, mean_coi_var, 0, params.max_coi);
     const double prop_mean_coi = std::get<0>(prop_adj);
     const double adj = std::get<1>(prop_adj);
 
@@ -752,7 +752,11 @@ double Chain::calc_transmission_process(
     {
         // Calculate the probability of `i` related strains being present, where
         // there are at most coi - total_alleles related strains
+
+        // prob of i related strains
         const double pr = R::dbinom(i, coi - 1, relatedness, true);
+
+        // prob of coi - i unrelated strains
         const double i_res = std::log(1 - probAnyMissing_(prVec_, coi - i)) +
                              std::log(constrained_set_total_prob) * (coi - i);
         res.push_back(pr + i_res);
