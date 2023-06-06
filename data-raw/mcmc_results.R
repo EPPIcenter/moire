@@ -29,7 +29,8 @@ pt_chains <- seq(1, 0, length.out = 80)
 mcmc_results <- moire::run_mcmc(
   simulated_data,
   verbose = T, burnin = burnin, samples_per_chain = num_samples,
-  pt_chains = pt_chains, pt_num_threads = 20, thin = 10, r_alpha = 1, r_beta = 10
+  pt_chains = pt_chains, pt_num_threads = 20, thin = 10, r_alpha = 1, r_beta = 10,
+  adapt_temp = TRUE
 )
 
 ## ----save_results
