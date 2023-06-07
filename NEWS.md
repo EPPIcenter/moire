@@ -1,8 +1,9 @@
 # moire 3.1.0
 This is a minor revision that introduces new functionality to improve mixing of the MCMC. This also updates the required version of R to 4.0.0. and C++ to C++17.
-    - Added option to specify prior on within-host relatedness
-    - Added adaptive approach to tune temperature gradient used during parallel tempering
-    - Various bugfixes and improvements
+
+- Added option to specify prior on within-host relatedness
+- Added adaptive approach to tune temperature gradient used during parallel tempering
+- Various bugfixes and improvements
 
 # moire 3.0.0
 This is a major revision to moire, introducing a simplified API and functionality to infer within host relatedness and effective MOI. This release also introduces a parallel tempering based approach that leverages OpenMP, greatly improving mixing of the MCMC.
