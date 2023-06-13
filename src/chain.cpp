@@ -95,7 +95,7 @@ void Chain::initialize_r()
     {
         for (size_t i = 0; i < genotyping_data.num_samples; ++i)
         {
-            r.push_back(sampler.sample_unif());
+            r.push_back(sampler.sample_unif() * .99);
         }
     }
     else
@@ -180,7 +180,7 @@ void Chain::update_r(int iteration)
     for (const auto i : indices)
     {
         const auto prop_adj =
-            sampler.sample_constrained(r[i], r_var[i], min_sampled, 1);
+            sampler.sample_constrained(r[i], r_var[i], min_sampled, .99);
         const double prop_r = std::get<0>(prop_adj);
         const double adj = std::get<1>(prop_adj);
 
@@ -241,7 +241,7 @@ void Chain::update_m_r(int iteration)
     for (const auto i : indices)
     {
         const auto prop_adj =
-            sampler.sample_constrained(r[i], m_r_var[i], min_sampled, 1);
+            sampler.sample_constrained(r[i], m_r_var[i], min_sampled, .99);
         const double prop_r = std::get<0>(prop_adj);
         const double adj = std::get<1>(prop_adj);
 
@@ -579,7 +579,7 @@ void Chain::update_samples(int iteration)
         if (params.allow_relatedness)
         {
             auto r_prop_adj =
-                sampler.sample_constrained(r[ii], r_var[ii], min_sampled, 1);
+                sampler.sample_constrained(r[ii], r_var[ii], min_sampled, .99);
             prop_r = std::get<0>(r_prop_adj);
             r_adj = std::get<1>(r_prop_adj);
             valid_prop_r = prop_r < 1 && prop_r > 1e-32;
@@ -666,7 +666,7 @@ void Chain::update_samples(int iteration)
 void Chain::update_mean_coi(int iteration)
 {
     const auto prop_adj =
-        sampler.sample_constrained(mean_coi, mean_coi_var, 0, params.max_coi);
+        sampler.sample_constrained(mean_coi, mean_coi_var, 1e-5, params.max_coi);
     const double prop_mean_coi = std::get<0>(prop_adj);
     const double adj = std::get<1>(prop_adj);
 
