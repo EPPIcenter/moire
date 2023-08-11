@@ -523,9 +523,12 @@ summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_qua
     relatedness <- lapply(1:length(mcmc_results$args$data$sample_ids), function(x) c())
     for (chain in mcmc_results$chains) {
       for (s in 1:length(chain$relatedness)) {
-        relatedness[[s]] <- c(relatedness[[s]], chain$relatedness[[s]])
+        # relatedness is deterministically set to 0 for coi == 1
+        masked_rel <- chain$relatedness[[s]] * (chain$coi[[s]] > 1)
+        relatedness[[s]] <- c(relatedness[[s]], masked_rel)
       }
     }
+
     post_relatedness_lower <- sapply(relatedness, function(x) {
       quantile(x, lower_quantile)
     })
@@ -543,7 +546,8 @@ summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_qua
     ))
   } else {
     chain_relatedness <- lapply(1:length(mcmc_results$chains), function(idx) {
-      relatedness <- mcmc_results$chains[[idx]]$relatedness
+      coi <- mcmc_results$chains[[idx]]$coi
+      relatedness <- mcmc_results$chains[[idx]]$relatedness * (coi > 1)
       post_relatedness_lower <- sapply(relatedness, function(x) {
         quantile(x, lower_quantile)
       })

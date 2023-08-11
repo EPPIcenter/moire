@@ -139,23 +139,28 @@ simulate_observed_genotype <- function(true_genotypes,
 #' @param num_samples Total number of biological samples to simulate
 #' @param epsilon_pos False positive rate, expected number of false positives
 #' @param epsilon_neg False negative rate, expected number of false negatives
+#' @param sample_cois List of sample COIs to be used instead of simulating
 #' @param allele_freqs List of allele frequencies to be used instead of
 #'  simulating allele frequencies
 #' @param internal_relatedness_alpha alpha parameter of beta distribution controlling
 #'  the random relatedness draws for each sample
 #' @param internal_relatedness_beta beta parameter of beta distribution controlling
 #'  the random relatedness draws for each sample
+#' @param internal_relatedness List of internal relatedness values to be used 
+#'  instead of simulating
 #' @param missingness probability of data being missing
 #' @return Simulated data that is structured to go into the MCMC sampler
 #'
-simulate_data <- function(mean_coi,
+simulate_data <- function(mean_coi = NULL,
                           num_samples,
                           epsilon_pos,
                           epsilon_neg,
+                          sample_cois = NULL,
                           locus_freq_alphas = NULL,
                           allele_freqs = NULL,
                           internal_relatedness_alpha = 0,
                           internal_relatedness_beta = 1,
+                          internal_relatedness = NULL,
                           missingness = 0) {
   if (is.null(allele_freqs)) {
     allele_freqs <- list()
@@ -169,9 +174,13 @@ simulate_data <- function(mean_coi,
     names(allele_freqs) <- allele_freq_names
   }
 
+  if (is.null(sample_cois)) {
+    sample_cois <- simulate_sample_coi(num_samples, mean_coi)
+  }
 
-  sample_cois <- simulate_sample_coi(num_samples, mean_coi)
-  internal_relatedness <- rbeta(num_samples, internal_relatedness_alpha, internal_relatedness_beta)
+  if (is.null(internal_relatedness)) {
+    internal_relatedness <- rbeta(num_samples, internal_relatedness_alpha, internal_relatedness_beta)
+  }
 
   true_sample_genotypes <- lapply(allele_freqs, function(dist) {
     simulate_sample_genotype(sample_cois, dist, internal_relatedness)
@@ -198,13 +207,6 @@ simulate_data <- function(mean_coi,
     sample_cois = sample_cois,
     sample_relatedness = internal_relatedness,
     true_genotypes = true_sample_genotypes,
-    input = list(
-      mean_coi = mean_coi,
-      locus_freq_alphas = locus_freq_alphas,
-      allele_freqs = allele_freqs,
-      num_samples = num_samples,
-      epsilon_pos = epsilon_pos,
-      epsilon_neg = epsilon_neg
-    )
+    input = as.list(environment())
   )
 }
