@@ -122,10 +122,13 @@ summarize_coi <- function(mcmc_results, lower_quantile = .025,
         quantile(x, upper_quantile)
       })
       post_coi_mean <- sapply(cois, mean)
+      prob_polyclonal <- sapply(cois, function(x) {
+        mean(x > 1)
+      })
       return(data.frame(
         sample_id = mcmc_results$args$data$sample_ids,
         post_coi_lower, post_coi_med, post_coi_upper, post_coi_mean,
-        naive_coi, offset_naive_coi
+        naive_coi, offset_naive_coi, prob_polyclonal
       ))
     }
   } else {
@@ -142,10 +145,13 @@ summarize_coi <- function(mcmc_results, lower_quantile = .025,
         quantile(x, upper_quantile)
       })
       post_coi_mean <- sapply(cois, mean)
+      prob_polyclonal <- sapply(cois, function(x) {
+        mean(x > 1)
+      })
       return(data.frame(
         sample_id = mcmc_results$args$data$sample_ids,
         post_coi_lower, post_coi_med, post_coi_upper, post_coi_mean, chain = idx,
-        naive_coi, offset_naive_coi
+        naive_coi, offset_naive_coi, prob_polyclonal
       ))
     })
     coi_data <- do.call(rbind, chain_cois)
@@ -523,22 +529,24 @@ summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_qua
     relatedness <- lapply(1:length(mcmc_results$args$data$sample_ids), function(x) c())
     for (chain in mcmc_results$chains) {
       for (s in 1:length(chain$relatedness)) {
-        # relatedness is deterministically set to 0 for coi == 1
-        masked_rel <- chain$relatedness[[s]] * (chain$coi[[s]] > 1)
-        relatedness[[s]] <- c(relatedness[[s]], masked_rel)
+        # Only include relatedness values for samples with COI > 1
+        mask <- chain$coi[[s]] > 1
+        rel <- chain$relatedness[[s]]
+        rel[!mask] <- NA
+        relatedness[[s]] <- c(relatedness[[s]], rel)
       }
     }
 
     post_relatedness_lower <- sapply(relatedness, function(x) {
-      quantile(x, lower_quantile)
+      quantile(x, lower_quantile, na.rm = TRUE)
     })
     post_relatedness_med <- sapply(relatedness, function(x) {
-      quantile(x, .5)
+      quantile(x, .5, na.rm = TRUE)
     })
     post_relatedness_upper <- sapply(relatedness, function(x) {
-      quantile(x, upper_quantile)
+      quantile(x, upper_quantile, na.rm = TRUE)
     })
-    post_relatedness_mean <- sapply(relatedness, mean)
+    post_relatedness_mean <- sapply(relatedness, function(x) mean(x, na.rm = TRUE))
 
     return(data.frame(
       sample_id = mcmc_results$args$data$sample_ids,
@@ -548,14 +556,15 @@ summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_qua
     chain_relatedness <- lapply(1:length(mcmc_results$chains), function(idx) {
       coi <- mcmc_results$chains[[idx]]$coi
       relatedness <- mcmc_results$chains[[idx]]$relatedness * (coi > 1)
+      relatedness[coi <= 1] <- NA
       post_relatedness_lower <- sapply(relatedness, function(x) {
-        quantile(x, lower_quantile)
+        quantile(x, lower_quantile, na.rm = TRUE)
       })
       post_relatedness_med <- sapply(relatedness, function(x) {
-        quantile(x, .5)
+        quantile(x, .5, na.rm = TRUE)
       })
       post_relatedness_upper <- sapply(relatedness, function(x) {
-        quantile(x, upper_quantile)
+        quantile(x, upper_quantile, na.rm = TRUE)
       })
       post_relatedness_mean <- sapply(relatedness, mean)
 
@@ -569,6 +578,7 @@ summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_qua
     return(relatedness_data)
   }
 }
+
 
 #' Summarize effective COI
 #'

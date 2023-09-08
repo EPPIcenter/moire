@@ -5,14 +5,16 @@
 \title{Simulate data generated according to the assumed model}
 \usage{
 simulate_data(
-  mean_coi,
+  mean_coi = NULL,
   num_samples,
   epsilon_pos,
   epsilon_neg,
+  sample_cois = NULL,
   locus_freq_alphas = NULL,
   allele_freqs = NULL,
   internal_relatedness_alpha = 0,
   internal_relatedness_beta = 1,
+  internal_relatedness = NULL,
   missingness = 0
 )
 }
@@ -25,6 +27,8 @@ simulate_data(
 
 \item{epsilon_neg}{False negative rate, expected number of false negatives}
 
+\item{sample_cois}{List of sample COIs to be used instead of simulating}
+
 \item{locus_freq_alphas}{List of alpha vectors to be used to simulate
 from a Dirichlet distribution to generate allele frequencies.}
 
@@ -36,6 +40,9 @@ the random relatedness draws for each sample}
 
 \item{internal_relatedness_beta}{beta parameter of beta distribution controlling
 the random relatedness draws for each sample}
+
+\item{internal_relatedness}{List of internal relatedness values to be used
+instead of simulating}
 
 \item{missingness}{probability of data being missing}
 }

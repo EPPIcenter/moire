@@ -146,7 +146,7 @@ simulate_observed_genotype <- function(true_genotypes,
 #'  the random relatedness draws for each sample
 #' @param internal_relatedness_beta beta parameter of beta distribution controlling
 #'  the random relatedness draws for each sample
-#' @param internal_relatedness List of internal relatedness values to be used 
+#' @param internal_relatedness List of internal relatedness values to be used
 #'  instead of simulating
 #' @param missingness probability of data being missing
 #' @return Simulated data that is structured to go into the MCMC sampler
