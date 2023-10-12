@@ -25,7 +25,7 @@
     <loc>https://EPPIcenter.github.io/moire/reference/calculate_he.html</loc>
   </url>
   <url>
-    <loc>https://EPPIcenter.github.io/moire/reference/calculate_median_allele_frequencies.html</loc>
+    <loc>https://EPPIcenter.github.io/moire/reference/calculate_med_allele_freqs.html</loc>
   </url>
   <url>
     <loc>https://EPPIcenter.github.io/moire/reference/calculate_naive_allele_frequencies.html</loc>
@@ -47,6 +47,9 @@
   </url>
   <url>
     <loc>https://EPPIcenter.github.io/moire/reference/mcmc_results.html</loc>
+  </url>
+  <url>
+    <loc>https://EPPIcenter.github.io/moire/reference/plot_chain_swaps.html</loc>
   </url>
   <url>
     <loc>https://EPPIcenter.github.io/moire/reference/rdirichlet.html</loc>
