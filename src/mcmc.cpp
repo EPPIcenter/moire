@@ -110,7 +110,9 @@ void MCMC::swap_chains(int step, bool burnin)
             swap_barriers[i] += 1.0 - acceptanceRate;
         }
 
-        if ((acceptanceRatio > 0 || log(R::runif(0, 1)) < acceptanceRatio) and
+        double u = log(R::runif(0, 1));
+
+        if ((acceptanceRatio > 0 || u < acceptanceRatio) and
             !std::isnan(acceptanceRatio))
         {
             std::swap(swap_indices[i], swap_indices[i + 1]);

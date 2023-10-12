@@ -108,3 +108,34 @@ load_delimited_data <- function(data, sep = ";", warn_uninformative = TRUE) {
     dplyr::filter(!is.na(.data$allele))
   return(load_long_form_data(df))
 }
+
+
+#' Plot chain swap acceptance rates
+#'
+#' @details Plot the swap acceptance rates for each chain.
+#' The x-axis is the temperature, and the y-axis is the swap acceptance rate.
+#' The dashed lines indicate the temperatures used for parallel tempering.
+#'
+#' @export
+#'
+#' @param mcmc_results list of results from `run_mcmc`
+#'
+#' @importFrom ggplot2 aes coord_cartesian geom_point geom_vline ggplot
+#'
+#' @return list of ggplot objects
+plot_chain_swaps <- function(mcmc_results) {
+  plots <- lapply(mcmc_results$chains, function(chain) {
+    # swaps for a chain happen every 2 samples
+    swaps_per_chain <- mcmc_results$args$samples_per_chain / 2
+    swap_dist <- chain$swap_acceptances / swaps_per_chain
+    temps <- temps <- mcmc_results$chains[[1]]$temp_gradient
+    swap_idx <- (temps[1:length(temps) - 1] + temps[2:length(temps)]) / 2 # nolint: seq_linter.
+    dat <- data.frame(swap_rate = swap_dist, temp = swap_idx)
+    g <- ggplot(dat, aes(x = temp, y = swap_rate)) +
+      geom_point() +
+      geom_vline(data = data.frame(x = temps), aes(xintercept = x), linetype = "dashed", alpha = 0.25) +
+      coord_cartesian(ylim = c(0, 1))
+    g
+  })
+  return(plots)
+}

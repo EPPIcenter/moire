@@ -82,7 +82,8 @@ run_mcmc <-
            pt_num_threads = 1,
            adapt_temp = FALSE,
            pre_adapt_steps = 50,
-           temp_adapt_steps = 100) {
+           temp_adapt_steps = 10) {
+    start_time <- Sys.time()
     args <- as.list(environment())
     mcmc_args <- as.list(environment())
     mcmc_args$data <- data$data
@@ -143,7 +144,11 @@ run_mcmc <-
       chains[[1]] <- chain
     }
 
+    end_time <- Sys.time()
+
+    res$runtime <- end_time - start_time
     res$chains <- chains
     res$args <- args
+
     res
   }

@@ -1,12 +1,17 @@
 Package: moire
 Title: Multiplicity of Infection and Allele Frequency Recovery from Noisy Polyallelic Genetics Data
 Version: 3.1.0
-Authors@R: 
+Authors@R: c(
     person(given = "Maxwell",
            family = "Murphy",
            role = c("aut", "cre"),
            email = "murphy2122@berkeley.edu",
-           comment = c(ORCID = "0000-0003-0332-4388"))
+           comment = c(ORCID = "0000-0003-0332-4388")),
+    person(given = "Bryan",
+           family = "Greenhouse",
+           role = c("aut", "ths"),
+           email = "bryan.greenhouse@ucsf.edu",
+           comment = c(ORCID = "0000-0003-0287-9111")))
 Description: A Markov Chain Monte Carlo (MCMC) based approach to Bayesian estimation of individual level multiplicity of infection, within host relatedness, and 
     population allele frequencies from polyallelic genetic data.
 License: GPL (>= 3)
@@ -26,16 +31,15 @@ Imports:
     stats,
     purrr,
     rlang,
-    Gmedian,
-URL: https://github.com/EPPIcenter/moire
+    ggplot2,
+URL: https://github.com/EPPIcenter/moire, https://eppicenter.github.io/moire/, https://eppicenter.ucsf.edu/resources
 BugReports: https://github.com/EPPIcenter/moire/issues
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.2.1
+RoxygenNote: 7.2.3
 Suggests: 
     knitr,
     rmarkdown,
     markdown,
-    ggplot2,
     forcats,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr

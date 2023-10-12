@@ -1,5 +1,5 @@
 clang
--std=c++14
+-std=c++17
 %h -x c++-header
 -I/usr/local/opt/r/lib/R/include
 -I/Library/Frameworks/R.framework/Resources/library/Rcpp/include

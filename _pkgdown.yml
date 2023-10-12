@@ -34,6 +34,7 @@ reference:
 - title: Utilities
 - contents:
   - starts_with("load_")
+  - starts_with("plot_")
 - title: Data
 - contents:
   - simulated_data

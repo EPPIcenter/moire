@@ -33,6 +33,4 @@ Summarize complexity of infection results from MCMC. Returns
 a dataframe that contains summaries of the posterior
 distribution of COI for each biological sample, as well as naive
 estimates of COI.
-
-@importFrom stats quantile
 }

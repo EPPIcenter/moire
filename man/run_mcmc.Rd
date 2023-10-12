@@ -30,7 +30,7 @@ run_mcmc(
   pt_num_threads = 1,
   adapt_temp = FALSE,
   pre_adapt_steps = 50,
-  temp_adapt_steps = 100
+  temp_adapt_steps = 10
 )
 }
 \arguments{

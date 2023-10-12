@@ -1,3 +1,45 @@
+#' Calculate the geometric median of the posterior distribution of allele
+#' frequencies
+#'
+#' @details Returns the geometric median of the posterior distribution, defined
+#' as the point minimizing the L2 distance from each sampled point.
+#'
+#' @import purrr
+#' @importFrom stats dist
+#'
+#' @export
+#'
+#' @param mcmc_results Result of calling run_mcmc()
+#'
+#' @param merge_chains boolean indicating that all chain results should be merged
+calculate_med_allele_freqs <- function(mcmc_results, merge_chains = TRUE) {
+  if (merge_chains) {
+    chains <- mcmc_results$chains
+    post_af <- purrr::transpose(purrr::map(chains, ~ .x$allele_freqs))
+    medians <- purrr::map(post_af, function(loc) {
+      samples <- purrr::flatten(loc)
+      mat <- matrix(unlist(samples), ncol = length(samples[[1]]))
+      d <- dist(t(mat))
+      samples[[which.min(rowSums(as.matrix(d)))]]
+    })
+    names(medians) <- mcmc_results$args$data$loci
+  } else {
+    chains <- mcmc_results$chains
+    medians <- lapply(chains, function(chain) {
+      post_af <- chain$allele_freqs
+      res <- purrr::map(post_af, function(samples) {
+        mat <- matrix(unlist(samples), ncol = length(samples[[1]]))
+        d <- dist(t(mat))
+        samples[[which.min(rowSums(as.matrix(d)))]]
+      })
+      names(res) <- mcmc_results$args$data$loci
+      return(res)
+    })
+  }
+  return(medians)
+}
+
+
 #' Calculate naive COI offset
 #'
 #' @details Estimates the complexity of infection using a naive approach
@@ -89,7 +131,7 @@ calculate_he <- function(allele_freqs) {
 #'  distribution of COI for each biological sample, as well as naive
 #'  estimates of COI.
 #'
-#'  @importFrom stats quantile
+#' @importFrom stats quantile
 #'
 #' @export
 #'
@@ -649,52 +691,4 @@ summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_q
     relatedness_data <- do.call(rbind, chain_effective_coi)
     return(relatedness_data)
   }
-}
-
-
-#' Calculate the geometric median of the posterior distribution of allele
-#' frequencies
-#'
-#' @details Returns the geometric median of the posterior distribution, defined
-#' as the point minimizing the L2 distance from each sampled point.
-#'
-#' @import purrr
-#' @import Gmedian
-#'
-#' @export
-#'
-#' @param mcmc_results Result of calling run_mcmc()
-#'
-#' @param merge_chains boolean indicating that all chain results should be merged
-calculate_median_allele_frequencies <- function(mcmc_results, merge_chains = TRUE) {
-  if (merge_chains) {
-    chains <- mcmc_results$chains
-    post_af <- purrr::transpose(purrr::map(chains, ~ .x$allele_freqs))
-    medians <- purrr::map(post_af, function(loc) {
-      samples <- purrr::flatten(loc)
-      total_samples <- length(samples)
-      num_alleles <- length(samples[[1]])
-      median <- Gmedian::Gmedian(
-        matrix(unlist(samples), nrow = total_samples, ncol = num_alleles, byrow = TRUE)
-      )
-      return(median)
-    })
-    names(medians) <- mcmc_results$args$data$loci
-  } else {
-    chains <- mcmc_results$chains
-    medians <- lapply(chains, function(chain) {
-      post_af <- chain$allele_freqs
-      res <- purrr::map(post_af, function(samples) {
-        total_samples <- length(samples)
-        num_alleles <- length(samples[[1]])
-        median <- Gmedian::Gmedian(
-          matrix(unlist(samples), nrow = total_samples, ncol = num_alleles, byrow = TRUE)
-        )
-        return(median)
-      })
-      names(res) <- mcmc_results$args$data$loci
-      return(res)
-    })
-  }
-  return(medians)
 }
