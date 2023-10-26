@@ -149,8 +149,9 @@ void MCMC::adapt_temp()
     cumulative_swap_rate[0] = 0.0;
     for (size_t i = 1; i < cumulative_swap_rate.size(); i++)
     {
-        cumulative_swap_rate[i] = cumulative_swap_rate[i - 1] +
-                                  reversed_swap_barriers[i - 1] / num_swaps;
+        cumulative_swap_rate[i] =
+            cumulative_swap_rate[i - 1] +
+            reversed_swap_barriers[i - 1] / (num_swaps / 2);
     }
 
     // gradient starts at t = 1 so we need to reverse the gradient
@@ -244,7 +245,7 @@ void MCMC::finalize()
 {
     for (size_t i = 0; i < swap_barriers.size(); ++i)
     {
-        swap_barriers[i] /= num_swaps;
+        swap_barriers[i] /= (num_swaps / 2);
     }
 }
 

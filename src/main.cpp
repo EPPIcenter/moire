@@ -14,6 +14,7 @@
 #include <progress.hpp>
 //----------------------------------------------
 // [[Rcpp::export(name='run_mcmc_rcpp')]]
+// [[Rcpp::plugins(openmp)]]
 Rcpp::List run_mcmc(Rcpp::List args)
 {
     Parameters params(args);
