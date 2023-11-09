@@ -3,7 +3,7 @@
 
 `moire` is a package implementing an MCMC based approach to estimating
 complexity of infection (COI), also sometimes referred to as
-multiplicity of infection (MOI), and population allele frequencies from
+multiplicity of infection (MOI), population allele frequencies, and within-host relatedness from
 polyallelic genomics data.
 
 ## Installation
