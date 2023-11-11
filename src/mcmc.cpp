@@ -139,8 +139,8 @@ int MCMC::get_hot_chain() { return swap_indices[0]; }
 void MCMC::adapt_temp()
 {
     // swap rate starts at t = 1 so we need to reverse the swap rate
-    std::vector<double> reversed_swap_barriers{swap_barriers.rbegin(),
-                                               swap_barriers.rend()};
+    const std::vector<double> reversed_swap_barriers{swap_barriers.rbegin(),
+                                                     swap_barriers.rend()};
 
     // cumulative swap rate starts from t = 0
     std::vector<double> cumulative_swap_rate =
@@ -151,15 +151,15 @@ void MCMC::adapt_temp()
     {
         cumulative_swap_rate[i] =
             cumulative_swap_rate[i - 1] +
-            reversed_swap_barriers[i - 1] / (num_swaps / 2);
+            reversed_swap_barriers[i - 1] / ((double)num_swaps / 2);
     }
 
     // gradient starts at t = 1 so we need to reverse the gradient
-    std::vector<double> reversed_gradient{temp_gradient.rbegin(),
-                                          temp_gradient.rend()};
+    const std::vector<double> reversed_gradient{temp_gradient.rbegin(),
+                                                temp_gradient.rend()};
 
-    tk::spline s(reversed_gradient, cumulative_swap_rate, tk::spline::cspline,
-                 true);
+    const tk::spline s(reversed_gradient, cumulative_swap_rate,
+                       tk::spline::cspline, true);
 
     // target swap rates
     std::vector<double> cumulative_swap_grid =
@@ -167,7 +167,7 @@ void MCMC::adapt_temp()
     cumulative_swap_grid[0] = cumulative_swap_rate[0];
     cumulative_swap_grid[cumulative_swap_grid.size() - 1] =
         cumulative_swap_rate.back();
-    double step = (cumulative_swap_rate.back() - cumulative_swap_rate[0]) /
+    double step = (cumulative_swap_rate.back() - cumulative_swap_rate.front()) /
                   (cumulative_swap_grid.size() - 1);
 
     for (size_t i = 1; i < cumulative_swap_grid.size() - 1; i++)
@@ -175,16 +175,14 @@ void MCMC::adapt_temp()
         cumulative_swap_grid[i] = cumulative_swap_grid[0] + i * step;
     }
 
-    // start the gradient at t = 0 and end at t = 1
     std::vector<double> new_temp_gradient(temp_gradient.size());
     new_temp_gradient[0] = temp_gradient.back();
     new_temp_gradient[temp_gradient.size() - 1] = 1.0;
     for (size_t i = 1; i < temp_gradient.size() - 1; i++)
     {
-        new_temp_gradient[i] = s.solve(cumulative_swap_grid[i])[0];
+        new_temp_gradient[i] = s.solve_one(cumulative_swap_grid[i]);
     }
 
-    // reverse the gradient to start at t = 1 and end at t = 0
     std::reverse(new_temp_gradient.begin(), new_temp_gradient.end());
 
     // update the temperatures using the new gradient

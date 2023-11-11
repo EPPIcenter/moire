@@ -46,8 +46,8 @@ template <class T>
 std::vector<std::vector<T>> r_to_mat(
     Rcpp::Matrix<Rcpp::traits::r_sexptype_traits<T>::rtype> x)
 {
-    int nrow = x.nrow();
-    int ncol = x.ncol();
+    std::size_t nrow = x.nrow();
+    std::size_t ncol = x.ncol();
     std::vector<std::vector<T>> x_mat(nrow);
 
     for (size_t i = 0; i < nrow; i++)
@@ -73,13 +73,13 @@ std::vector<std::vector<double>> r_to_mat_double(
 template <class T>
 std::vector<std::vector<std::vector<T>>> r_to_array(Rcpp::List x)
 {
-    int n_elements = x.size();
+    std::size_t n_elements = x.size();
     std::vector<std::vector<std::vector<T>>> x_mat(n_elements);
 
     for (size_t i = 0; i < n_elements; i++)
     {
         Rcpp::List x_i(x[i]);
-        int nrows = x_i.size();
+        std::size_t nrows = x_i.size();
         x_mat[i] = std::vector<std::vector<T>>(nrows);
         for (size_t j = 0; j < nrows; j++)
         {
@@ -221,7 +221,7 @@ inline double logitSum(const std::vector<double> &x)
     if (x_sorted[0] < 0)
     {
         double lp1 = lpq.first[0];
-        for (int i = 1; i < lpq.first.size(); ++i)
+        for (std::size_t i = 1; i < lpq.first.size(); ++i)
         {
             cumsum += std::exp(lpq.first[i] - lp1);
         }
@@ -230,7 +230,7 @@ inline double logitSum(const std::vector<double> &x)
     else
     {
         double lq1 = lpq.second[0];
-        for (int i = 1; i < lpq.first.size(); ++i)
+        for (std::size_t i = 1; i < lpq.first.size(); ++i)
         {
             cumsum += std::exp(lpq.first[i]);
         }
@@ -257,7 +257,7 @@ inline std::vector<double> logitScale(std::vector<double> &x, double scale)
     eumo.reserve(x.size());
 
     bool ok;
-    for (int ii = 0; ii < x.size(); ++ii)
+    for (std::size_t ii = 0; ii < x.size(); ++ii)
     {
         ok = (scale < std::log(2)) and
              (std::abs(scale) < std::abs(x[ii] + scale));

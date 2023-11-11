@@ -133,6 +133,7 @@ class spline
 
     // solves for all x so that: spline(x) = y
     std::vector<double> solve(double y, bool ignore_extrapolation = true) const;
+    double solve_one(double y, bool ignore_extrapolation = true) const;
 
     // returns the input data points
     std::vector<double> get_x() const { return m_x; }
@@ -671,6 +672,51 @@ std::vector<double> spline::solve(double y, bool ignore_extrapolation) const
 
     return x;
 };
+
+double spline::solve_one(double y, bool ignore_extrapolation) const
+{
+    std::vector<double> root;  // roots for each piecewise cubic
+    const size_t n = m_x.size();
+
+    // left extrapolation
+    if (ignore_extrapolation == false)
+    {
+        root = internal::solve_cubic(m_y[0] - y, m_b[0], m_c0, 0.0, 1);
+        for (double j : root)
+        {
+            if (j < 0.0) return m_x[0] + j;
+        }
+    }
+
+    // brute force check if piecewise cubic has roots in their resp. segment
+    // TODO: make more efficient
+    for (size_t i = 0; i < n - 1; i++)
+    {
+        root = internal::solve_cubic(m_y[i] - y, m_b[i], m_c[i], m_d[i], 1);
+        for (double j : root)
+        {
+            double h = (i > 0) ? (m_x[i] - m_x[i - 1]) : 0.0;
+            double eps = internal::get_eps() * 512.0 * std::min(h, 1.0);
+            if ((-eps <= j) && (j < m_x[i + 1] - m_x[i]))
+            {
+                return m_x[i] + j;
+            }
+        }
+    }
+
+    // right extrapolation
+    if (ignore_extrapolation == false)
+    {
+        root = internal::solve_cubic(m_y[n - 1] - y, m_b[n - 1], m_c[n - 1],
+                                     0.0, 1);
+        for (size_t j = 0; j < root.size(); j++)
+        {
+            if (0.0 <= root[j]) return m_x[n - 1] + root[j];
+        }
+    }
+
+    return std::numeric_limits<double>::quiet_NaN();
+}
 
 #ifdef HAVE_SSTREAM
 std::string spline::info() const

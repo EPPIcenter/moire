@@ -25,7 +25,7 @@ class MCMC
     std::vector<std::vector<double>> eps_neg_store{};
     std::vector<std::vector<double>> r_store{};
     std::vector<double> mean_coi_store{};
-    std::vector<double> swap_store{};
+    std::vector<int> swap_store{};
 
     std::vector<double> llik_burnin{};
     std::vector<double> llik_sample{};
@@ -43,6 +43,7 @@ class MCMC
 
     void burnin(int step);
     void sample(int step);
+    // void add_chain(double temp);
     void swap_chains(int step, bool burnin = false);
     void finalize();
     void adapt_temp();

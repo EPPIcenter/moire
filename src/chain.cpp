@@ -16,14 +16,14 @@ constexpr double min_sampled = std::numeric_limits<double>::min();
 
 void Chain::initialize_latent_genotypes()
 {
-    for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+    for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
     {
         latent_genotypes_new.push_back(std::vector<std::vector<int>>{});
         latent_genotypes_old.push_back(std::vector<std::vector<int>>{});
         lg_adj_old.push_back(std::vector<double>{});
         lg_adj_new.push_back(std::vector<double>{});
 
-        for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+        for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
         {
             auto obs_alleles = genotyping_data.get_observed_alleles(jj, ii);
             std::vector<int> allele_index_vec{};
@@ -52,7 +52,7 @@ void Chain::initialize_p()
     p_accept.resize(genotyping_data.num_loci);
     p_attempt.resize(genotyping_data.num_loci);
 
-    for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+    for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
     {
         const int total_alleles = p[jj].size();
         p_prop_var[jj] = std::vector<double>(total_alleles, 1);
@@ -125,7 +125,7 @@ void Chain::update_m(int iteration)
 
             double adj_ratio = 0;
 
-            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 auto lg = sampler.sample_latent_genotype(
                     genotyping_data.get_observed_alleles(jj, ii), m[ii],
@@ -146,7 +146,7 @@ void Chain::update_m(int iteration)
                 llik = new_llik;
                 prior = new_prior;
                 save_coi_likelihood(ii);
-                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+                for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
                     save_genotype_likelihood(ii, jj);
                     lg_adj_old[jj][ii] = lg_adj_new[jj][ii];
@@ -158,7 +158,7 @@ void Chain::update_m(int iteration)
             {
                 m[ii] = prev_m;
                 restore_coi_likelihood(ii);
-                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+                for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
                     restore_genotype_likelihood(ii, jj);
                     lg_adj_new[jj][ii] = lg_adj_old[jj][ii];
@@ -188,7 +188,7 @@ void Chain::update_r(int iteration)
         r[i] = prop_r;
         calculate_relatedness_likelihood(i);
 
-        for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+        for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
         {
             calculate_genotype_likelihood(i, jj);
         }
@@ -203,7 +203,7 @@ void Chain::update_r(int iteration)
         {
             r[i] = prev_r;
             restore_relatedness_likelihood(i);
-            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 restore_genotype_likelihood(i, jj);
             }
@@ -213,7 +213,7 @@ void Chain::update_r(int iteration)
             llik = new_llik;
             prior = new_prior;
             save_relatedness_likelihood(i);
-            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 save_genotype_likelihood(i, jj);
             }
@@ -258,7 +258,7 @@ void Chain::update_m_r(int iteration)
 
         double adj_ratio = adj;
 
-        for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+        for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
         {
             const auto lg = sampler.sample_latent_genotype(
                 genotyping_data.get_observed_alleles(jj, i), m[i], eps_pos[i],
@@ -282,7 +282,7 @@ void Chain::update_m_r(int iteration)
             restore_relatedness_likelihood(i);
             m[i] = prev_m;
             restore_coi_likelihood(i);
-            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 restore_genotype_likelihood(i, jj);
                 lg_adj_new[jj][i] = lg_adj_old[jj][i];
@@ -295,7 +295,7 @@ void Chain::update_m_r(int iteration)
             prior = new_prior;
             save_relatedness_likelihood(i);
             save_coi_likelihood(i);
-            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 save_genotype_likelihood(i, jj);
                 lg_adj_old[jj][i] = lg_adj_new[jj][i];
@@ -377,7 +377,7 @@ void Chain::update_p(int iteration)
             const auto prev_p = p[j];
             p[j] = prop_p;
 
-            for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+            for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
             {
                 calculate_genotype_likelihood(ii, j);
             }
@@ -392,7 +392,7 @@ void Chain::update_p(int iteration)
                 sampler.sample_log_mh_acceptance() > acceptanceRatio)
             {
                 p[j] = prev_p;
-                for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+                for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
                 {
                     restore_genotype_likelihood(ii, j);
                 }
@@ -401,7 +401,7 @@ void Chain::update_p(int iteration)
             {
                 llik = new_llik;
                 prior = new_prior;
-                for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+                for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
                 {
                     save_genotype_likelihood(ii, j);
                 }
@@ -440,7 +440,7 @@ void Chain::update_eps_pos(int iteration)
             eps_pos[i] = prop_eps_pos;
             calculate_eps_pos_likelihood(i);
 
-            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 calculate_genotype_likelihood(i, jj);
             }
@@ -455,7 +455,7 @@ void Chain::update_eps_pos(int iteration)
             {
                 eps_pos[i] = prev_eps_pos;
                 restore_eps_pos_likelihood(i);
-                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+                for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
                     restore_genotype_likelihood(i, jj);
                 }
@@ -465,7 +465,7 @@ void Chain::update_eps_pos(int iteration)
                 llik = new_llik;
                 prior = new_prior;
                 save_eps_pos_likelihood(i);
-                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+                for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
                     save_genotype_likelihood(i, jj);
                 }
@@ -505,7 +505,7 @@ void Chain::update_eps_neg(int iteration)
             eps_neg[i] = prop_eps_neg;
             calculate_eps_neg_likelihood(i);
 
-            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 calculate_genotype_likelihood(i, jj);
             }
@@ -520,7 +520,7 @@ void Chain::update_eps_neg(int iteration)
             {
                 eps_neg[i] = prev_eps_neg;
                 restore_eps_neg_likelihood(i);
-                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+                for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
                     restore_genotype_likelihood(i, jj);
                 }
@@ -530,7 +530,7 @@ void Chain::update_eps_neg(int iteration)
                 llik = new_llik;
                 prior = new_prior;
                 save_eps_neg_likelihood(i);
-                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+                for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
                     save_genotype_likelihood(i, jj);
                 }
@@ -609,7 +609,7 @@ void Chain::update_samples(int iteration)
 
             double adj_ratio = eps_neg_adj + eps_pos_adj + r_adj;
 
-            for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
             {
                 auto lg = sampler.sample_latent_genotype(
                     genotyping_data.get_observed_alleles(jj, ii), m[ii],
@@ -634,7 +634,7 @@ void Chain::update_samples(int iteration)
                 save_eps_pos_likelihood(ii);
                 save_relatedness_likelihood(ii);
                 save_coi_likelihood(ii);
-                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+                for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
                     save_genotype_likelihood(ii, jj);
                     lg_adj_old[jj][ii] = lg_adj_new[jj][ii];
@@ -652,7 +652,7 @@ void Chain::update_samples(int iteration)
                 restore_eps_pos_likelihood(ii);
                 restore_relatedness_likelihood(ii);
                 restore_coi_likelihood(ii);
-                for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+                for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
                 {
                     restore_genotype_likelihood(ii, jj);
                     lg_adj_new[jj][ii] = lg_adj_old[jj][ii];
@@ -665,15 +665,15 @@ void Chain::update_samples(int iteration)
 
 void Chain::update_mean_coi(int iteration)
 {
-    const auto prop_adj =
-        sampler.sample_constrained(mean_coi, mean_coi_var, 1e-5, params.max_coi);
+    const auto prop_adj = sampler.sample_constrained(mean_coi, mean_coi_var,
+                                                     1e-5, params.max_coi);
     const double prop_mean_coi = std::get<0>(prop_adj);
     const double adj = std::get<1>(prop_adj);
 
     const double prev_mean_coi = mean_coi;
     mean_coi = prop_mean_coi;
     calculate_mean_coi_likelihood();
-    for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+    for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
     {
         calculate_coi_likelihood(ii);
     }
@@ -687,7 +687,7 @@ void Chain::update_mean_coi(int iteration)
         llik = new_llik;
         prior = new_prior;
         save_mean_coi_likelihood();
-        for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+        for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
         {
             save_coi_likelihood(ii);
         }
@@ -697,7 +697,7 @@ void Chain::update_mean_coi(int iteration)
     {
         mean_coi = prev_mean_coi;
         restore_mean_coi_likelihood();
-        for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+        for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
         {
             restore_coi_likelihood(ii);
         }
@@ -748,7 +748,7 @@ double Chain::calc_transmission_process(
 
     // Only go up to coi - total_alleles because there must be at least
     // total_alleles unrelated strains at this locus
-    for (size_t i = 0; i <= coi - total_alleles; ++i)
+    for (int i = 0; i <= coi - total_alleles; ++i)
     {
         // Calculate the probability of `i` related strains being present, where
         // there are at most coi - total_alleles related strains
@@ -780,7 +780,7 @@ double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
     unsigned int next_allele_index = allele_index_vec[vec_pointer];
     unsigned int total_alleles = allele_index_vec.size();
 
-    int j = 0;
+    unsigned int j = 0;
     bool is_allele;
     for (const auto &e : obs_genotype)
     {
@@ -957,10 +957,10 @@ void Chain::initialize_likelihood()
     coi_prior_new.resize(num_samples);
     coi_prior_old.resize(num_samples);
 
-    for (int ii = 0; ii < genotyping_data.num_samples; ++ii)
+    for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
     {
         const int row_idx = ii * num_loci;
-        for (int jj = 0; jj < genotyping_data.num_loci; ++jj)
+        for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
         {
             const int idx = row_idx + jj;
             calculate_genotype_likelihood(ii, jj);
