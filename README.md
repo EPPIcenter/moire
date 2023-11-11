@@ -3,7 +3,7 @@
 
 `moire` is a package implementing an MCMC based approach to estimating
 complexity of infection (COI), also sometimes referred to as
-multiplicity of infection (MOI), and population allele frequencies from
+multiplicity of infection (MOI), population allele frequencies, and within-host relatedness from
 polyallelic genomics data.
 
 ## Installation
@@ -26,3 +26,8 @@ data <- load_long_form_data(df)
 # With data in appropriate format, run MCMC as follows
 mcmc_results <- moire::run_mcmc(data, is_missing = data$is_missing)
 ```
+
+## Manuscript
+[![DOI](https://zenodo.org/badge/174280517.svg)](https://zenodo.org/doi/10.5281/zenodo.10092402)
+
+The paper describing our method may be found [here](https://doi.org/10.1101/2023.10.03.560769)
