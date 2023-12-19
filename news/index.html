@@ -16,7 +16,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">moire</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">3.2.0</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -56,6 +56,19 @@
       <small>Source: <a href="https://github.com/EPPIcenter/moire/blob/HEAD/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="3.2.0" id="moire-320">moire 3.2.0<a class="anchor" aria-label="anchor" href="#moire-320"></a></h2>
+<p>This is a minor revision that fixes bugs in the adaptive temperature gradient approach and changes the default priors on false positive and false negative rates.</p>
+<ul><li>New default priors</li>
+<li>Fixed bug in adaptive temperature gradient approach</li>
+<li>Numerical stability improvements</li>
+<li>New summarization functions
+<ul><li>
+<code><a href="../reference/calculate_med_allele_freqs.html">calculate_med_allele_freqs()</a></code> calculates median allele frequencies</li>
+<li>
+<code><a href="../reference/plot_chain_swaps.html">plot_chain_swaps()</a></code> creates diagnostic plots for chain swaps when using parallel tempering</li>
+</ul></li>
+</ul></div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="3.1.0" id="moire-310">moire 3.1.0<a class="anchor" aria-label="anchor" href="#moire-310"></a></h2>
 <p>This is a minor revision that introduces new functionality to improve mixing of the MCMC. This also updates the required version of R to 4.0.0. and C++ to C++17.</p>
