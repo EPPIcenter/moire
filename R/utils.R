@@ -121,8 +121,10 @@ load_delimited_data <- function(data, sep = ";", warn_uninformative = TRUE) {
 #' @param mcmc_results list of results from `run_mcmc`
 #'
 #' @importFrom ggplot2 aes coord_cartesian geom_point geom_vline ggplot
+#' @importFrom rlang .data
 #'
 #' @return list of ggplot objects
+#'
 plot_chain_swaps <- function(mcmc_results) {
   plots <- lapply(mcmc_results$chains, function(chain) {
     # swaps for a chain happen every 2 samples
@@ -131,9 +133,9 @@ plot_chain_swaps <- function(mcmc_results) {
     temps <- temps <- mcmc_results$chains[[1]]$temp_gradient
     swap_idx <- (temps[1:length(temps) - 1] + temps[2:length(temps)]) / 2 # nolint: seq_linter.
     dat <- data.frame(swap_rate = swap_dist, temp = swap_idx)
-    g <- ggplot(dat, aes(x = temp, y = swap_rate)) +
+    g <- ggplot(dat, aes(x = .data$temp, y = .data$swap_rate)) +
       geom_point() +
-      geom_vline(data = data.frame(x = temps), aes(xintercept = x), linetype = "dashed", alpha = 0.25) +
+      geom_vline(data = data.frame(x = temps), aes(xintercept = .data$x), linetype = "dashed", alpha = 0.25) +
       coord_cartesian(ylim = c(0, 1))
     g
   })

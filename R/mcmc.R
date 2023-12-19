@@ -64,10 +64,10 @@ run_mcmc <-
            burnin = 1e4,
            samples_per_chain = 1e3,
            verbose = TRUE,
-           eps_pos_alpha = .1,
-           eps_pos_beta = 9.9,
-           eps_neg_alpha = .1,
-           eps_neg_beta = 9.9,
+           eps_pos_alpha = 1,
+           eps_pos_beta = 1,
+           eps_neg_alpha = 1,
+           eps_neg_beta = 1,
            r_alpha = 1,
            r_beta = 1,
            mean_coi_shape = .1,
@@ -80,9 +80,9 @@ run_mcmc <-
            pt_chains = 1,
            pt_grad = 1,
            pt_num_threads = 1,
-           adapt_temp = FALSE,
-           pre_adapt_steps = 50,
-           temp_adapt_steps = 10) {
+           adapt_temp = TRUE,
+           pre_adapt_steps = 25,
+           temp_adapt_steps = 25) {
     start_time <- Sys.time()
     args <- as.list(environment())
     mcmc_args <- as.list(environment())
