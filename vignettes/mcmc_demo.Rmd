@@ -13,7 +13,6 @@ knitr::opts_chunk$set(
   comment = "#>",
   fig.align = "center"
 )
-# do.call(knitr::read_chunk, list(path = system.file(c("data-raw", "mcmc_results.R"), package="moire")))
 ```
 
 ```{r setup, message=FALSE}
@@ -28,12 +27,16 @@ library(forcats)
 To demonstrate the usage of the package, we can simulate some genotyping data according to our model, allowing for some relatedness within samples in the population.
 ```{r load_settings, eval=TRUE, include=TRUE}
 set.seed(17325)
+
 mean_moi <- 5
 num_biological_samples <- 100
 epsilon_pos <- .01
-epsilon_neg <- .03
-# Generate the number of alleles at each locus
-allele_counts <- c(rep(5, 15), rep(10, 15), rep(25, 15), rep(50, 15))
+epsilon_neg <- .1
+internal_relatedness_alpha <- .1
+internal_relatedness_beta <- 1
+
+# Generate 15 loci with 5 alleles each, and 15 loci with 10 alleles each
+allele_counts <- c(rep(5, 15), rep(10, 15))
 
 # We'll use flat alpha vectors for our draws from the Dirichlet
 locus_freq_alphas <- lapply(allele_counts, function(allele) rep(1, allele))
@@ -45,8 +48,8 @@ simulated_data <- moire::simulate_data(
   num_biological_samples,
   epsilon_pos, epsilon_neg,
   locus_freq_alphas = locus_freq_alphas,
-  internal_relatedness_alpha = .1,
-  internal_relatedness_beta = 1
+  internal_relatedness_alpha = internal_relatedness_alpha,
+  internal_relatedness_beta = internal_relatedness_beta
 )
 ```
 
@@ -57,15 +60,16 @@ simulated_data <- moire::simulated_data
 Now that we have our data, let's go ahead and run the MCMC. Here we run 20 parallel tempered chains with a temperature gradient ranging from $[0, 1]$. We also place a weak prior on relatedness that favors low relatedness.
 
 ```{r run_mcmc, eval=FALSE, include=TRUE}
-burnin <- 1e4
-num_samples <- 1e4
+burnin <- 1e3
+num_samples <- 1e3
 pt_chains <- seq(1, 0, length.out = 80)
-
+pt_num_threads <- 20 # number of threads to use for parallel tempering
 
 mcmc_results <- moire::run_mcmc(
   simulated_data,
-  verbose = T, burnin = burnin, samples_per_chain = num_samples,
-  pt_chains = pt_chains, pt_num_threads = 20, thin = 10, r_alpha = 1, r_beta = 10
+  verbose = TRUE, burnin = burnin, samples_per_chain = num_samples,
+  pt_chains = pt_chains, pt_num_threads = pt_num_threads,
+  adapt_temp = TRUE
 )
 ```
 
@@ -89,7 +93,8 @@ sample_data <- data.frame(
   coi_summary, effective_coi_summary, relatedness_summary,
   true_coi = simulated_data$sample_cois,
   true_effective_coi = (simulated_data$sample_cois - 1) * (1 - simulated_data$sample_relatedness) + 1,
-  true_relatedness = simulated_data$sample_relatedness
+  # relatedness is 0 when COI is 1
+  true_relatedness = simulated_data$sample_relatedness * (simulated_data$sample_cois > 1)
 )
 
 he_data <- data.frame(
@@ -124,7 +129,7 @@ coi_estimates <- sample_data |>
     names_to = "estimator",
     values_to = "estimate"
   ) |>
-  dplyr::mutate(estimator_pretty = case_when(
+  dplyr::mutate(estimator_pretty = dplyr::case_when(
     estimator == "post_coi_med" ~ "Median Posterior Est.",
     estimator == "naive_coi" ~ "Naive Estimate",
     estimator == "offset_naive_coi" ~ "Offset Naive Estimate",
@@ -142,7 +147,7 @@ coi_estimate_summaries <- coi_estimates |>
   dplyr::summarise(mean = mean(estimate))
 
 ggplot() +
-  geom_bar(data = coi_estimates, aes(x = estimate, group = estimator_pretty, fill = estimator_pretty, stat(count))) +
+  geom_bar(data = coi_estimates, aes(x = estimate, group = estimator_pretty, fill = estimator_pretty, after_stat(count))) +
   geom_vline(data = coi_estimate_summaries, aes(xintercept = mean, group = estimator_pretty), linetype = "dashed") +
   facet_wrap(~estimator_pretty, ncol = 1) +
   xlab("Complexity of Infection") +
@@ -166,18 +171,18 @@ coi_compare_to_truth <- sample_data |>
     values_to = "estimate"
   ) |>
   dplyr::mutate(
-    estimator_pretty = case_when(
+    estimator_pretty = dplyr::case_when(
       estimator == "post_coi_mean" ~ "Posterior Est.",
       estimator == "naive_coi" ~ "Naive Estimate",
       estimator == "offset_naive_coi" ~ "Offset Naive Estimate"
     ),
     sample_id = forcats::fct_reorder(sample_id, true_coi, min),
-    ymin = case_when(
+    ymin = dplyr::case_when(
       estimator == "post_coi_mean" ~ post_coi_lower - true_coi,
       estimator == "naive_coi" ~ estimate - true_coi,
       estimator == "offset_naive_coi" ~ estimate - true_coi
     ),
-    ymax = case_when(
+    ymax = dplyr::case_when(
       estimator == "post_coi_mean" ~ post_coi_upper - true_coi,
       estimator == "naive_coi" ~ estimate - true_coi,
       estimator == "offset_naive_coi" ~ estimate - true_coi
@@ -192,13 +197,19 @@ coi_compare_to_truth <- sample_data |>
 
 coi_bins <- sample_data |>
   dplyr::group_by(true_coi) |>
-  dplyr::summarize(n = n()) |>
+  dplyr::summarize(n = dplyr::n()) |>
   dplyr::mutate(pos = cumsum(n))
 
 
-ggplot(data = coi_compare_to_truth, aes(x = sample_id, y = estimate - true_coi, ymin = ymin, ymax = ymax, group = estimator_pretty, color = estimator_pretty)) +
+ggplot(
+  data = coi_compare_to_truth,
+  aes(
+    x = sample_id, y = estimate - true_coi, ymin = ymin, ymax = ymax,
+    group = estimator_pretty, color = estimator_pretty
+  )
+) +
   geom_errorbar() +
-  geom_point(alpha = 1) +
+  geom_point() +
   facet_wrap(~estimator_pretty, ncol = 1) +
   geom_hline(yintercept = 0, linetype = "dashed", alpha = .5) +
   geom_vline(data = coi_bins, aes(xintercept = pos), linetype = "dotted", alpha = .5) +
@@ -219,7 +230,7 @@ ggplot(data = coi_compare_to_truth, aes(x = sample_id, y = estimate - true_coi, 
 Since there is some underlying relatedness in the population, we might be actually be interested in the effective COI, a metric that adjusts for underlying within-host relatedness and allows for intermediate values of COI. 
 
 #### What is effective COI?
-This metric can be interpreted as the expected number of alleles that would be observed within a sample at a locus with infinite diversity (i.e. $H_e = 1$). In the case of zero within-host relatedness, every allele observed is unique and thus effective COi is equal to the actual complexity of the infection. As relatedness approaches 1, the expected number of alleles converges to 1 no matter the underlying true COI. It turns out that this relationship is linear, and can be expressed as $COI_{eff} = (COI - 1) * (1 - r) + 1$ where r is the probability of strains being related (and thus with identical genetics) across the genome. This results in a continuous metric that shrinks COI towards 1 as relatedness increases, and thus differences between mean COI and mean effective COI may be a signal of reduced diversity and increased in-breeding.
+This metric can be interpreted as the expected number of alleles that would be observed within a sample at a locus with infinite diversity (i.e. $H_e = 1$). In the case of zero within-host relatedness, every allele observed is unique and thus effective COi is equal to the actual complexity of the infection. As relatedness approaches 1, the expected number of alleles converges to 1 no matter the underlying true COI. It turns out that this relationship is linear, and can be expressed as $COI_{eff} = (COI - 1) * (1 - r) + 1$ where r is the probability of strains being related (and thus with identical genetics) across the genome. This results in a continuous metric that shrinks COI towards 1 as relatedness increases, and thus differences between mean COI and mean effective COI may be a signal of reduced diversity and increased in-breeding, suggesting cotransmission or highly localized transmission.
 
 ```{r plot_effective_coi}
 ggplot(sample_data, aes(x = true_effective_coi, y = post_effective_coi_mean, ymin = post_effective_coi_lower, ymax = post_effective_coi_upper)) +
@@ -248,22 +259,7 @@ ggplot(
   theme_classic(base_size = 12) +
   expand_limits(x = 1, y = 1)
 ```
-We see that the estimated relatedness per sample in general has wide credible intervals, in particular for samples with low effective COI. This is explained by the fact that lower COI samples have less information available to actually estimate relatedness, and samples with a true COI of 1 would have zero information because relatedness is an undefined quantity. If we filter out samples with a low effective COI (> 1.2), we find that relatedness is well estimated.
-
-```{r}
-ggplot(
-  sample_data |> filter(post_effective_coi_mean > 1.2),
-  aes(x = true_relatedness, y = post_relatedness_mean, ymin = post_relatedness_lower, ymax = post_relatedness_upper)
-) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", alpha = 0.5) +
-  geom_errorbar() +
-  geom_point(aes(size = post_effective_coi_mean)) +
-  xlab("True relatedness") +
-  ylab("Estimated relatedness ") +
-  labs(size = "Post. mean effective COI") +
-  theme_classic(base_size = 12) +
-  expand_limits(x = 1, y = 1)
-```
+We see that the estimated relatedness per sample in general has wide credible intervals, in particular for samples with low effective COI. This is explained by the fact that lower COI samples have less information available to actually estimate relatedness, and samples with a true COI of 1 would have zero information because relatedness is an undefined quantity. Further, we only use 30 loci in this example. We would expect to see narrower credible intervals with more loci.
 
 ### Estimating allele frequencies
 ```{r plot_allele_freq_concordance}

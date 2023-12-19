@@ -4,10 +4,12 @@ set.seed(17325)
 mean_moi <- 5
 num_biological_samples <- 100
 epsilon_pos <- .01
-epsilon_neg <- .03
+epsilon_neg <- .1
+internal_relatedness_alpha <- .1
+internal_relatedness_beta <- 1
 
-# Generate the number of alleles at each locus
-allele_counts <- c(rep(5, 15), rep(10, 15), rep(25, 15), rep(50, 15))
+# Generate 15 loci with 5 alleles each, and 15 loci with 10 alleles each
+allele_counts <- c(rep(5, 15), rep(10, 15))
 
 # We'll use flat alpha vectors for our draws from the Dirichlet
 locus_freq_alphas <- lapply(allele_counts, function(allele) rep(1, allele))
@@ -17,19 +19,20 @@ simulated_data <- moire::simulate_data(
   num_biological_samples,
   epsilon_pos, epsilon_neg,
   locus_freq_alphas = locus_freq_alphas,
-  internal_relatedness_alpha = .1,
-  internal_relatedness_beta = 1
+  internal_relatedness_alpha = internal_relatedness_alpha,
+  internal_relatedness_beta = internal_relatedness_beta,
 )
 
 ## ----run_mcmc
-burnin <- 1e4
-num_samples <- 1e4
+burnin <- 1e3
+num_samples <- 1e3
 pt_chains <- seq(1, 0, length.out = 80)
+pt_num_threads <- 20 # number of threads to use for parallel tempering
 
 mcmc_results <- moire::run_mcmc(
   simulated_data,
-  verbose = T, burnin = burnin, samples_per_chain = num_samples,
-  pt_chains = pt_chains, pt_num_threads = 20, thin = 10, r_alpha = 1, r_beta = 10,
+  verbose = TRUE, burnin = burnin, samples_per_chain = num_samples,
+  pt_chains = pt_chains, pt_num_threads = pt_num_threads,
   adapt_temp = TRUE
 )
 
