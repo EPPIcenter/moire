@@ -1,3 +1,13 @@
+# moire 3.2.0
+This is a minor revision that fixes bugs in the adaptive temperature gradient approach and changes the default priors on false positive and false negative rates.
+
+- New default priors
+- Fixed bug in adaptive temperature gradient approach
+- Numerical stability improvements
+- New summarization functions   
+    - `calculate_med_allele_freqs()` calculates median allele frequencies
+    - `plot_chain_swaps()` creates diagnostic plots for chain swaps when using parallel tempering
+
 # moire 3.1.0
 This is a minor revision that introduces new functionality to improve mixing of the MCMC. This also updates the required version of R to 4.0.0. and C++ to C++17.
 
