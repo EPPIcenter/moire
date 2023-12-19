@@ -19,3 +19,4 @@ logo\.ai
 data-raw
 ^Makefile
 ^README\.Rmd
+.lintr

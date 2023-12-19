@@ -1,5 +1,2 @@
-
-ifneq ($(shell $(CXX) -dM -E - < /dev/null | grep __EMSCRIPTEN__ > /dev/null ; echo $$?), 0)
 PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS)
 PKG_LIBS = $(SHLIB_OPENMP_CXXFLAGS)
-endif
