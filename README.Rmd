@@ -12,10 +12,20 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.path = "man/figures/"
 
 ## Installation
 
+`moire` can be installed either using our r-universe repository (preferred)
+
+```{r, eval = FALSE}
+# Install from r-universe
+install.packages("moire", repos = c("https://eppicenter.r-universe.dev", "https://cloud.r-project.org"))
+```
+
+or from GitHub using `remotes`
+
 ```{r, eval = FALSE}
 # Install development version from Github
 remotes::install_github("EPPIcenter/moire")
 ```
+
 
 ## Usage
 

@@ -8,6 +8,16 @@ within-host relatedness from polyallelic genomics data.
 
 ## Installation
 
+`moire` can be installed either using our r-universe repository
+(preferred)
+
+``` r
+# Install from r-universe
+install.packages("moire", repos = c("https://eppicenter.r-universe.dev", "https://cloud.r-project.org"))
+```
+
+or from GitHub using `remotes`
+
 ``` r
 # Install development version from Github
 remotes::install_github("EPPIcenter/moire")
