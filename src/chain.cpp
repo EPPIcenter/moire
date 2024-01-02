@@ -758,7 +758,8 @@ double Chain::calc_transmission_process(
         // there are at most coi - total_alleles related strains
 
         // prob of i related strains
-        const double pr = R::dbinom(i, coi - 1, relatedness, true);
+        // const double pr = R::dbinom(i, coi - 1, relatedness, true);
+        const double pr = sampler.dbinom(i, coi - 1, relatedness, true);
 
         const double i_res = std::log(1 - pamVec[coi - i - 1]) +
                              log_constrained_set_total_prob * (coi - i);

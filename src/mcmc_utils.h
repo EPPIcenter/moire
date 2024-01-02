@@ -372,6 +372,23 @@ double logSumExp(const It &x)
     return logSumExp(x.begin(), x.end());
 }
 
+inline double logSumExp(const std::vector<double> &x)
+{
+    double max_el = *std::max_element(x.begin(), x.end());
+    if (max_el == -std::numeric_limits<double>::infinity())
+    {
+        return -std::numeric_limits<double>::infinity();
+    }
+
+    double sum = 0;
+#pragma omp simd reduction(+ : sum)
+    for (int i = 0; i < x.size(); ++i)
+    {
+        sum += std::exp(x[i] - max_el);
+    }
+    return max_el + std::log(sum);
+}
+
 template <typename T>
 constexpr const T &clamp(T &el, T &low, T &high)
 {

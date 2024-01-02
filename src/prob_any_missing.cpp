@@ -79,7 +79,9 @@ std::vector<double> probAnyMissingFunctor::vectorized(
         c.reset(totalEvents, i);
         baseVec.clear();
         baseVec.reserve(c.numCombinations);
-        while (!c.completed)
+
+        // while (!c.completed)
+        for (std::size_t k = 0; k < c.numCombinations; ++k)
         {
             double base = 1.0;
 

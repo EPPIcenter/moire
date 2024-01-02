@@ -2,7 +2,6 @@
 #include "main.h"
 
 #include "genotyping_data.h"
-#include "lookup.h"
 #include "mcmc_progress_bar.h"
 #include "mcmc_utils.h"
 #include "parameters.h"

@@ -17,6 +17,11 @@ Sampler::Sampler()
     eng = std::ranlux24_base(rd());
     unif_distr = std::uniform_real_distribution<double>(0, 1);
     ber_distr = std::bernoulli_distribution(.5);
+
+    for (int i = 0; i < 128; i++)
+    {
+        lgamma_lut[i] = std::lgamma(i + 1);
+    }
 }
 
 double Sampler::dbeta(double x, double alpha, double beta, bool return_log)
@@ -32,7 +37,15 @@ double Sampler::dpois(int x, double mean, bool return_log)
 double Sampler::dztpois(int x, double lambda)
 {
     return x * std::log(lambda) - std::log(std::exp(lambda) - 1) -
-           std::lgamma(x + 1);
+           lgamma_lut[x];
+}
+
+double Sampler::dbinom(int x, int size, double prob, bool return_log)
+{
+    double log_p = x * std::log(prob) + (size - x) * std::log(1 - prob);
+    double log_coef = lgamma_lut[size] - lgamma_lut[x] - lgamma_lut[size - x];
+
+    return return_log ? log_p + log_coef : std::exp(log_p + log_coef);
 }
 
 double Sampler::dgamma(double x, double shape, double scale, bool return_log)

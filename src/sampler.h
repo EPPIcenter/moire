@@ -1,8 +1,6 @@
 #ifndef SAMPLER_H_
 #define SAMPLER_H_
 
-#include "lookup.h"
-
 #include <algorithm>
 
 #include <boost/random.hpp>
@@ -25,13 +23,7 @@ class Sampler
     std::uniform_real_distribution<double> unif_distr;
     std::bernoulli_distribution ber_distr;
     std::geometric_distribution<int> geom_distr;
-
-    double dbeta(double x, double alpha, double beta, bool return_log);
-    double dpois(int x, double mean, bool return_log);
-    double dztpois(int x, double mean);
-    double dgamma(double x, double shape, double scale, bool return_log);
-    double rgamma(double alpha, double beta);
-    double rgamma2(double shape, double rate);
+    std::array<float, 128> lgamma_lut;
 
     std::vector<double> rdirichlet(std::vector<double> const &shape_vec);
     std::vector<double> rlogit_norm(std::vector<double> const &p,
@@ -70,6 +62,14 @@ class Sampler
     double sample_log_mh_acceptance();
     double sample_unif();
     void shuffle_vec(std::vector<int> &vec);
+
+    double dbeta(double x, double alpha, double beta, bool return_log);
+    double dpois(int x, double mean, bool return_log);
+    double dbinom(int x, int size, double prob, bool return_log);
+    double dztpois(int x, double mean);
+    double dgamma(double x, double shape, double scale, bool return_log);
+    double rgamma(double alpha, double beta);
+    double rgamma2(double shape, double rate);
 
     LatentGenotype sample_latent_genotype(const std::vector<int> &obs_genotype,
                                           int coi, double epsilon_pos,
