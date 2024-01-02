@@ -839,11 +839,26 @@ double Chain::calc_old_prior()
 {
     double prior_ = 0;
 
-    prior_ += std::reduce(eps_neg_prior_old.begin(), eps_neg_prior_old.end());
-    prior_ += std::reduce(eps_pos_prior_old.begin(), eps_pos_prior_old.end());
-    prior_ +=
-        std::reduce(relatedness_prior_old.begin(), relatedness_prior_old.end());
-    prior_ += std::reduce(coi_prior_old.begin(), coi_prior_old.end());
+#pragma omp simd reduction(+ : prior_)
+    for (int i = 0; i < eps_neg_prior_old.size(); ++i)
+    {
+        prior_ += eps_neg_prior_old[i];
+    }
+#pragma omp simd reduction(+ : prior_)
+    for (int i = 0; i < eps_pos_prior_old.size(); ++i)
+    {
+        prior_ += eps_pos_prior_old[i];
+    }
+#pragma omp simd reduction(+ : prior_)
+    for (int i = 0; i < relatedness_prior_old.size(); ++i)
+    {
+        prior_ += relatedness_prior_old[i];
+    }
+#pragma omp simd reduction(+ : prior_)
+    for (int i = 0; i < coi_prior_old.size(); ++i)
+    {
+        prior_ += coi_prior_old[i];
+    }
     prior_ += mean_coi_hyper_prior_old;
 
     return prior_;
@@ -865,11 +880,26 @@ double Chain::calc_new_prior()
 {
     double prior_ = 0;
 
-    prior_ += std::reduce(eps_neg_prior_new.begin(), eps_neg_prior_new.end());
-    prior_ += std::reduce(eps_pos_prior_new.begin(), eps_pos_prior_new.end());
-    prior_ +=
-        std::reduce(relatedness_prior_new.begin(), relatedness_prior_new.end());
-    prior_ += std::reduce(coi_prior_new.begin(), coi_prior_new.end());
+#pragma omp simd reduction(+ : prior_)
+    for (int i = 0; i < eps_neg_prior_new.size(); ++i)
+    {
+        prior_ += eps_neg_prior_new[i];
+    }
+#pragma omp simd reduction(+ : prior_)
+    for (int i = 0; i < eps_pos_prior_new.size(); ++i)
+    {
+        prior_ += eps_pos_prior_new[i];
+    }
+#pragma omp simd reduction(+ : prior_)
+    for (int i = 0; i < relatedness_prior_new.size(); ++i)
+    {
+        prior_ += relatedness_prior_new[i];
+    }
+#pragma omp simd reduction(+ : prior_)
+    for (int i = 0; i < coi_prior_new.size(); ++i)
+    {
+        prior_ += coi_prior_new[i];
+    }
     prior_ += mean_coi_hyper_prior_new;
 
     return prior_;
