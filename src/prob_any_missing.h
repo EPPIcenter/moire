@@ -11,7 +11,14 @@ struct probAnyMissingFunctor
 
     double operator()(const std::vector<double> &eventProbs, int numEvents);
 
-    double base{};
+    std::vector<double> vectorized(const std::vector<double> &eventProbs,
+                                   unsigned int numEvents);
+
+    std::vector<double> vectorized(const std::vector<double> &eventProbs,
+                                   unsigned int minNumEvents,
+                                   unsigned int maxNumEvents);
+
+    std::vector<double> baseVec{};
     CombinationIndicesGenerator c;
 };
 

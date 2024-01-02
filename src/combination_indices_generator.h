@@ -10,6 +10,7 @@ struct CombinationIndicesGenerator
 
     bool completed;
     unsigned long generated = 1;
+    unsigned long numCombinations = 0;
 
     /**
      * Generate a sequences of indices representing n choose r element
@@ -30,6 +31,8 @@ struct CombinationIndicesGenerator
    private:
     int n_;
     int r_;
+
+    void calculateNumCombinations() noexcept;
 };
 
 #endif /* COMBINATIONINDICESGENERATOR_H */

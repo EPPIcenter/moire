@@ -734,6 +734,9 @@ double Chain::calc_transmission_process(
         constrained_set_total_prob += prVec_.back();
     }
 
+    double log_constrained_set_total_prob =
+        std::log(constrained_set_total_prob);
+
     // normalize the vector
     for (double &k : prVec_)
     {
@@ -743,11 +746,12 @@ double Chain::calc_transmission_process(
     if (!params.allow_relatedness)
     {
         return std::log(1 - probAnyMissing_(prVec_, coi)) +
-               std::log(constrained_set_total_prob) * coi;
+               log_constrained_set_total_prob * coi;
     }
 
     // Only go up to coi - total_alleles because there must be at least
     // total_alleles unrelated strains at this locus
+    std::vector<double> pamVec = probAnyMissing_.vectorized(prVec_, coi);
     for (int i = 0; i <= coi - total_alleles; ++i)
     {
         // Calculate the probability of `i` related strains being present, where
@@ -756,9 +760,9 @@ double Chain::calc_transmission_process(
         // prob of i related strains
         const double pr = R::dbinom(i, coi - 1, relatedness, true);
 
-        // prob of coi - i unrelated strains
-        const double i_res = std::log(1 - probAnyMissing_(prVec_, coi - i)) +
-                             std::log(constrained_set_total_prob) * (coi - i);
+        const double i_res = std::log(1 - pamVec[coi - i - 1]) +
+                             log_constrained_set_total_prob * (coi - i);
+
         res.push_back(pr + i_res);
     }
 
@@ -781,38 +785,24 @@ double Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
     unsigned int total_alleles = allele_index_vec.size();
 
     unsigned int j = 0;
-    bool is_allele;
     for (const auto &e : obs_genotype)
     {
-        is_allele = (j == next_allele_index);
-        fp += e == 1 and !is_allele;
-        tp += e == 1 and is_allele;
-        fn += e == 0 and is_allele;
-        tn += e == 0 and !is_allele;
-        vec_pointer += is_allele;
+        fp += (e & 1) & !(j == next_allele_index);
+        tp += (e & 1) & (j == next_allele_index);
+        fn += !(e & 1) & (j == next_allele_index);
+        tn += !(e & 1) & !(j == next_allele_index);
+        vec_pointer += (j == next_allele_index);
 
-        if (vec_pointer < total_alleles)
-        {
-            next_allele_index = allele_index_vec[vec_pointer];
-        }
-        else
-        {
-            next_allele_index = -1;
-        }
+        next_allele_index = -1 + (vec_pointer < total_alleles) *
+                                     (allele_index_vec[vec_pointer] + 1);
         ++j;
     }
 
-    const int total_possible_alleles = obs_genotype.size();
-    res += std::log(1 - (epsilon_neg * params.max_eps_neg /
-                         total_possible_alleles)) *
-           tp;
-    res += std::log(epsilon_neg * params.max_eps_neg / total_possible_alleles) *
-           fn;
-    res += std::log(1 - (epsilon_pos * params.max_eps_pos /
-                         total_possible_alleles)) *
-           tn;
-    res += std::log(epsilon_pos * params.max_eps_pos / total_possible_alleles) *
-           fp;
+    const float norm_factor = 1.0f / obs_genotype.size();
+    res += std::log(1 - (epsilon_neg * params.max_eps_neg * norm_factor)) * tp;
+    res += std::log(epsilon_neg * params.max_eps_neg * norm_factor) * fn;
+    res += std::log(1 - (epsilon_pos * params.max_eps_pos * norm_factor)) * tn;
+    res += std::log(epsilon_pos * params.max_eps_pos * norm_factor) * fp;
 
     return res;
 };
@@ -860,14 +850,14 @@ double Chain::calc_old_prior()
 
 double Chain::calc_new_likelihood()
 {
-    double new_llik = 0;
-
-    for (const double ll : genotyping_llik_new)
+    double result = 0.0;
+#pragma omp simd reduction(+ : result)
+    for (int i = 0; i < genotyping_llik_new.size(); ++i)
     {
-        new_llik += ll;
+        result += genotyping_llik_new[i];
     }
 
-    return new_llik;
+    return result;
 }
 
 double Chain::calc_new_prior()
