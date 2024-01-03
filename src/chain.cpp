@@ -189,7 +189,7 @@ void Chain::update_eff_coi(int iteration)
 
         if (prop_m <= 0 or prop_m > params.max_coi or prop_r > 1.0f or
             prop_r < 1e-32)
-            break;
+            continue;
 
         const int prev_m = m[i];
         const float prev_r = r[i];
@@ -214,18 +214,11 @@ void Chain::update_eff_coi(int iteration)
         const float new_llik = calc_new_likelihood();
         const float new_prior = calc_new_prior();
         const float new_post = new_llik * temp + new_prior;
-
-        UtilFunctions::print("New Post:", new_post);
-        UtilFunctions::print("Old Post:", get_posterior());
-        UtilFunctions::print("Adj Ratio:", adj_ratio);
-        UtilFunctions::print("Acceptance:",
-                             new_post - get_posterior() + adj_ratio);
-        UtilFunctions::print("--------------------");
+        const double mh_ratio = new_post - get_posterior() + adj_ratio;
+        const double alpha = sampler.sample_log_mh_acceptance();
 
         // Reject
-        if (std::isnan(new_post) or
-            sampler.sample_log_mh_acceptance() >
-                (new_post - get_posterior() + adj_ratio))
+        if (std::isnan(new_post) or std::isnan(mh_ratio) or alpha > mh_ratio)
         {
             m[i] = prev_m;
             r[i] = prev_r;
