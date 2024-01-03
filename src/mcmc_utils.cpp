@@ -13,7 +13,7 @@ int r_to_int(SEXP x) { return Rcpp::as<int>(x); };
 
 long int r_to_long_int(SEXP x) {return Rcpp::as<long int>(x); };
 
-double r_to_double(SEXP x) { return Rcpp::as<double>(x); };
+float r_to_float(SEXP x) { return Rcpp::as<float>(x); };
 
 std::string r_to_string(SEXP x) { return Rcpp::as<std::string>(x); };
 
@@ -27,9 +27,9 @@ std::vector<int> r_to_vector_int(SEXP x)
     return Rcpp::as<std::vector<int>>(x);
 };
 
-std::vector<double> r_to_vector_double(SEXP x)
+std::vector<float> r_to_vector_float(SEXP x)
 {
-    return Rcpp::as<std::vector<double>>(x);
+    return Rcpp::as<std::vector<float>>(x);
 };
 
 std::vector<std::string> r_to_vector_string(SEXP x)
@@ -49,10 +49,10 @@ std::vector<std::vector<int>> r_to_mat_int(
     return r_to_mat<int>(x);
 };
 
-std::vector<std::vector<double>> r_to_mat_double(
-    Rcpp::Matrix<Rcpp::traits::r_sexptype_traits<double>::rtype> x)
+std::vector<std::vector<float>> r_to_mat_float(
+    Rcpp::Matrix<Rcpp::traits::r_sexptype_traits<float>::rtype> x)
 {
-    return r_to_mat<double>(x);
+    return r_to_mat<float>(x);
 };
 
 std::vector<std::vector<std::vector<bool>>> r_to_array_bool(Rcpp::List x)
@@ -65,9 +65,9 @@ std::vector<std::vector<std::vector<int>>> r_to_array_int(Rcpp::List x)
     return r_to_array<int>(x);
 };
 
-std::vector<std::vector<std::vector<double>>> r_to_array_double(Rcpp::List x)
+std::vector<std::vector<std::vector<float>>> r_to_array_float(Rcpp::List x)
 {
-    return r_to_array<double>(x);
+    return r_to_array<float>(x);
 };
 
 }  // namespace UtilFunctions

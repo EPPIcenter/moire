@@ -18,7 +18,7 @@ License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
 LazyDataCompression: bzip2
-SystemRequirements: C++17
+SystemRequirements: C++20, GNU make
 LinkingTo: 
     Rcpp,
     RcppProgress,

@@ -30,7 +30,7 @@ int r_to_int(SEXP x);
 
 long int r_to_long_int(SEXP x);
 
-double r_to_double(SEXP x);
+float r_to_float(SEXP x);
 
 std::string r_to_string(SEXP x);
 
@@ -38,7 +38,7 @@ std::vector<bool> r_to_vector_bool(SEXP x);
 
 std::vector<int> r_to_vector_int(SEXP x);
 
-std::vector<double> r_to_vector_double(SEXP x);
+std::vector<float> r_to_vector_float(SEXP x);
 
 std::vector<std::string> r_to_vector_string(SEXP x);
 
@@ -67,8 +67,8 @@ std::vector<std::vector<bool>> r_to_mat_bool(
 std::vector<std::vector<int>> r_to_mat_int(
     Rcpp::Matrix<Rcpp::traits::r_sexptype_traits<int>::rtype> x);
 
-std::vector<std::vector<double>> r_to_mat_double(
-    Rcpp::Matrix<Rcpp::traits::r_sexptype_traits<double>::rtype> x);
+std::vector<std::vector<float>> r_to_mat_float(
+    Rcpp::Matrix<Rcpp::traits::r_sexptype_traits<float>::rtype> x);
 
 template <class T>
 std::vector<std::vector<std::vector<T>>> r_to_array(Rcpp::List x)
@@ -95,7 +95,7 @@ std::vector<std::vector<std::vector<bool>>> r_to_array_bool(Rcpp::List x);
 
 std::vector<std::vector<std::vector<int>>> r_to_array_int(Rcpp::List x);
 
-std::vector<std::vector<std::vector<double>>> r_to_array_double(Rcpp::List x);
+std::vector<std::vector<std::vector<float>>> r_to_array_float(Rcpp::List x);
 
 template <class T>
 void print(T x)
@@ -141,7 +141,7 @@ void print_vector(std::vector<T> v)
 }
 
 template <class T>
-inline double logit(const T x)
+inline float logit(const T x)
 {
     if (x < .5)
     {
@@ -154,26 +154,26 @@ inline double logit(const T x)
 }
 
 template <class T>
-inline std::vector<double> logitVec(const std::vector<T> &x)
+inline std::vector<float> logitVec(const std::vector<T> &x)
 {
-    std::vector<double> res;
+    std::vector<float> res;
     std::transform(x.begin(), x.end(), std::back_inserter(res),
                    UtilFunctions::logit<T>);
     return res;
 }
 
 template <class T>
-inline std::pair<std::vector<double>, std::vector<double>> log_pq(
+inline std::pair<std::vector<float>, std::vector<float>> log_pq(
     const std::vector<T> &x)
 {
-    std::vector<double> logp;
+    std::vector<float> logp;
     logp.reserve(x.size());
-    std::vector<double> logq;
+    std::vector<float> logq;
     logq.reserve(x.size());
 
     for (const auto el : x)
     {
-        double ex = std::exp(el);
+        float ex = std::exp(el);
         if (el < 0)
         {
             logq.push_back(-std::log1p(ex));
@@ -186,15 +186,15 @@ inline std::pair<std::vector<double>, std::vector<double>> log_pq(
         }
     }
 
-    return std::pair<std::vector<double>, std::vector<double>>(logp, logq);
+    return std::pair<std::vector<float>, std::vector<float>>(logp, logq);
 }
 
 template <class T>
-inline std::pair<double, double> log_pq(const T x)
+inline std::pair<float, float> log_pq(const T x)
 {
-    double ex = std::exp(x);
-    double logp;
-    double logq;
+    float ex = std::exp(x);
+    float logp;
+    float logq;
     if (x < 0)
     {
         logq = -std::log1p(ex);
@@ -206,21 +206,21 @@ inline std::pair<double, double> log_pq(const T x)
         logq = logp - x;
     }
 
-    return std::pair<double, double>(logp, logq);
+    return std::pair<float, float>(logp, logq);
 }
 
-inline double logitSum(const std::vector<double> &x)
+inline float logitSum(const std::vector<float> &x)
 {
     auto x_sorted = x;
     std::sort(x_sorted.rbegin(), x_sorted.rend());
     auto lpq = log_pq(x_sorted);
 
-    double out;
-    double cumsum = 0;
+    float out;
+    float cumsum = 0;
 
     if (x_sorted[0] < 0)
     {
-        double lp1 = lpq.first[0];
+        float lp1 = lpq.first[0];
         for (std::size_t i = 1; i < lpq.first.size(); ++i)
         {
             cumsum += std::exp(lpq.first[i] - lp1);
@@ -229,7 +229,7 @@ inline double logitSum(const std::vector<double> &x)
     }
     else
     {
-        double lq1 = lpq.second[0];
+        float lq1 = lpq.second[0];
         for (std::size_t i = 1; i < lpq.first.size(); ++i)
         {
             cumsum += std::exp(lpq.first[i]);
@@ -240,20 +240,20 @@ inline double logitSum(const std::vector<double> &x)
     return out;
 }
 
-inline std::vector<double> logitScale(std::vector<double> &x, double scale)
+inline std::vector<float> logitScale(std::vector<float> &x, float scale)
 {
-    std::vector<double> out;
+    std::vector<float> out;
     out.reserve(x.size());
-    std::vector<double> l2;
+    std::vector<float> l2;
     l2.reserve(x.size());
 
-    std::vector<double> u;
+    std::vector<float> u;
     u.reserve(x.size());
-    std::vector<double> v;
+    std::vector<float> v;
     v.reserve(x.size());
-    std::vector<double> ev;
+    std::vector<float> ev;
     ev.reserve(x.size());
-    std::vector<double> eumo;
+    std::vector<float> eumo;
     eumo.reserve(x.size());
 
     bool ok;
@@ -290,7 +290,7 @@ inline std::vector<double> logitScale(std::vector<double> &x, double scale)
 }
 
 template <class T>
-inline double expit(const T x)
+inline float expit(const T x)
 {
     return 1 / (1 + std::exp(-x));
 }
@@ -298,7 +298,7 @@ inline double expit(const T x)
 template <class T>
 inline std::vector<T> expitVec(std::vector<T> x)
 {
-    std::vector<double> out;
+    std::vector<float> out;
     out.reserve(x.size());
     std::transform(x.begin(), x.end(), std::back_inserter(out),
                    UtilFunctions::expit<T>);
@@ -322,14 +322,14 @@ std::vector<int> randomSequence(int min, int max, Engine rng)
     return indices;
 }
 
-inline double logSumExp(const double a, const double b)
+inline float logSumExp(const float a, const float b)
 {
-    double max_el = std::max(a, b);
-    if (max_el == -std::numeric_limits<double>::infinity())
+    float max_el = std::max(a, b);
+    if (max_el == -std::numeric_limits<float>::infinity())
     {
-        return -std::numeric_limits<double>::infinity();
+        return -std::numeric_limits<float>::infinity();
     }
-    double sum = std::exp(a - max_el) + std::exp(b - max_el);
+    float sum = std::exp(a - max_el) + std::exp(b - max_el);
     return max_el + std::log(sum);
 }
 
@@ -367,20 +367,20 @@ typename std::iterator_traits<Iter>::value_type logSumExp(const Iter &begin,
 
 template <typename It,
           typename T = std::decay_t<decltype(*begin(std::declval<It>()))>>
-double logSumExp(const It &x)
+float logSumExp(const It &x)
 {
     return logSumExp(x.begin(), x.end());
 }
 
-inline double logSumExp(const std::vector<double> &x)
+inline float logSumExp(const std::vector<float> &x)
 {
-    double max_el = *std::max_element(x.begin(), x.end());
-    if (max_el == -std::numeric_limits<double>::infinity())
+    float max_el = *std::max_element(x.begin(), x.end());
+    if (max_el == -std::numeric_limits<float>::infinity())
     {
-        return -std::numeric_limits<double>::infinity();
+        return -std::numeric_limits<float>::infinity();
     }
 
-    double sum = 0;
+    float sum = 0;
 #pragma omp simd reduction(+ : sum)
     for (int i = 0; i < x.size(); ++i)
     {

@@ -9,16 +9,16 @@ struct probAnyMissingFunctor
 {
     probAnyMissingFunctor() = default;
 
-    double operator()(const std::vector<double> &eventProbs, int numEvents);
+    float operator()(const std::vector<float> &eventProbs, int numEvents);
 
-    std::vector<double> vectorized(const std::vector<double> &eventProbs,
+    std::vector<float> vectorized(const std::vector<float> &eventProbs,
                                    unsigned int numEvents);
 
-    std::vector<double> vectorized(const std::vector<double> &eventProbs,
+    std::vector<float> vectorized(const std::vector<float> &eventProbs,
                                    unsigned int minNumEvents,
                                    unsigned int maxNumEvents);
 
-    std::vector<double> baseVec{};
+    std::vector<float> baseVec{};
     CombinationIndicesGenerator c;
 };
 

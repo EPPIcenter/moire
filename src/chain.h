@@ -18,7 +18,7 @@ class Chain
     Parameters params;
     Sampler sampler;
     probAnyMissingFunctor probAnyMissing_;
-    std::vector<double> prVec_{};
+    std::vector<float> prVec_{};
 
     CombinationIndicesGenerator allele_index_generator_;
 
@@ -30,33 +30,33 @@ class Chain
     void initialize_r();
     void initialize_likelihood();
 
-    double calc_transmission_process(
+    float calc_transmission_process(
         std::vector<int> const &allele_index_vec,
-        std::vector<double> const &allele_frequencies, int coi,
-        double relatedness);
+        std::vector<float> const &allele_frequencies, int coi,
+        float relatedness);
 
-    double calc_observation_process(std::vector<int> const &allele_index_vec,
-                                    std::vector<int> const &obs_genotype,
-                                    double epsilon_neg, double epsilon_pos);
+    float calc_observation_process(std::vector<int> const &allele_index_vec,
+                                   std::vector<int> const &obs_genotype,
+                                   float epsilon_neg, float epsilon_pos);
 
-    double calc_genotype_log_pmf(std::vector<int> const &allele_index_vec,
-                                 std::vector<int> const &obs_genotype,
-                                 double epsilon_pos, double epsilon_neg,
-                                 int coi, double relatedness,
-                                 std::vector<double> const &allele_frequencies);
+    float calc_genotype_log_pmf(std::vector<int> const &allele_index_vec,
+                                std::vector<int> const &obs_genotype,
+                                float epsilon_pos, float epsilon_neg, int coi,
+                                float relatedness,
+                                std::vector<float> const &allele_frequencies);
 
-    std::vector<double> calc_obs_genotype_lliks(
+    std::vector<float> calc_obs_genotype_lliks(
         std::vector<int> const &obs_genotype,
-        std::vector<std::vector<int>> const &true_genotypes, double epsilon_neg,
-        double epsilon_pos, int num_genotypes);
+        std::vector<std::vector<int>> const &true_genotypes, float epsilon_neg,
+        float epsilon_pos, int num_genotypes);
 
-    double calculate_llik(int num_samples);
-    double calc_old_likelihood();
-    double calc_new_likelihood();
-    double calc_old_prior();
-    double calc_new_prior();
-    double calculate_new_posterior();
-    double calculate_old_posterior();
+    float calculate_llik(int num_samples);
+    float calc_old_likelihood();
+    float calc_new_likelihood();
+    float calc_old_prior();
+    float calc_new_prior();
+    float calculate_new_posterior();
+    float calculate_old_posterior();
 
     void calculate_genotype_likelihood(int sample_idx, int locux_idx);
     void calculate_eps_neg_likelihood(int sample_idx);
@@ -80,83 +80,84 @@ class Chain
     void restore_mean_coi_likelihood();
 
    public:
-    std::vector<double> genotyping_llik_old{};
-    std::vector<double> genotyping_llik_new{};
+    std::vector<float> genotyping_llik_old{};
+    std::vector<float> genotyping_llik_new{};
 
-    std::vector<double> eps_neg_prior_old{};
-    std::vector<double> eps_neg_prior_new{};
-    std::vector<double> eps_pos_prior_old{};
-    std::vector<double> eps_pos_prior_new{};
-    std::vector<double> coi_prior_new{};
-    std::vector<double> coi_prior_old{};
-    std::vector<double> relatedness_prior_new{};
-    std::vector<double> relatedness_prior_old{};
+    std::vector<float> eps_neg_prior_old{};
+    std::vector<float> eps_neg_prior_new{};
+    std::vector<float> eps_pos_prior_old{};
+    std::vector<float> eps_pos_prior_new{};
+    std::vector<float> coi_prior_new{};
+    std::vector<float> coi_prior_old{};
+    std::vector<float> relatedness_prior_new{};
+    std::vector<float> relatedness_prior_old{};
 
-    double llik;
-    double prior;
-    double temp;
+    float llik;
+    float prior;
+    float temp;
 
     // Latent Genotypes
     std::vector<std::vector<std::vector<int>>> latent_genotypes_old{};
     std::vector<std::vector<std::vector<int>>> latent_genotypes_new{};
-    std::vector<std::vector<double>> lg_adj_old{};
-    std::vector<std::vector<double>> lg_adj_new{};
+    std::vector<std::vector<float>> lg_adj_old{};
+    std::vector<std::vector<float>> lg_adj_new{};
 
     // COI
     std::vector<int> m{};
     std::vector<int> m_accept{};
-    double mean_coi;
-    double mean_coi_var;
-    double mean_coi_accept;
-    double mean_coi_hyper_prior_old;
-    double mean_coi_hyper_prior_new;
+    float mean_coi;
+    float mean_coi_var;
+    float mean_coi_accept;
+    float mean_coi_hyper_prior_old;
+    float mean_coi_hyper_prior_new;
 
     // Relatedness
-    std::vector<double> r{};
+    std::vector<float> r{};
     std::vector<int> r_accept{};
-    std::vector<double> r_var{};
+    std::vector<float> r_var{};
 
     std::vector<int> m_r_accept{};
-    std::vector<double> m_r_var{};
+    std::vector<float> m_r_var{};
 
     // Allele Frequencies
-    std::vector<std::vector<double>> p{};
-    std::vector<double> prop_p{};
-    std::vector<std::vector<double>> p_prop_var{};
+    std::vector<std::vector<float>> p{};
+    std::vector<float> prop_p{};
+    std::vector<std::vector<float>> p_prop_var{};
     std::vector<std::vector<int>> p_accept{};
     std::vector<std::vector<int>> p_attempt{};
 
     // Epsilon Positive
-    // double eps_pos;
-    std::vector<double> eps_pos{};
+    // float eps_pos;
+    std::vector<float> eps_pos{};
     std::vector<int> eps_pos_accept{};
-    std::vector<double> eps_pos_var{};
+    std::vector<float> eps_pos_var{};
 
     // Epsilon Negative
-    // double eps_neg;
-    std::vector<double> eps_neg{};
+    // float eps_neg;
+    std::vector<float> eps_neg{};
     std::vector<int> eps_neg_accept{};
-    std::vector<double> eps_neg_var{};
+    std::vector<float> eps_neg_var{};
 
     std::vector<int> sample_accept{};
 
-    Chain(GenotypingData genotyping_data, Parameters params, double temp = 1.0);
+    Chain(GenotypingData genotyping_data, Parameters params, float temp = 1.0);
     void update_m(int iteration);
     void update_r(int iteration);
     void update_m_r(int iteration);
+    void update_eff_coi(int iteration);
     void update_p(int iteration);
     void update_eps(int iteration);
     void update_eps_pos(int iteration);
     void update_eps_neg(int iteration);
     void update_samples(int iteration);
     void update_mean_coi(int iteration);
-    double get_llik();
-    double get_prior();
-    double get_posterior();
+    float get_llik();
+    float get_prior();
+    float get_posterior();
 
-    void set_llik(double llik);
-    void set_temp(double temp);
-    double get_temp();
+    void set_llik(float llik);
+    void set_temp(float temp);
+    float get_temp();
 };
 
 #endif  // CHAIN_H_

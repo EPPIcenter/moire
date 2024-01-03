@@ -5,8 +5,8 @@
 
 // todo: try implementing this with simd intrinsics by precomputing the event
 // probabilities
-double probAnyMissingFunctor::operator()(const std::vector<double> &eventProbs,
-                                         int numEvents)
+float probAnyMissingFunctor::operator()(const std::vector<float> &eventProbs,
+                                        int numEvents)
 {
     const std::size_t totalEvents = eventProbs.size();
     if (numEvents < totalEvents)
@@ -15,7 +15,7 @@ double probAnyMissingFunctor::operator()(const std::vector<double> &eventProbs,
         return 1.0;
     }
 
-    double prob = 0.0;
+    float prob = 0.0;
 
     //      Calculate via inclusion-exclusion principle
     int sign = -1;
@@ -26,7 +26,7 @@ double probAnyMissingFunctor::operator()(const std::vector<double> &eventProbs,
         baseVec.resize(0);
         while (!c.completed)
         {
-            double base = 1.0;
+            float base = 1.0;
 
             for (const auto j : c.curr)
             {
@@ -36,9 +36,9 @@ double probAnyMissingFunctor::operator()(const std::vector<double> &eventProbs,
             c.next();
         }
 
-        for (double base : baseVec)
+        for (float base : baseVec)
         {
-            double r = sign;
+            float r = sign;
             int multCounter = static_cast<signed>(numEvents);
             // squared exponentiation
             while (multCounter > 0)
@@ -56,19 +56,19 @@ double probAnyMissingFunctor::operator()(const std::vector<double> &eventProbs,
     return prob;
 }
 
-std::vector<double> probAnyMissingFunctor::vectorized(
-    const std::vector<double> &eventProbs, unsigned int numEvents)
+std::vector<float> probAnyMissingFunctor::vectorized(
+    const std::vector<float> &eventProbs, unsigned int numEvents)
 {
     return vectorized(eventProbs, 1, numEvents);
 }
 
-std::vector<double> probAnyMissingFunctor::vectorized(
-    const std::vector<double> &eventProbs, unsigned int minNumEvents,
+std::vector<float> probAnyMissingFunctor::vectorized(
+    const std::vector<float> &eventProbs, unsigned int minNumEvents,
     unsigned int maxNumEvents)
 {
     const std::size_t totalEvents = eventProbs.size();
 
-    std::vector<double> probVec(maxNumEvents - minNumEvents + 1, 0.0);
+    std::vector<float> probVec(maxNumEvents - minNumEvents + 1, 0.0);
     std::fill_n(probVec.begin(), totalEvents - 1, 1.0);
 
     //      Calculate via inclusion-exclusion principle
@@ -83,7 +83,7 @@ std::vector<double> probAnyMissingFunctor::vectorized(
         // while (!c.completed)
         for (std::size_t k = 0; k < c.numCombinations; ++k)
         {
-            double base = 1.0;
+            float base = 1.0;
 
             for (const auto j : c.curr)
             {
@@ -93,9 +93,9 @@ std::vector<double> probAnyMissingFunctor::vectorized(
             c.next();
         }
 
-        for (const double base : baseVec)
+        for (const float base : baseVec)
         {
-            double r = sign;
+            float r = sign;
             for (std::size_t j = 0; j < totalEvents - 1; ++j)
             {
                 r *= base;

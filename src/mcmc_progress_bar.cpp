@@ -57,9 +57,9 @@ void MCMCProgressBar::update(float progress)
 
 void MCMCProgressBar::end_display() { update(1); };
 
-std::string MCMCProgressBar::time_remaining_string_(double dur, float progress)
+std::string MCMCProgressBar::time_remaining_string_(float dur, float progress)
 {
-    double rem_time = (dur / progress) * (1 - progress);
+    float rem_time = (dur / progress) * (1 - progress);
     int hour = 0;
     int min = 0;
     int sec = 0;
@@ -91,7 +91,7 @@ std::string MCMCProgressBar::construct_ticks_display_string_(int ticks)
     std::stringstream ss;
 
     int burnin_tick =
-        (int)(((double)burnin_ / (burnin_ + sample_)) * max_ticks_);
+        (int)(((float)burnin_ / (burnin_ + sample_)) * max_ticks_);
 
     for (int i = 0; i < max_ticks_ - 1; ++i)
     {
@@ -126,5 +126,5 @@ void MCMCProgressBar::finalize_display_()
     finalized_ = true;
 }
 
-void MCMCProgressBar::set_llik(double llik) { llik_ = llik; }
+void MCMCProgressBar::set_llik(float llik) { llik_ = llik; }
 void MCMCProgressBar::set_hot_chain(int idx) { hot_chain_ = idx; }
