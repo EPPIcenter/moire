@@ -4,10 +4,8 @@
 #include "sampler.h"
 
 #include <cmath>
-
-#include <Rcpp/stats/binom.h>
-
 #include <algorithm>
+#include <execution>
 #include <limits>
 #include <map>
 #include <numeric>
@@ -925,72 +923,34 @@ float Chain::calc_old_likelihood()
 
 float Chain::calc_old_prior()
 {
-    float prior_ = 0;
-
-#pragma omp simd reduction(+ : prior_)
-    for (int i = 0; i < eps_neg_prior_old.size(); ++i)
-    {
-        prior_ += eps_neg_prior_old[i];
-    }
-#pragma omp simd reduction(+ : prior_)
-    for (int i = 0; i < eps_pos_prior_old.size(); ++i)
-    {
-        prior_ += eps_pos_prior_old[i];
-    }
-#pragma omp simd reduction(+ : prior_)
-    for (int i = 0; i < relatedness_prior_old.size(); ++i)
-    {
-        prior_ += relatedness_prior_old[i];
-    }
-#pragma omp simd reduction(+ : prior_)
-    for (int i = 0; i < coi_prior_old.size(); ++i)
-    {
-        prior_ += coi_prior_old[i];
-    }
-    prior_ += mean_coi_hyper_prior_old;
-
-    return prior_;
+    return std::reduce(std::execution::unseq, eps_neg_prior_old.begin(),
+                       eps_neg_prior_old.end(), 0.0f) +
+           std::reduce(std::execution::unseq, eps_pos_prior_old.begin(),
+                       eps_pos_prior_old.end(), 0.0f) +
+           std::reduce(std::execution::unseq, relatedness_prior_old.begin(),
+                       relatedness_prior_old.end(), 0.0f) +
+           std::reduce(std::execution::unseq, coi_prior_old.begin(),
+                       coi_prior_old.end(), 0.0f) +
+           mean_coi_hyper_prior_old;
 }
 
 float Chain::calc_new_likelihood()
 {
-    float result = 0.0;
-#pragma omp simd reduction(+ : result)
-    for (int i = 0; i < genotyping_llik_new.size(); ++i)
-    {
-        result += genotyping_llik_new[i];
-    }
-
-    return result;
+    return std::reduce(std::execution::unseq, genotyping_llik_new.begin(),
+                       genotyping_llik_new.end(), 0.0f);
 }
 
 float Chain::calc_new_prior()
 {
-    float prior_ = 0;
-
-#pragma omp simd reduction(+ : prior_)
-    for (int i = 0; i < eps_neg_prior_new.size(); ++i)
-    {
-        prior_ += eps_neg_prior_new[i];
-    }
-#pragma omp simd reduction(+ : prior_)
-    for (int i = 0; i < eps_pos_prior_new.size(); ++i)
-    {
-        prior_ += eps_pos_prior_new[i];
-    }
-#pragma omp simd reduction(+ : prior_)
-    for (int i = 0; i < relatedness_prior_new.size(); ++i)
-    {
-        prior_ += relatedness_prior_new[i];
-    }
-#pragma omp simd reduction(+ : prior_)
-    for (int i = 0; i < coi_prior_new.size(); ++i)
-    {
-        prior_ += coi_prior_new[i];
-    }
-    prior_ += mean_coi_hyper_prior_new;
-
-    return prior_;
+    return std::reduce(std::execution::unseq, eps_neg_prior_new.begin(),
+                       eps_neg_prior_new.end(), 0.0f) +
+           std::reduce(std::execution::unseq, eps_pos_prior_new.begin(),
+                       eps_pos_prior_new.end(), 0.0f) +
+           std::reduce(std::execution::unseq, relatedness_prior_new.begin(),
+                       relatedness_prior_new.end(), 0.0f) +
+           std::reduce(std::execution::unseq, coi_prior_new.begin(),
+                       coi_prior_new.end(), 0.0f) +
+           mean_coi_hyper_prior_new;
 }
 
 float Chain::get_llik() { return llik; }
