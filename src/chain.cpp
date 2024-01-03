@@ -169,13 +169,107 @@ void Chain::update_m(int iteration)
     }
 }
 
-void Chain::update_r(int iteration)
+void Chain::update_eff_coi(int iteration)
 {
     auto indices = std::vector<int>(genotyping_data.num_samples);
     std::iota(indices.begin(), indices.end(), 0);
     sampler.shuffle_vec(indices);
 
-    // UtilFunctions::print_vector(relatedness_prior_new);
+    for (const int i : indices)
+    {
+        const float curr_eff_coi = (m[i] - 1) * (1.0f - r[i]) + 1.0f;
+        const auto prop_adj = sampler.sample_constrained(
+            curr_eff_coi, m_r_var[i], 1, params.max_coi);
+
+        const float prop_eff_coi = std::get<0>(prop_adj);
+        const float adj = std::get<1>(prop_adj);
+
+        const int prop_m = m[i] + sampler.sample_coi_delta(2);
+        const float prop_r = 1.0f - (prop_eff_coi - 1.0f) / (prop_m - 1.0f);
+
+        if (prop_m <= 0 or prop_m > params.max_coi or prop_r > 1.0f or
+            prop_r < 1e-32)
+            break;
+
+        const int prev_m = m[i];
+        const float prev_r = r[i];
+        m[i] = prop_m;
+        r[i] = prop_r;
+        calculate_coi_likelihood(i);
+        calculate_relatedness_likelihood(i);
+
+        float adj_ratio = adj;
+
+        for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+        {
+            const auto &lg = sampler.sample_latent_genotype(
+                genotyping_data.get_observed_alleles(jj, i), m[i], eps_pos[i],
+                eps_neg[i]);
+            latent_genotypes_new[jj][i] = lg.value;
+            lg_adj_new[jj][i] = lg.log_prob;
+            adj_ratio = adj_ratio + lg_adj_new[jj][i] - lg_adj_old[jj][i];
+            calculate_genotype_likelihood(i, jj);
+        }
+
+        const float new_llik = calc_new_likelihood();
+        const float new_prior = calc_new_prior();
+        const float new_post = new_llik * temp + new_prior;
+
+        UtilFunctions::print("New Post:", new_post);
+        UtilFunctions::print("Old Post:", get_posterior());
+        UtilFunctions::print("Adj Ratio:", adj_ratio);
+        UtilFunctions::print("Acceptance:",
+                             new_post - get_posterior() + adj_ratio);
+        UtilFunctions::print("--------------------");
+
+        // Reject
+        if (std::isnan(new_post) or
+            sampler.sample_log_mh_acceptance() >
+                (new_post - get_posterior() + adj_ratio))
+        {
+            m[i] = prev_m;
+            r[i] = prev_r;
+            restore_coi_likelihood(i);
+            restore_relatedness_likelihood(i);
+            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+            {
+                restore_genotype_likelihood(i, jj);
+                lg_adj_new[jj][i] = lg_adj_old[jj][i];
+                latent_genotypes_new[jj][i] = latent_genotypes_old[jj][i];
+            }
+        }
+        else
+        {
+            llik = new_llik;
+            prior = new_prior;
+            save_relatedness_likelihood(i);
+            save_coi_likelihood(i);
+            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+            {
+                save_genotype_likelihood(i, jj);
+                lg_adj_old[jj][i] = lg_adj_new[jj][i];
+                latent_genotypes_old[jj][i] = latent_genotypes_new[jj][i];
+            }
+            m_r_accept[i] += 1;
+        }
+
+        if (iteration < params.burnin and
+            iteration > 15)  // don't start adapting until there are
+                             // at least a few samples
+        {
+            const float acceptanceRate = m_r_accept[i] / float(iteration);
+            const float update =
+                (acceptanceRate - .23) / std::pow(iteration + 1, .5);
+            m_r_var[i] = std::max(m_r_var[i] + update, .01f);
+        }
+    }
+}
+
+void Chain::update_r(int iteration)
+{
+    auto indices = std::vector<int>(genotyping_data.num_samples);
+    std::iota(indices.begin(), indices.end(), 0);
+    sampler.shuffle_vec(indices);
 
     for (const auto i : indices)
     {

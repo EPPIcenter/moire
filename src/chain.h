@@ -36,14 +36,14 @@ class Chain
         float relatedness);
 
     float calc_observation_process(std::vector<int> const &allele_index_vec,
-                                    std::vector<int> const &obs_genotype,
-                                    float epsilon_neg, float epsilon_pos);
+                                   std::vector<int> const &obs_genotype,
+                                   float epsilon_neg, float epsilon_pos);
 
     float calc_genotype_log_pmf(std::vector<int> const &allele_index_vec,
-                                 std::vector<int> const &obs_genotype,
-                                 float epsilon_pos, float epsilon_neg,
-                                 int coi, float relatedness,
-                                 std::vector<float> const &allele_frequencies);
+                                std::vector<int> const &obs_genotype,
+                                float epsilon_pos, float epsilon_neg, int coi,
+                                float relatedness,
+                                std::vector<float> const &allele_frequencies);
 
     std::vector<float> calc_obs_genotype_lliks(
         std::vector<int> const &obs_genotype,
@@ -144,6 +144,7 @@ class Chain
     void update_m(int iteration);
     void update_r(int iteration);
     void update_m_r(int iteration);
+    void update_eff_coi(int iteration);
     void update_p(int iteration);
     void update_eps(int iteration);
     void update_eps_pos(int iteration);
