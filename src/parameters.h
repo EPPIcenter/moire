@@ -15,7 +15,7 @@ class Parameters
     int thin;
     int burnin;
     int samples;
-    std::vector<double> pt_chains;
+    std::vector<float> pt_chains;
     int pt_num_threads;
     bool adapt_temp;
     int pre_adapt_steps;
@@ -24,24 +24,24 @@ class Parameters
     // Model Parameters
     // Complexity of Infection
     int max_coi;
-    double mean_coi_shape;
-    double mean_coi_scale;
+    float mean_coi_shape;
+    float mean_coi_scale;
 
     // False Positive Rate
-    double max_eps_pos;    // Max allowed value
-    double eps_pos_alpha;  // Alpha parameter prior on beta distribution
-    double eps_pos_beta;   // Beta parameter prior on beta distribution
+    float max_eps_pos;    // Max allowed value
+    float eps_pos_alpha;  // Alpha parameter prior on beta distribution
+    float eps_pos_beta;   // Beta parameter prior on beta distribution
 
     // False Negative Rate
-    double max_eps_neg;    // Max allowed value
-    double eps_neg_alpha;  // Alpha parameter prior on beta distribution
-    double eps_neg_beta;   // Beta parameter prior on beta distribution
+    float max_eps_neg;    // Max allowed value
+    float eps_neg_alpha;  // Alpha parameter prior on beta distribution
+    float eps_neg_beta;   // Beta parameter prior on beta distribution
 
     // Relatedness
-    double r_alpha;
-    double r_beta;
+    float r_alpha;
+    float r_beta;
 
-    // double allele_freq_var;
+    // float allele_freq_var;
 
     // constructors
     Parameters(const Rcpp::List &args);

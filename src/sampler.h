@@ -10,70 +10,67 @@
 struct LatentGenotype
 {
     std::vector<int> value;
-    double log_prob;
+    float log_prob;
 };
 
 class Sampler
 {
    private:
     std::uniform_int_distribution<int> unif_int_distr;
-    std::normal_distribution<double> norm_distr;
-    std::gamma_distribution<double> gamma_distr;
+    std::normal_distribution<float> norm_distr;
+    std::gamma_distribution<float> gamma_distr;
     std::discrete_distribution<int> discrete_distr;
-    std::uniform_real_distribution<double> unif_distr;
+    std::uniform_real_distribution<float> unif_distr;
     std::bernoulli_distribution ber_distr;
     std::geometric_distribution<int> geom_distr;
     std::array<float, 128> lgamma_lut;
 
-    std::vector<double> rdirichlet(std::vector<double> const &shape_vec);
-    std::vector<double> rlogit_norm(std::vector<double> const &p,
-                                    double variance);
+    std::vector<float> rdirichlet(std::vector<float> const &shape_vec);
+    std::vector<float> rlogit_norm(std::vector<float> const &p, float variance);
 
    public:
     static std::random_device rd;
     std::ranlux24_base eng;
     boost::random::mt19937 r;
 
-    double get_epsilon_log_prior(double x, double alpha, double beta);
-    double get_relatedness_log_prior(double x, double alpha, double beta);
-    double get_coi_log_prior(int coi, double mean);
-    double get_coi_mean_log_hyper_prior(double mean, double shape,
-                                        double scale);
+    float get_epsilon_log_prior(float x, float alpha, float beta);
+    float get_relatedness_log_prior(float x, float alpha, float beta);
+    float get_coi_log_prior(int coi, float mean);
+    float get_coi_mean_log_hyper_prior(float mean, float shape, float scale);
 
-    double sample_epsilon(double curr_epsilon, double variance);
-    std::tuple<double, double> sample_constrained(double curr, double var,
-                                                  double lower, double upper);
-    double sample_epsilon_pos(double curr_epsilon_pos, double variance);
-    double sample_epsilon_neg(double curr_epsilon_neg, double variance);
+    float sample_epsilon(float curr_epsilon, float variance);
+    std::tuple<float, float> sample_constrained(float curr, float var,
+                                                float lower, float upper);
+    float sample_epsilon_pos(float curr_epsilon_pos, float variance);
+    float sample_epsilon_neg(float curr_epsilon_neg, float variance);
 
-    int sample_coi_delta(double coi_prop_mean);
+    int sample_coi_delta(float coi_prop_mean);
     int sample_coi_delta();
-    double sample_mean_coi(double coi_mean_shape, double coi_mean_rate);
+    float sample_mean_coi(float coi_mean_shape, float coi_mean_rate);
 
     int sample_random_int(int lower, int upper);
-    std::vector<double> sample_allele_frequencies(
-        std::vector<double> const &curr_allele_frequencies, double alpha);
-    std::vector<double> sample_allele_frequencies2(
-        std::vector<double> const &curr_allele_frequencies, double variance);
+    std::vector<float> sample_allele_frequencies(
+        std::vector<float> const &curr_allele_frequencies, float alpha);
+    std::vector<float> sample_allele_frequencies2(
+        std::vector<float> const &curr_allele_frequencies, float variance);
     std::vector<std::vector<int>> &sample_genotype(
-        int coi, std::vector<double> const &allele_frequencies,
-        int num_samples);
+        int coi, std::vector<float> const &allele_frequencies, int num_samples);
 
-    double sample_log_mh_acceptance();
-    double sample_unif();
+    float sample_log_mh_acceptance();
+    float sample_unif();
     void shuffle_vec(std::vector<int> &vec);
 
-    double dbeta(double x, double alpha, double beta, bool return_log);
-    double dpois(int x, double mean, bool return_log);
-    double dbinom(int x, int size, double prob, bool return_log);
-    double dztpois(int x, double mean);
-    double dgamma(double x, double shape, double scale, bool return_log);
-    double rgamma(double alpha, double beta);
-    double rgamma2(double shape, double rate);
+    float dbeta(float x, float alpha, float beta, bool return_log);
+    float dpois(int x, float mean, bool return_log);
+    float dbinom(int x, int size, float prob, bool return_log);
+    float dztpois(int x, float mean);
+    float dgamma(float x, float shape, float scale, bool return_log);
+    float rgamma(float alpha, float beta);
+    float rgamma2(float shape, float rate);
 
     LatentGenotype sample_latent_genotype(const std::vector<int> &obs_genotype,
-                                          int coi, double epsilon_pos,
-                                          double epsilon_neg);
+                                          int coi, float epsilon_pos,
+                                          float epsilon_neg);
 
     Sampler();
 };

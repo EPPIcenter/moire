@@ -16,7 +16,7 @@ class MCMCProgressBar : public ProgressBar
     void display();
     void update(float progress);
     void end_display();
-    void set_llik(double llik);
+    void set_llik(float llik);
     void set_hot_chain(int idx);
 
    private:
@@ -25,7 +25,7 @@ class MCMCProgressBar : public ProgressBar
         UPDATE_CONSOLE
     };
 
-    std::string time_remaining_string_(double dur, float progress);
+    std::string time_remaining_string_(float dur, float progress);
     std::string current_ticks_string_(float progress);
     std::string current_llik_string_();
     std::string construct_ticks_display_string_(int ticks);
@@ -34,7 +34,7 @@ class MCMCProgressBar : public ProgressBar
     int max_ticks_ = 50;
     int burnin_;
     int sample_;
-    double llik_;
+    float llik_;
     int hot_chain_;
     Timer<events> clock_;
     bool finalized_ = false;
