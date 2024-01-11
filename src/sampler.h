@@ -6,6 +6,7 @@
 #include <boost/random.hpp>
 
 #include <random>
+#include <array>
 
 struct LatentGenotype
 {
@@ -23,7 +24,7 @@ class Sampler
     std::uniform_real_distribution<float> unif_distr;
     std::bernoulli_distribution ber_distr;
     std::geometric_distribution<int> geom_distr;
-    std::array<float, 128> lgamma_lut;
+    std::array<float, 128> lgamma_lut{};
 
     std::vector<float> rdirichlet(std::vector<float> const &shape_vec);
     std::vector<float> rlogit_norm(std::vector<float> const &p, float variance);

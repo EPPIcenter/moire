@@ -5,7 +5,12 @@
 
 #include <cmath>
 #include <algorithm>
+
+#if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
 #include <execution>
+#define HAS_EXECUTION 1
+#endif
+
 #include <limits>
 #include <map>
 #include <numeric>
@@ -909,48 +914,54 @@ float Chain::calc_genotype_log_pmf(const std::vector<int> &allele_index_vec,
     return res;
 }
 
-float Chain::calc_old_likelihood()
-{
-    float old_llik = 0;
-
-    for (const float ll : genotyping_llik_old)
-    {
-        old_llik += ll;
-    }
-
-    return old_llik * temp;
-}
-
-float Chain::calc_old_prior()
-{
-    return std::reduce(std::execution::unseq, eps_neg_prior_old.begin(),
-                       eps_neg_prior_old.end(), 0.0f) +
-           std::reduce(std::execution::unseq, eps_pos_prior_old.begin(),
-                       eps_pos_prior_old.end(), 0.0f) +
-           std::reduce(std::execution::unseq, relatedness_prior_old.begin(),
-                       relatedness_prior_old.end(), 0.0f) +
-           std::reduce(std::execution::unseq, coi_prior_old.begin(),
-                       coi_prior_old.end(), 0.0f) +
-           mean_coi_hyper_prior_old;
-}
-
 float Chain::calc_new_likelihood()
 {
-    return std::reduce(std::execution::unseq, genotyping_llik_new.begin(),
-                       genotyping_llik_new.end(), 0.0f);
+    #ifdef HAS_EXECUTION
+        return std::reduce(std::execution::unseq, genotyping_llik_new.begin(),
+                            genotyping_llik_new.end(), 0.0f);
+    #else
+        float sum = 0.0f;
+        #pragma omp simd reduction(+:sum)
+        for (int i = 0; i < genotyping_llik_new.size(); ++i) {
+            sum += genotyping_llik_new[i];
+        }
+        return sum;
+    #endif
 }
 
 float Chain::calc_new_prior()
 {
-    return std::reduce(std::execution::unseq, eps_neg_prior_new.begin(),
-                       eps_neg_prior_new.end(), 0.0f) +
-           std::reduce(std::execution::unseq, eps_pos_prior_new.begin(),
-                       eps_pos_prior_new.end(), 0.0f) +
-           std::reduce(std::execution::unseq, relatedness_prior_new.begin(),
-                       relatedness_prior_new.end(), 0.0f) +
-           std::reduce(std::execution::unseq, coi_prior_new.begin(),
-                       coi_prior_new.end(), 0.0f) +
-           mean_coi_hyper_prior_new;
+    #ifdef HAS_EXECUTION
+        return std::reduce(std::execution::unseq, eps_neg_prior_new.begin(),
+                           eps_neg_prior_new.end(), 0.0f) +
+               std::reduce(std::execution::unseq, eps_pos_prior_new.begin(),
+                           eps_pos_prior_new.end(), 0.0f) +
+               std::reduce(std::execution::unseq, relatedness_prior_new.begin(),
+                           relatedness_prior_new.end(), 0.0f) +
+               std::reduce(std::execution::unseq, coi_prior_new.begin(),
+                           coi_prior_new.end(), 0.0f) +
+               mean_coi_hyper_prior_new;
+    #else
+        float sum = 0.0f;
+        #pragma omp simd reduction(+:sum)
+        for (int i = 0; i < eps_neg_prior_new.size(); ++i) {
+            sum += eps_neg_prior_new[i];
+        }
+        #pragma omp simd reduction(+:sum)
+        for (int i = 0; i < eps_pos_prior_new.size(); ++i) {
+            sum += eps_pos_prior_new[i];
+        }
+        #pragma omp simd reduction(+:sum)
+        for (int i = 0; i < relatedness_prior_new.size(); ++i) {
+            sum += relatedness_prior_new[i];
+        }
+        #pragma omp simd reduction(+:sum)
+        for (int i = 0; i < coi_prior_new.size(); ++i) {
+            sum += coi_prior_new[i];
+        }
+        sum += mean_coi_hyper_prior_new;
+        return sum;
+    #endif
 }
 
 float Chain::get_llik() { return llik; }

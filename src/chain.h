@@ -51,12 +51,8 @@ class Chain
         float epsilon_pos, int num_genotypes);
 
     float calculate_llik(int num_samples);
-    float calc_old_likelihood();
     float calc_new_likelihood();
-    float calc_old_prior();
     float calc_new_prior();
-    float calculate_new_posterior();
-    float calculate_old_posterior();
 
     void calculate_genotype_likelihood(int sample_idx, int locux_idx);
     void calculate_eps_neg_likelihood(int sample_idx);
