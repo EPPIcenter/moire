@@ -46,7 +46,12 @@ void MCMCProgressBar::update(float progress)
 
         // clear console line and update
         clock_.record_event(events::UPDATE_CONSOLE);
+
+        #ifdef __EMSCRIPTEN__
+        UtilFunctions::print(ss.str());
+        #else
         UtilFunctions::rewrite_line(ss.str());
+        #endif
 
         if (progress == 1)
         {
