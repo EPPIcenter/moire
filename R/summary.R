@@ -477,6 +477,8 @@ summarize_allele_freqs <- function(mcmc_results,
     )
   )
 
+  warning_flag <- FALSE
+
   if (merge_chains) {
     allele_freq_matrices <- lapply(1:length(mcmc_results$args$data$loci), function(x) c())
     total_samples <- 0
@@ -489,6 +491,13 @@ summarize_allele_freqs <- function(mcmc_results,
     }
     allele_freq_matrices <- lapply(allele_freq_matrices, function(x) matrix(x, ncol = total_samples))
     res <- lapply(allele_freq_matrices, function(allele_freq_matrix) {
+      if (any(is.na(allele_freq_matrix))) {
+        if (!warning_flag) {
+          warning_flag <- TRUE
+          warning("NA values detected in allele frequency matrix. This may indicate a problem with the MCMC chain or there are loci with no diversity. NA values will be replaced with 0.")
+        }
+        allele_freq_matrix <- replace(allele_freq_matrix, which(is.na(allele_freq_matrix)), 0)
+      }
       post_allele_freqs_lower <- apply(
         allele_freq_matrix, 1, function(x) quantile(x, lower_quantile)
       )
@@ -519,6 +528,14 @@ summarize_allele_freqs <- function(mcmc_results,
         function(locus) {
           num_alleles <- length(locus[[1]])
           allele_freq_matrix <- matrix(unlist(locus), nrow = num_alleles)
+
+          if (any(is.na(allele_freq_matrix))) {
+            if (!warning_flag) {
+              warning_flag <- TRUE
+              warning("NA values detected in allele frequency matrix. This may indicate a problem with the MCMC chain or there are loci with no diversity. NA values will be replaced with 0.")
+            }
+            allele_freq_matrix <- replace(allele_freq_matrix, which(is.na(allele_freq_matrix)), 0)
+          }
 
           post_allele_freqs_lower <- apply(
             allele_freq_matrix, 1, function(x) quantile(x, lower_quantile)
@@ -670,7 +687,6 @@ summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_q
 
       effective_coi <- purrr::map2(r, coi, ~ (1 - .x) * (.y - 1) + 1)
 
-      # effective_coi <- (1 - mcmc_results$chains[[idx]]$relatedness) * mcmc_results$chains[[idx]]$coi
       post_effective_coi_lower <- sapply(effective_coi, function(x) {
         quantile(x, lower_quantile)
       })
