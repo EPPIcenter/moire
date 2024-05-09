@@ -10,7 +10,7 @@
 class MCMCProgressBar : public ProgressBar
 {
    public:
-    MCMCProgressBar(int burnin_, int sample_);
+    MCMCProgressBar(int burnin_, int sample_, bool use_message_ = false);
     ~MCMCProgressBar(){};
 
     void display();
@@ -39,6 +39,7 @@ class MCMCProgressBar : public ProgressBar
     Timer<events> clock_;
     bool finalized_ = false;
     bool timer_flag_ = false;
+    bool use_message_ = false;
 };
 
 #endif /* MCMC_PROGRESS_BAR_H */

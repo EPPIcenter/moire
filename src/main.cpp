@@ -33,7 +33,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
     }
 
     MCMC mcmc(genotyping_data, params);
-    MCMCProgressBar pb(params.burnin, params.samples);
+    MCMCProgressBar pb(params.burnin, params.samples, params.use_message);
     Progress p(params.burnin + params.samples, params.verbose, pb);
     pb.set_llik(mcmc.get_llik());
 

@@ -16,6 +16,7 @@
 #' @param samples_per_chain Positive Integer. Number of samples to take
 #'  after burnin
 #' @param verbose Logical indicating if progress is printed
+#' @param use_message Logical indicating if progress is printed using message or print
 #' @param eps_pos_alpha Positive Numeric. Alpha parameter in
 #'  Beta distribution for eps_pos prior
 #' @param eps_pos_beta Positive Numeric. Beta parameter in
@@ -64,6 +65,7 @@ run_mcmc <-
            burnin = 1e4,
            samples_per_chain = 1e3,
            verbose = TRUE,
+           use_message = FALSE,
            eps_pos_alpha = 1,
            eps_pos_beta = 1,
            eps_neg_alpha = 1,

@@ -2,8 +2,8 @@
 
 #include "mcmc_utils.h"
 
-MCMCProgressBar::MCMCProgressBar(int burnin, int sample)
-    : burnin_(burnin), sample_(sample)
+MCMCProgressBar::MCMCProgressBar(int burnin, int sample, bool use_message)
+    : burnin_(burnin), sample_(sample), use_message_(use_message)
 {
 }
 
@@ -47,16 +47,25 @@ void MCMCProgressBar::update(float progress)
         // clear console line and update
         clock_.record_event(events::UPDATE_CONSOLE);
 
-        #ifdef __EMSCRIPTEN__
-        UtilFunctions::print(ss.str());
-        #else
-        UtilFunctions::rewrite_line(ss.str());
-        #endif
-
-        if (progress == 1)
+        if (use_message_) 
         {
-            finalize_display_();
+            UtilFunctions::message(ss.str());
+        } 
+        else 
+        {
+            #ifdef __EMSCRIPTEN__
+            UtilFunctions::print(ss.str());
+            #else
+            UtilFunctions::rewrite_line(ss.str());
+            #endif
+
+            if (progress == 1)
+            {
+                finalize_display_();
+            }
         }
+
+
     }
 };
 

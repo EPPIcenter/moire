@@ -10,6 +10,7 @@ class Parameters
     // MCMC Parameters
     bool verbose;
     bool simple_verbose;
+    bool use_message;
     bool allow_relatedness;
     int chain_number;
     int thin;

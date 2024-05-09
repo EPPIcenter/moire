@@ -115,6 +115,13 @@ void rewrite_line(T x)
 #endif
 }
 
+template <class T>
+void message(T x)
+{   
+    SEXP x_ = Rcpp::CharacterVector(x);
+    Rcpp::message(x_);
+};
+
 template <class T, class... Args>
 void print(T first, Args... args)
 {
