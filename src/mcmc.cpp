@@ -185,6 +185,15 @@ void MCMC::adapt_temp()
 
     std::reverse(new_temp_gradient.begin(), new_temp_gradient.end());
 
+    // check if any new temperatures are NAN, bail on the update if so and keep updating the swap barriers
+    for (size_t i = 0; i < new_temp_gradient.size(); i++)
+    {
+        if (std::isnan(new_temp_gradient[i]))
+        {
+            return;
+        }
+    }
+
     // update the temperatures using the new gradient
     for (size_t i = 1; i < chains.size() - 1; i++)
     {
