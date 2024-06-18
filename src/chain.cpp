@@ -66,12 +66,10 @@ void Chain::initialize_p()
 
 void Chain::initialize_m()
 {
-    m = std::vector<int>();
+    m.reserve(genotyping_data.num_samples);
     for (const auto coi : genotyping_data.observed_coi)
     {
-        int m_coi = coi + sampler.sample_coi_delta(3);
-        m_coi = std::min(m_coi, params.max_coi);
-        m_coi = std::max(1, m_coi);
+        int m_coi = std::clamp(coi + sampler.sample_coi_delta(3), 1, params.max_coi);
         m.push_back(m_coi);
     }
     m_accept.resize(genotyping_data.num_samples, 0);
@@ -80,14 +78,22 @@ void Chain::initialize_m()
 
 void Chain::initialize_eps_neg()
 {
-    eps_neg.resize(genotyping_data.num_samples, sampler.sample_unif() * .1);
+    eps_neg.reserve(genotyping_data.num_samples);
+    for (size_t i = 0; i < genotyping_data.num_samples; ++i)
+    {
+        eps_neg.push_back(sampler.sample_unif() * .1);
+    }
     eps_neg_accept.resize(genotyping_data.num_samples, 0);
     eps_neg_var.resize(genotyping_data.num_samples, 1);
 }
 
 void Chain::initialize_eps_pos()
 {
-    eps_pos.resize(genotyping_data.num_samples, sampler.sample_unif() * .1);
+    eps_pos.reserve(genotyping_data.num_samples);
+    for (size_t i = 0; i < genotyping_data.num_samples; ++i)
+    {
+        eps_pos.push_back(sampler.sample_unif() * .1);
+    }
     eps_pos_accept.resize(genotyping_data.num_samples, 0);
     eps_pos_var.resize(genotyping_data.num_samples, 1);
 }
@@ -820,7 +826,7 @@ float Chain::calc_transmission_process(
     prVec_.clear();
     prVec_.reserve(total_alleles);
     res.reserve(coi - total_alleles + 1);
-    for (size_t j = 0; j < allele_index_vec.size(); j++)
+    for (size_t j = 0; j < total_alleles; j++)
     {
         prVec_.push_back(allele_frequencies[allele_index_vec[j]]);
         constrained_set_total_prob += prVec_.back();
@@ -872,22 +878,24 @@ float Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
     unsigned int fn = 0;
     unsigned int tn = 0;
 
+    unsigned int total_alleles = allele_index_vec.size(); 
     unsigned int vec_pointer = 0;
-    unsigned int next_allele_index = allele_index_vec[vec_pointer];
-    unsigned int total_alleles = allele_index_vec.size();
-
     unsigned int j = 0;
-    unsigned int mask = 0;
     for (const auto &e : obs_genotype)
     {
-        mask = (j == next_allele_index);
+        auto next_allele_index = -1;
+        if (vec_pointer < total_alleles)
+        {
+            next_allele_index = allele_index_vec[vec_pointer];
+        }
+
+        const auto mask = (j == next_allele_index);
         fp += (e & 1) & !mask;
         tp += (e & 1) & mask;
         fn += !(e & 1) & mask;
         tn += !(e & 1) & !mask;
         vec_pointer += mask;
-
-        next_allele_index = (vec_pointer < total_alleles) * allele_index_vec[vec_pointer] + (vec_pointer >= total_alleles) * -1;
+        
         ++j;
     }
 

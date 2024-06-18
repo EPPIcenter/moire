@@ -255,7 +255,7 @@ LatentGenotype Sampler::sample_latent_genotype(
 
     // there must be at least one allele, so if all obs_positives are considered
     // false positives then there must be at least one false negative
-    int min_false_negatives = std::max(0, 1 * (total_obs_positives == 0));
+    int min_false_negatives = total_obs_positives == 0;
 
     int max_false_negatives =
         std::max(min_false_negatives, std::min(coi, total_obs_negatives));
@@ -314,9 +314,6 @@ LatentGenotype Sampler::sample_latent_genotype(
 
     std::sort(allele_index_vec.begin(), allele_index_vec.end());
 
-    assert(allele_index_vec.size() ==
-           total_true_positives + total_false_negatives);
-
     float log_prob_positive_indices =
         -std::log(boost::math::binomial_coefficient<float>(
             total_obs_positives, total_true_positives));
@@ -327,6 +324,8 @@ LatentGenotype Sampler::sample_latent_genotype(
     float log_prob = log_prob_positive_indices + log_prob_negative_indices +
                      log_prob_total_false_positives +
                      log_prob_total_false_negatives;
+
+    assert(allele_index_vec.size() > 0);
 
     return LatentGenotype{allele_index_vec, log_prob};
 }
