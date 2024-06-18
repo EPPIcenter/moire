@@ -877,16 +877,17 @@ float Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
     unsigned int total_alleles = allele_index_vec.size();
 
     unsigned int j = 0;
+    unsigned int mask = 0;
     for (const auto &e : obs_genotype)
     {
-        fp += (e & 1) & !(j == next_allele_index);
-        tp += (e & 1) & (j == next_allele_index);
-        fn += !(e & 1) & (j == next_allele_index);
-        tn += !(e & 1) & !(j == next_allele_index);
-        vec_pointer += (j == next_allele_index);
+        mask = (j == next_allele_index);
+        fp += (e & 1) & !mask;
+        tp += (e & 1) & mask;
+        fn += !(e & 1) & mask;
+        tn += !(e & 1) & !mask;
+        vec_pointer += mask;
 
-        next_allele_index = -1 + (vec_pointer < total_alleles) *
-                                     (allele_index_vec[vec_pointer] + 1);
+        next_allele_index = (vec_pointer < total_alleles) * allele_index_vec[vec_pointer] + (vec_pointer >= total_alleles) * -1;
         ++j;
     }
 
