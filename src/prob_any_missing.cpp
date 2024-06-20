@@ -8,7 +8,7 @@
 float probAnyMissingFunctor::operator()(const std::vector<float> &eventProbs,
                                         int numEvents)
 {
-    const std::size_t totalEvents = eventProbs.size();
+    const int totalEvents = eventProbs.size();
     if (numEvents < totalEvents)
     {
         // early exit if impossible
@@ -17,9 +17,9 @@ float probAnyMissingFunctor::operator()(const std::vector<float> &eventProbs,
 
     float prob = 0.0;
 
-    //      Calculate via inclusion-exclusion principle
+    // Calculate via inclusion-exclusion principle
     int sign = -1;
-    for (std::size_t i = 1; i <= totalEvents; ++i)
+    for (int i = 1; i <= totalEvents; ++i)
     {
         sign = -sign;
         c.reset(totalEvents, i);
@@ -80,7 +80,6 @@ std::vector<float> probAnyMissingFunctor::vectorized(
         baseVec.clear();
         baseVec.reserve(c.numCombinations);
 
-        // while (!c.completed)
         for (std::size_t k = 0; k < c.numCombinations; ++k)
         {
             float base = 1.0;

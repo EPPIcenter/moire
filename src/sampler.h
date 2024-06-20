@@ -63,7 +63,7 @@ class Sampler
 
     float dbeta(float x, float alpha, float beta, bool return_log);
     float dpois(int x, float mean, bool return_log);
-    float dbinom(int x, int size, float prob, bool return_log);
+    float dbinom(int x, int size, float prob);
     float dztpois(int x, float mean);
     float dgamma(float x, float shape, float scale, bool return_log);
     float rgamma(float alpha, float beta);

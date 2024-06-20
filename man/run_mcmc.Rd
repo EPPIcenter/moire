@@ -12,6 +12,7 @@ run_mcmc(
   burnin = 10000,
   samples_per_chain = 1000,
   verbose = TRUE,
+  use_message = FALSE,
   eps_pos_alpha = 1,
   eps_pos_beta = 1,
   eps_neg_alpha = 1,
@@ -54,6 +55,8 @@ discard as burnin}
 after burnin}
 
 \item{verbose}{Logical indicating if progress is printed}
+
+\item{use_message}{Logical indicating if progress is printed using message or print}
 
 \item{eps_pos_alpha}{Positive Numeric. Alpha parameter in
 Beta distribution for eps_pos prior}

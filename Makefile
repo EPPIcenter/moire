@@ -7,6 +7,9 @@ site: md
 check:
 		Rscript -e "devtools::check()"
 
+clean:
+		Rscript -e "devtools::clean_dll()"
+
 checkfast:
 		Rscript -e "devtools::check(build_args = '--no-build-vignettes')"
 
@@ -31,4 +34,4 @@ buildfast:
 style:
 		Rscript -e "styler::style_pkg()"
 
-pr: style check site
+pr: clean style check site

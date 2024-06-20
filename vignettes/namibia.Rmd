@@ -9,9 +9,9 @@ vignette: >
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
-    collapse = TRUE,
-    comment = "#>",
-    fig.align = "center"
+  collapse = TRUE,
+  comment = "#>",
+  fig.align = "center"
 )
 ```
 
@@ -36,44 +36,45 @@ epi_dat <- full_dat |>
   dplyr::select(sample_id, HealthFacility, HealthDistrict, Region, Country) |>
   dplyr::distinct()
 
-all_hfs <- epi_dat |> dplyr::pull(HealthFacility) |> unique()
+all_hfs <- epi_dat |>
+  dplyr::pull(HealthFacility) |>
+  unique()
 
 verbose <- F
 allow_relatedness <- TRUE
 burnin <- 5e3
 num_samples <- 1e4
-r_alpha = 1
-r_beta = 1
-eps_pos_alpha = 1
-eps_pos_beta = 1
-eps_neg_alpha = 1
-eps_neg_beta = 1
-num_threads = parallely::availableCores() - 1
+r_alpha <- 1
+r_beta <- 1
+eps_pos_alpha <- 1
+eps_pos_beta <- 1
+eps_neg_alpha <- 1
+eps_neg_beta <- 1
+num_threads <- parallely::availableCores() - 1
 
 for (hf in all_hfs) {
-    hf_dat <- full_dat |>
-        dplyr::filter(HealthFacility == hf) |>
-        dplyr::select(sample_id, locus, allele) |>
-        moire::load_long_form_data()
-    
-    hf_res <- moire::run_mcmc(
-      hf_dat, hf_dat$is_missing,
-      allow_relatedness = allow_relatedness,
-      burnin = burnin, samples_per_chain = num_samples,
-      pt_chains = 40, pt_num_threads = num_threads, thin = 10,
-      verbose = verbose, adapt_temp = TRUE, r_alpha = r_alpha, r_beta = r_beta,
-      eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
-      eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta
-    )
-    
-    # create an output directory
-    dir.create("mcmc_output", showWarnings = FALSE)
+  hf_dat <- full_dat |>
+    dplyr::filter(HealthFacility == hf) |>
+    dplyr::select(sample_id, locus, allele) |>
+    moire::load_long_form_data()
 
-    # format path name
-    hf <- gsub(" ", "_", hf)
-    
-    # save the results
-    saveRDS(hf_res, file.path("mcmc_output", paste0(hf, ".rds")))
+  hf_res <- moire::run_mcmc(
+    hf_dat, hf_dat$is_missing,
+    allow_relatedness = allow_relatedness,
+    burnin = burnin, samples_per_chain = num_samples,
+    pt_chains = 40, pt_num_threads = num_threads, thin = 10,
+    verbose = verbose, adapt_temp = TRUE, r_alpha = r_alpha, r_beta = r_beta,
+    eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+    eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta
+  )
+
+  # create an output directory
+  dir.create("mcmc_output", showWarnings = FALSE)
+
+  # format path name
+  hf <- gsub(" ", "_", hf)
+
+  # save the results
+  saveRDS(hf_res, file.path("mcmc_output", paste0(hf, ".rds")))
 }
-
 ```

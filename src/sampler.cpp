@@ -40,12 +40,12 @@ float Sampler::dztpois(int x, float lambda)
            lgamma_lut[x];
 }
 
-float Sampler::dbinom(int x, int size, float prob, bool return_log)
+float Sampler::dbinom(int x, int size, float prob)
 {
     float log_p = x * std::log(prob) + (size - x) * std::log(1 - prob);
     float log_coef = lgamma_lut[size] - lgamma_lut[x] - lgamma_lut[size - x];
 
-    return return_log ? log_p + log_coef : std::exp(log_p + log_coef);
+    return log_p + log_coef;
 }
 
 float Sampler::dgamma(float x, float shape, float scale, bool return_log)

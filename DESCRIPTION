@@ -22,10 +22,12 @@ SystemRequirements: C++20, GNU make
 LinkingTo: 
     Rcpp,
     RcppProgress,
+    RcppParallel,
     BH
 Imports: 
     Rcpp,
     RcppProgress,
+    RcppParallel,
     dplyr,
     tidyr,
     stats,
@@ -35,7 +37,7 @@ Imports:
 URL: https://github.com/EPPIcenter/moire, https://eppicenter.github.io/moire/, https://eppicenter.ucsf.edu/resources
 BugReports: https://github.com/EPPIcenter/moire/issues
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.1
 Suggests: 
     knitr,
     rmarkdown,

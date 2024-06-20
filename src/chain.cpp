@@ -8,6 +8,7 @@
 
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
 #include <execution>
+#include "RcppParallel.h"
 #define HAS_EXECUTION 1
 #endif
 
@@ -821,7 +822,7 @@ float Chain::calc_transmission_process(
 
     float constrained_set_total_prob = 0;
     std::vector<float> res{};
-    const int total_alleles = allele_index_vec.size();
+    const size_t total_alleles = allele_index_vec.size();
 
     prVec_.clear();
     prVec_.reserve(total_alleles);
@@ -849,14 +850,13 @@ float Chain::calc_transmission_process(
     // Only go up to coi - total_alleles because there must be at least
     // total_alleles unrelated strains at this locus
     std::vector<float> pamVec = probAnyMissing_.vectorized(prVec_, coi);
-    for (int i = 0; i <= coi - total_alleles; ++i)
+    for (size_t i = 0; i <= coi - total_alleles; ++i)
     {
         // Calculate the probability of `i` related strains being present, where
         // there are at most coi - total_alleles related strains
 
         // prob of i related strains
-        // const float pr = R::dbinom(i, coi - 1, relatedness, true);
-        const float pr = sampler.dbinom(i, coi - 1, relatedness, true);
+        const float pr = sampler.dbinom(i, coi - 1, relatedness);
 
         const float i_res = std::log(1 - pamVec[coi - i - 1]) +
                             log_constrained_set_total_prob * (coi - i);
@@ -880,7 +880,7 @@ float Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
 
     unsigned int total_alleles = allele_index_vec.size(); 
     unsigned int vec_pointer = 0;
-    unsigned int j = 0;
+    int j = 0;
     for (const auto &e : obs_genotype)
     {
         auto next_allele_index = -1;

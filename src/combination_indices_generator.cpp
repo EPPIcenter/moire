@@ -50,16 +50,18 @@ CombinationIndicesGenerator::CombinationIndicesGenerator()
 
 void CombinationIndicesGenerator::calculateNumCombinations() noexcept
 {
-    unsigned int tmp = r_;
+    int tmp = r_;
     if (tmp > n_)
     {
         numCombinations = 0;
         return;
     }
+
     if (tmp * 2 > n_)
     {
         tmp = n_ - tmp;
     }
+
     if (tmp == 0)
     {
         numCombinations = 1;
@@ -67,7 +69,7 @@ void CombinationIndicesGenerator::calculateNumCombinations() noexcept
     }
 
     numCombinations = n_;
-    for (unsigned int i = 2; i <= tmp; ++i)
+    for (int i = 2; i <= tmp; ++i)
     {
         numCombinations *= (n_ - i + 1);
         numCombinations /= i;
