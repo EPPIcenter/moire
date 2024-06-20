@@ -51,7 +51,7 @@ load_long_form_data <- function(df, warn_uninformative = TRUE) {
 
   sample_locus_barcodes <- sample_locus_barcodes |>
     dplyr::left_join(unique_alleles, by = "locus") |>
-    dplyr::rowwise(.data$sample_id, .data$locus, .data$missing) |>
+    dplyr::rowwise("sample_id", "locus", "missing") |>
     dplyr::summarise(
       barcode = list(sapply(
         unique_alleles,
@@ -66,7 +66,7 @@ load_long_form_data <- function(df, warn_uninformative = TRUE) {
 
 
   sample_ids <- df |>
-    dplyr::select(.data$sample_id) |>
+    dplyr::select("sample_id") |>
     dplyr::arrange(.data$sample_id) |>
     dplyr::distinct() |>
     dplyr::pull(.data$sample_id)
@@ -100,11 +100,11 @@ load_long_form_data <- function(df, warn_uninformative = TRUE) {
 #' @importFrom rlang .data
 load_delimited_data <- function(data, sep = ";", warn_uninformative = TRUE) {
   df <- data |>
-    tidyr::pivot_longer(-.data$sample_id,
+    tidyr::pivot_longer(-"sample_id",
       names_to = "locus",
       values_to = "allele"
     ) |>
-    tidyr::separate_rows(.data$allele, sep = sep) |>
+    tidyr::separate_rows("allele", sep = sep) |>
     dplyr::filter(!is.na(.data$allele))
   return(load_long_form_data(df))
 }
