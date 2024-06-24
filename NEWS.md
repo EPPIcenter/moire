@@ -1,3 +1,7 @@
+# moire 3.3.0
+This is a minor revision that greatly improves the speed of the MCMC computationally, various bug fixes, and improvements to numerical stability when starting the MCMC.
+
+
 # moire 3.2.0
 This is a minor revision that fixes bugs in the adaptive temperature gradient approach and changes the default priors on false positive and false negative rates.
 
