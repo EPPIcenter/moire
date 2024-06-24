@@ -6,7 +6,7 @@ output: github_document
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.path = "man/figures/")
 ```
 
-# moire <img src="man/figures/logo.svg" align="right" alt="" width="120"/>
+# moire <img src="man/figures/logo.svg"/>
 
 `moire` is a package implementing an MCMC based approach to estimating complexity of infection (COI), also sometimes referred to as multiplicity of infection (MOI), population allele frequencies, and within-host relatedness from polyallelic genomics data.
 

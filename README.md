@@ -1,5 +1,5 @@
 
-# moire <img src="man/figures/logo.svg" align="right" alt="" width="120"/>
+# moire <img src="man/figures/logo.svg" align="right" alt="" height="138.5"/>
 
 `moire` is a package implementing an MCMC based approach to estimating
 complexity of infection (COI), also sometimes referred to as
