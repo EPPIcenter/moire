@@ -139,6 +139,7 @@ class Chain
     std::vector<int> sample_accept{};
 
     Chain(GenotypingData genotyping_data, Parameters params, float temp = 1.0);
+    Chain() {};
     void update_m(int iteration);
     void update_r(int iteration);
     void update_m_r(int iteration);
@@ -149,6 +150,7 @@ class Chain
     void update_eps_neg(int iteration);
     void update_samples(int iteration);
     void update_mean_coi(int iteration);
+    void initialize_parameters();
     float get_llik();
     float get_prior();
     float get_posterior();

@@ -19,6 +19,7 @@ Parameters::Parameters(const Rcpp::List &args)
     adapt_temp = UtilFunctions::r_to_bool(args["adapt_temp"]);
     pre_adapt_steps = UtilFunctions::r_to_int(args["pre_adapt_steps"]);
     temp_adapt_steps = UtilFunctions::r_to_int(args["temp_adapt_steps"]);
+    max_initialization_tries = UtilFunctions::r_to_int(args["max_initialization_tries"]);
 
     // Model
     max_coi = UtilFunctions::r_to_int(args["max_coi"]);

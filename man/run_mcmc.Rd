@@ -31,7 +31,8 @@ run_mcmc(
   pt_num_threads = 1,
   adapt_temp = TRUE,
   pre_adapt_steps = 25,
-  temp_adapt_steps = 25
+  temp_adapt_steps = 25,
+  max_initialization_tries = 10000
 )
 }
 \arguments{
@@ -116,6 +117,9 @@ parallel tempering temperatures. Only used if \code{adapt_temp} is TRUE.}
 
 \item{temp_adapt_steps}{Number of steps to take between temperature
 adaptation steps. Only used if \code{adapt_temp} is TRUE.}
+
+\item{max_initialization_tries}{Number of times to try to initialize the
+chain before giving up}
 }
 \description{
 Sample from the target distribution using MCMC

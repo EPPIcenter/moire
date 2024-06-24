@@ -21,6 +21,7 @@ class Parameters
     bool adapt_temp;
     int pre_adapt_steps;
     int temp_adapt_steps;
+    int max_initialization_tries;
 
     // Model Parameters
     // Complexity of Infection
@@ -46,6 +47,7 @@ class Parameters
 
     // constructors
     Parameters(const Rcpp::List &args);
+    Parameters(){};
 };
 
 #endif  // PARAMETERS_H_

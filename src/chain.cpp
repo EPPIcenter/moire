@@ -20,6 +20,10 @@ constexpr float min_sampled = std::numeric_limits<float>::min();
 
 void Chain::initialize_latent_genotypes()
 {
+    latent_genotypes_new.clear();
+    latent_genotypes_old.clear();
+    lg_adj_old.clear();
+    lg_adj_new.clear();
     for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
     {
         latent_genotypes_new.push_back(std::vector<std::vector<int>>{});
@@ -46,10 +50,15 @@ void Chain::initialize_latent_genotypes()
 // Initialize P with random allele frequencies
 void Chain::initialize_p()
 {
+    p.clear();
+    p_prop_var.clear();
+    p_accept.clear();
+    p_attempt.clear();
+
     for (size_t i = 0; i < genotyping_data.num_loci; i++)
     {
         p.push_back(sampler.sample_allele_frequencies(
-            std::vector<float>(genotyping_data.num_alleles[i], 1), 1));
+            std::vector<float>(genotyping_data.num_alleles[i], 1), 10));
     }
 
     p_prop_var.resize(genotyping_data.num_loci);
@@ -67,6 +76,10 @@ void Chain::initialize_p()
 
 void Chain::initialize_m()
 {
+    m.clear();
+    m_accept.clear();
+    sample_accept.clear();
+
     m.reserve(genotyping_data.num_samples);
     for (const auto coi : genotyping_data.observed_coi)
     {
@@ -79,6 +92,10 @@ void Chain::initialize_m()
 
 void Chain::initialize_eps_neg()
 {
+    eps_neg.clear();
+    eps_neg_accept.clear();
+    eps_neg_var.clear();
+
     eps_neg.reserve(genotyping_data.num_samples);
     for (size_t i = 0; i < genotyping_data.num_samples; ++i)
     {
@@ -90,6 +107,10 @@ void Chain::initialize_eps_neg()
 
 void Chain::initialize_eps_pos()
 {
+    eps_pos.clear();
+    eps_pos_accept.clear();
+    eps_pos_var.clear();
+
     eps_pos.reserve(genotyping_data.num_samples);
     for (size_t i = 0; i < genotyping_data.num_samples; ++i)
     {
@@ -101,6 +122,13 @@ void Chain::initialize_eps_pos()
 
 void Chain::initialize_r()
 {
+    r.clear();
+    r_accept.clear();
+    r_var.clear();
+    m_r_accept.clear();
+    m_r_var.clear();
+
+    r.reserve(genotyping_data.num_samples);
     if (params.allow_relatedness)
     {
         for (size_t i = 0; i < genotyping_data.num_samples; ++i)
@@ -116,6 +144,17 @@ void Chain::initialize_r()
     r_var.resize(genotyping_data.num_samples, 1);
     m_r_accept.resize(genotyping_data.num_samples, 0);
     m_r_var.resize(genotyping_data.num_samples, 1);
+}
+
+void Chain::initialize_parameters()
+{
+    initialize_m();
+    initialize_eps_neg();
+    initialize_eps_pos();
+    initialize_r();
+    initialize_latent_genotypes();
+    initialize_p();
+    initialize_likelihood();
 }
 
 void Chain::update_m(int iteration)
@@ -1172,11 +1211,5 @@ Chain::Chain(GenotypingData genotyping_data, Parameters params, float temp)
     llik = std::numeric_limits<float>::lowest();
     this->temp = temp;
 
-    initialize_m();
-    initialize_eps_neg();
-    initialize_eps_pos();
-    initialize_r();
-    initialize_latent_genotypes();
-    initialize_p();
-    initialize_likelihood();
+    initialize_parameters();
 }

@@ -31,27 +31,38 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     swap_barriers.resize(params.pt_chains.size() - 1, 0.0);
     swap_indices.resize(params.pt_chains.size(), 0);
 
-    for (const auto temp : params.pt_chains)
+    
+    chains.resize(params.pt_chains.size());
+    std::vector<bool> any_ill_conditioned(params.pt_chains.size(), false);
+    #pragma omp parallel for
+    for (size_t i = 0; i < params.pt_chains.size(); i++)
     {
-        chains.emplace_back(genotyping_data, params, temp);
+        if (std::any_of(any_ill_conditioned.begin(), any_ill_conditioned.end(), [](bool v) { return v; }))
+        {
+            continue;
+        }
+        float temp = params.pt_chains[i];
+        chains[i] = Chain(genotyping_data, params, temp);
         temp_gradient.push_back(temp);
 
-        bool ill_conditioned = std::isnan(chains.back().get_llik());
-        int max_tries = 10000;
+        bool ill_conditioned = std::isnan(chains[i].get_llik());
+        int max_tries = params.max_initialization_tries;
 
-        while (ill_conditioned and max_tries != 0)
+        while (ill_conditioned and max_tries > 0)
         {
-            chains.pop_back();
-            chains.emplace_back(genotyping_data, params);
+            chains[i].initialize_parameters();
             max_tries--;
-            ill_conditioned = std::isnan(chains.back().get_llik());
+            ill_conditioned = std::isnan(chains[i].get_llik());
         }
 
-        if (ill_conditioned)
-        {
-            Rcpp::stop("Error: Initial Llik is NaN");
-        }
+        any_ill_conditioned[i] = ill_conditioned;
     }
+
+    if (std::any_of(any_ill_conditioned.begin(), any_ill_conditioned.end(), [](bool v) { return v; }))
+    {
+        Rcpp::stop("Initialization failed due to numerical instability, please check your input data or try increasing the maximum number of initialization tries. If you have a large number of alleles in some loci, consider removing extremely rare alleles.");
+    }
+
     std::iota(swap_indices.begin(), swap_indices.end(), 0);
 };
 

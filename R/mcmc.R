@@ -57,6 +57,8 @@
 #' parallel tempering temperatures. Only used if `adapt_temp` is TRUE.
 #' @param temp_adapt_steps Number of steps to take between temperature
 #' adaptation steps. Only used if `adapt_temp` is TRUE.
+#' @param max_initialization_tries Number of times to try to initialize the
+#' chain before giving up
 run_mcmc <-
   function(data,
            is_missing = FALSE,
@@ -84,7 +86,8 @@ run_mcmc <-
            pt_num_threads = 1,
            adapt_temp = TRUE,
            pre_adapt_steps = 25,
-           temp_adapt_steps = 25) {
+           temp_adapt_steps = 25,
+           max_initialization_tries = 10000) {
     start_time <- Sys.time()
     args <- as.list(environment())
     mcmc_args <- as.list(environment())
