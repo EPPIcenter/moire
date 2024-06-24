@@ -37,7 +37,7 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
         temp_gradient.push_back(temp);
 
         bool ill_conditioned = std::isnan(chains.back().get_llik());
-        int max_tries = 1000;
+        int max_tries = 10000;
 
         while (ill_conditioned and max_tries != 0)
         {
@@ -119,6 +119,12 @@ void MCMC::swap_chains(int step, bool burnin)
             chain_a.set_temp(temp_b);
             chain_b.set_temp(temp_a);
 
+            if (i == 0)
+            {
+                chain_b.set_hot(true);
+                chain_a.set_hot(false);
+            }
+
             if (!burnin)
             {
                 swap_acceptances[i]++;
@@ -195,9 +201,11 @@ void MCMC::adapt_temp()
     }
 
     // update the temperatures using the new gradient
+    chains[swap_indices[0]].set_hot(true);
     for (size_t i = 1; i < chains.size() - 1; i++)
     {
         chains[swap_indices[i]].set_temp(new_temp_gradient[i]);
+        chains[swap_indices[i]].set_hot(false);
     }
 
     temp_gradient = new_temp_gradient;
@@ -225,7 +233,7 @@ void MCMC::sample(int step)
         chain.update_mean_coi(params.burnin + step);
 
         if ((params.thin == 0 or step % params.thin == 0) and
-            chain.get_temp() == 1.0)
+            chain.get_hot())
         {
             for (size_t ii = 0; ii < genotyping_data.num_loci; ++ii)
             {

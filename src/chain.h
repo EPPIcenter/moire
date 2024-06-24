@@ -19,6 +19,7 @@ class Chain
     Sampler sampler;
     probAnyMissingFunctor probAnyMissing_;
     std::vector<float> prVec_{};
+    bool hot = false;
 
     CombinationIndicesGenerator allele_index_generator_;
 
@@ -74,6 +75,7 @@ class Chain
     void restore_coi_likelihood(int sample_idx);
     void restore_relatedness_likelihood(int sample_idx);
     void restore_mean_coi_likelihood();
+
 
    public:
     std::vector<float> genotyping_llik_old{};
@@ -154,6 +156,8 @@ class Chain
     void set_llik(float llik);
     void set_temp(float temp);
     float get_temp();
+    void set_hot(bool hot) { this->hot = hot; };
+    bool get_hot() { return hot; };
 };
 
 #endif  // CHAIN_H_
