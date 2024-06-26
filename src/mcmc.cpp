@@ -244,7 +244,7 @@ void MCMC::sample(int step)
         chain.update_mean_coi(params.burnin + step);
 
         if ((params.thin == 0 or step % params.thin == 0) and
-            chain.get_hot())
+            (chain.get_hot() or chains.size() == 1))
         {
             for (size_t ii = 0; ii < genotyping_data.num_loci; ++ii)
             {
