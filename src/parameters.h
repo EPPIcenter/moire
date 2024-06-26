@@ -23,6 +23,8 @@ class Parameters
     int temp_adapt_steps;
     int max_initialization_tries;
 
+    bool record_latent_genotypes;
+
     // Model Parameters
     // Complexity of Infection
     int max_coi;

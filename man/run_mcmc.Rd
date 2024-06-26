@@ -24,6 +24,7 @@ run_mcmc(
   max_eps_pos = 2,
   max_eps_neg = 2,
   max_coi = 40,
+  record_latent_genotypes = FALSE,
   num_chains = 1,
   num_cores = 1,
   pt_chains = 1,
@@ -86,6 +87,10 @@ distribution for relatedness prior}
 \item{max_eps_neg}{Numeric. Maximum allowed value for eps_neg}
 
 \item{max_coi}{Positive Numeric. Maximum allowed complexity of infection}
+
+\item{record_latent_genotypes}{Logical indicating whether or not to record
+the latent genotypes at each step of the MCMC. WARNING: This will increase
+the size of the output object significantly.}
 
 \item{num_chains}{Total number of chains to run, possibly simultaneously}
 
