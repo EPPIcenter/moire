@@ -1,3 +1,6 @@
+# moire 3.3.1
+Minor bugfix that corrects an issue with parameter logging when not using parallel tempering.
+
 # moire 3.3.0
 This is a minor revision that greatly improves the speed of the MCMC computationally, various bug fixes, and improvements to numerical stability when starting the MCMC.
 
