@@ -34,6 +34,9 @@
 #' @param max_eps_pos Numeric. Maximum allowed value for eps_pos
 #' @param max_eps_neg Numeric. Maximum allowed value for eps_neg
 #' @param max_coi Positive Numeric. Maximum allowed complexity of infection
+#' @param record_latent_genotypes Logical indicating whether or not to record
+#' the latent genotypes at each step of the MCMC. WARNING: This will increase
+#' the size of the output object significantly.
 #' @param num_chains Total number of chains to run, possibly simultaneously
 #' @param num_cores Total OMP parallel threads to use to run chains.
 #'  num_cores * pt_num_threads should not exceed the number of cores available
@@ -79,6 +82,7 @@ run_mcmc <-
            max_eps_pos = 2,
            max_eps_neg = 2,
            max_coi = 40,
+           record_latent_genotypes = FALSE,
            num_chains = 1,
            num_cores = 1,
            pt_chains = 1,
