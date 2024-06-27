@@ -2,7 +2,7 @@ md:
 		Rscript -e "devtools::build_readme()"
 
 site: md
-		Rscript -e "pkgdown::build_site()"
+		Rscript -e "pkgdown::init_site(); pkgdown::build_site()"
 
 check:
 		Rscript -e "devtools::check()"
@@ -34,4 +34,4 @@ buildfast:
 style:
 		Rscript -e "styler::style_pkg()"
 
-pr: clean style check site
+pr: clean doc style check site

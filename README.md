@@ -1,5 +1,10 @@
 
-# moire <img src="man/figures/logo.svg" align="right" alt="" height="138.5"/>
+<!-- badges: start -->
+
+[![R-CMD-check](https://github.com/EPPIcenter/moire/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EPPIcenter/moire/actions/workflows/R-CMD-check.yaml)
+<!-- badges: end -->
+
+# moire <img src="man/figures/logo.svg" align="right"/>
 
 `moire` is a package implementing an MCMC based approach to estimating
 complexity of infection (COI), also sometimes referred to as
