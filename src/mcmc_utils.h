@@ -388,7 +388,6 @@ inline float logSumExp(const std::vector<float> &x)
     }
 
     float sum = 0;
-#pragma omp simd reduction(+ : sum)
     for (size_t i = 0; i < x.size(); ++i)
     {
         sum += std::exp(x[i] - max_el);

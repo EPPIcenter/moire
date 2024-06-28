@@ -5,18 +5,7 @@
 
 #include <Rcpp.h>
 
-#ifdef _OPENMP
-#include <omp.h>
-#else
-#define omp_get_num_threads() 1
-#define omp_get_thread_num() 0
-#define omp_get_max_threads() 1
-#define omp_get_thread_limit() 1
-#define omp_get_num_procs() 1
-#define omp_set_nested(a)
-#define omp_set_num_threads(a)
-#define omp_get_wtime() 0
-#endif
+#include <tbb/parallel_for.h>
 
 MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     : genotyping_data(genotyping_data), params(params)
@@ -35,34 +24,33 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     swap_barriers.resize(params.pt_chains.size() - 1, 0.0);
     swap_indices.resize(params.pt_chains.size(), 0);
 
-    omp_set_num_threads(params.pt_num_threads);
-
-    
     chains.resize(params.pt_chains.size());
     std::vector<bool> any_ill_conditioned(params.pt_chains.size(), false);
     temp_gradient = params.pt_chains;
-    #pragma omp parallel for
-    for (size_t i = 0; i < params.pt_chains.size(); i++)
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, params.pt_chains.size()), [&](const tbb::blocked_range<size_t>& range)
     {
-        if (std::any_of(any_ill_conditioned.begin(), any_ill_conditioned.end(), [](bool v) { return v; }))
+        for (size_t i = range.begin(); i < range.end(); ++i)
         {
-            continue;
-        }
+            if (std::any_of(any_ill_conditioned.begin(), any_ill_conditioned.end(), [](bool v) { return v; }))
+            {
+                continue;
+            }
         float temp = params.pt_chains[i];
         chains[i] = Chain(genotyping_data, params, temp);
         
         bool ill_conditioned = std::isnan(chains[i].get_llik());
         int max_tries = params.max_initialization_tries;
 
-        while (ill_conditioned and max_tries > 0)
-        {
-            chains[i].initialize_parameters();
-            max_tries--;
-            ill_conditioned = std::isnan(chains[i].get_llik());
-        }
+            while (ill_conditioned and max_tries > 0)
+            {
+                chains[i].initialize_parameters();
+                max_tries--;
+                ill_conditioned = std::isnan(chains[i].get_llik());
+            }
 
-        any_ill_conditioned[i] = ill_conditioned;
-    }
+            any_ill_conditioned[i] = ill_conditioned;
+        }
+    });
 
     if (std::any_of(any_ill_conditioned.begin(), any_ill_conditioned.end(), [](bool v) { return v; }))
     {
@@ -74,22 +62,24 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
 
 void MCMC::burnin(int step)
 {
-#pragma omp parallel for
-    for (auto &chain : chains)
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, chains.size()), [&](const tbb::blocked_range<size_t>& range)
     {
-        chain.update_eps_neg(step);
-        chain.update_eps_pos(step);
-        chain.update_p(step);
-        chain.update_m(step);
-        if (params.allow_relatedness)
+        for (size_t i = range.begin(); i < range.end(); ++i)
         {
-            chain.update_r(step);
-            // chain.update_m_r(step);
-            chain.update_eff_coi(step);
+            auto& chain = chains[i];
+            chain.update_eps_neg(step);
+            chain.update_eps_pos(step);
+            chain.update_p(step);
+            chain.update_m(step);
+            if (params.allow_relatedness)
+            {
+                chain.update_r(step);
+                chain.update_eff_coi(step);
+            }
+            chain.update_samples(step);
+            chain.update_mean_coi(step);
         }
-        chain.update_samples(step);
-        chain.update_mean_coi(step);
-    }
+    });
     llik_burnin.push_back(get_llik());
     prior_burnin.push_back(get_prior());
     posterior_burnin.push_back(get_posterior());
@@ -97,8 +87,7 @@ void MCMC::burnin(int step)
     if (chains.size() > 1)
     {
         swap_chains(step, true);
-        if (num_swaps % params.temp_adapt_steps == 0 and
-            step > params.pre_adapt_steps and params.adapt_temp)
+        if (num_swaps % params.temp_adapt_steps == 0 and step > params.pre_adapt_steps and params.adapt_temp)
         {
             adapt_temp();
         }
@@ -223,47 +212,51 @@ void MCMC::adapt_temp()
 
 void MCMC::sample(int step)
 {
-#pragma omp parallel for
-    for (auto &chain : chains)
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, chains.size()), [&](const tbb::blocked_range<size_t>& range)
     {
-        chain.update_eps_neg(params.burnin + step);
-        chain.update_eps_pos(params.burnin + step);
-        chain.update_p(params.burnin + step);
-        chain.update_m(params.burnin + step);
-
-        if (params.allow_relatedness)
+        for (size_t i = range.begin(); i < range.end(); ++i)
         {
-            chain.update_r(params.burnin + step);
-            chain.update_eff_coi(params.burnin + step);
-        }
-        chain.update_samples(params.burnin + step);
-        chain.update_mean_coi(params.burnin + step);
+            auto& chain = chains[i];
+            chain.update_eps_neg(params.burnin + step);
+            chain.update_eps_pos(params.burnin + step);
+            chain.update_p(params.burnin + step);
+            chain.update_m(params.burnin + step);
 
-        if ((params.thin == 0 or step % params.thin == 0) and
-            (chain.get_hot() or chains.size() == 1))
-        {
-            for (size_t ii = 0; ii < genotyping_data.num_loci; ++ii)
+            if (params.allow_relatedness)
             {
-                p_store[ii].push_back(chain.p[ii]);
+                chain.update_r(params.burnin + step);
+                chain.update_eff_coi(params.burnin + step);
             }
+            chain.update_samples(params.burnin + step);
+            chain.update_mean_coi(params.burnin + step);
 
-            for (size_t jj = 0; jj < genotyping_data.num_samples; ++jj)
+            if ((params.thin == 0 || step % params.thin == 0) &&
+                (chain.get_hot() || chains.size() == 1))
             {
-                m_store[jj].push_back(chain.m[jj]);
-                eps_neg_store[jj].push_back(chain.eps_neg[jj]);
-                eps_pos_store[jj].push_back(chain.eps_pos[jj]);
-                r_store[jj].push_back(chain.r[jj]);
+                for (size_t ii = 0; ii < genotyping_data.num_loci; ++ii)
+                {
+                    p_store[ii].push_back(chain.p[ii]);
+                }
 
-                if (params.record_latent_genotypes) {
-                    for (size_t kk = 0; kk < genotyping_data.num_loci; ++kk)
-                    {
-                        latent_genotypes_store[jj][kk].push_back(chain.latent_genotypes_new[kk][jj]);
+                for (size_t jj = 0; jj < genotyping_data.num_samples; ++jj)
+                {
+                    m_store[jj].push_back(chain.m[jj]);
+                    eps_neg_store[jj].push_back(chain.eps_neg[jj]);
+                    eps_pos_store[jj].push_back(chain.eps_pos[jj]);
+                    r_store[jj].push_back(chain.r[jj]);
+
+                    if (params.record_latent_genotypes) {
+                        for (size_t kk = 0; kk < genotyping_data.num_loci; ++kk)
+                        {
+                            latent_genotypes_store[jj][kk].push_back(chain.latent_genotypes_new[kk][jj]);
+                        }
                     }
                 }
+                mean_coi_store.push_back(chain.mean_coi);
             }
-            mean_coi_store.push_back(chain.mean_coi);
         }
-    }
+    });
+
     llik_sample.push_back(get_llik());
     prior_sample.push_back(get_prior());
     posterior_sample.push_back(get_posterior());
