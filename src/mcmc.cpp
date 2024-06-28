@@ -202,15 +202,6 @@ void MCMC::adapt_temp()
         }
     }
 
-    // // check if the new gradient is monotonically increasing
-    // for (size_t i = 1; i < new_temp_gradient.size(); i++)
-    // {
-    //     if (new_temp_gradient[i] < new_temp_gradient[i - 1])
-    //     {
-    //         return;
-    //     }
-    // }
-
     // update the temperatures using the new gradient
     chains[swap_indices[0]].set_hot(true);
     for (size_t i = 1; i < chains.size() - 1; i++)
