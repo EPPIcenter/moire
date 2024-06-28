@@ -29,3 +29,4 @@ compile_flags.txt
 manuscript/
 
 *.rds
+scratch.R

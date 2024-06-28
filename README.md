@@ -1,5 +1,10 @@
 
-# moire <img src="man/figures/logo.svg" align="right" alt="" height="138.5"/>
+<!-- badges: start -->
+
+[![R-CMD-check](https://github.com/EPPIcenter/moire/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/EPPIcenter/moire/actions/workflows/R-CMD-check.yaml)
+<!-- badges: end -->
+
+# moire <img src="man/figures/logo.svg" align="right"/>
 
 `moire` is a package implementing an MCMC based approach to estimating
 complexity of infection (COI), also sometimes referred to as
@@ -39,7 +44,6 @@ mcmc_results <- moire::run_mcmc(data, is_missing = data$is_missing)
 
 ## Manuscript
 
-[![DOI](https://zenodo.org/badge/174280517.svg)](https://zenodo.org/doi/10.5281/zenodo.10092402)
-
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10092403.svg)](https://doi.org/10.5281/zenodo.10092403)
 The paper describing our method may be found
 [here](https://doi.org/10.1101/2023.10.03.560769)
