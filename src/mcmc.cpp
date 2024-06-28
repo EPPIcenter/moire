@@ -34,6 +34,7 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     
     chains.resize(params.pt_chains.size());
     std::vector<bool> any_ill_conditioned(params.pt_chains.size(), false);
+    temp_gradient = params.pt_chains;
     #pragma omp parallel for
     for (size_t i = 0; i < params.pt_chains.size(); i++)
     {
@@ -43,8 +44,7 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
         }
         float temp = params.pt_chains[i];
         chains[i] = Chain(genotyping_data, params, temp);
-        temp_gradient.push_back(temp);
-
+        
         bool ill_conditioned = std::isnan(chains[i].get_llik());
         int max_tries = params.max_initialization_tries;
 
@@ -160,32 +160,23 @@ void MCMC::adapt_temp()
                                                     swap_barriers.rend()};
 
     // cumulative swap rate starts from t = 0
-    std::vector<float> cumulative_swap_rate =
-        std::vector<float>(params.pt_chains.size(), 0);
-
-    cumulative_swap_rate[0] = 0.0;
+    std::vector<float> cumulative_swap_rate(params.pt_chains.size(), 0.0);
     for (size_t i = 1; i < cumulative_swap_rate.size(); i++)
     {
-        cumulative_swap_rate[i] =
-            cumulative_swap_rate[i - 1] +
-            reversed_swap_barriers[i - 1] / ((float)num_swaps / 2);
+        cumulative_swap_rate[i] = cumulative_swap_rate[i - 1] + 
+            reversed_swap_barriers[i - 1] / (static_cast<float>(num_swaps) / 2.0f);
     }
 
     // gradient starts at t = 1 so we need to reverse the gradient
-    const std::vector<float> reversed_gradient{temp_gradient.rbegin(),
-                                               temp_gradient.rend()};
+    const std::vector<float> reversed_gradient(temp_gradient.rbegin(), temp_gradient.rend());
 
-    const tk::spline s(reversed_gradient, cumulative_swap_rate,
-                       tk::spline::cspline, true);
+    const tk::spline s(reversed_gradient, cumulative_swap_rate, tk::spline::cspline, true);
 
     // target swap rates
-    std::vector<float> cumulative_swap_grid =
-        std::vector<float>(cumulative_swap_rate.size());
-    cumulative_swap_grid[0] = cumulative_swap_rate[0];
-    cumulative_swap_grid[cumulative_swap_grid.size() - 1] =
-        cumulative_swap_rate.back();
-    float step = (cumulative_swap_rate.back() - cumulative_swap_rate.front()) /
-                 (cumulative_swap_grid.size() - 1);
+    std::vector<float> cumulative_swap_grid = std::vector<float>(cumulative_swap_rate.size(), 0.0f);
+    
+    cumulative_swap_grid.back() = cumulative_swap_rate.back();
+    float step = cumulative_swap_rate.back() / (cumulative_swap_grid.size() - 1);
 
     for (size_t i = 1; i < cumulative_swap_grid.size() - 1; i++)
     {
@@ -210,6 +201,15 @@ void MCMC::adapt_temp()
             return;
         }
     }
+
+    // // check if the new gradient is monotonically increasing
+    // for (size_t i = 1; i < new_temp_gradient.size(); i++)
+    // {
+    //     if (new_temp_gradient[i] < new_temp_gradient[i - 1])
+    //     {
+    //         return;
+    //     }
+    // }
 
     // update the temperatures using the new gradient
     chains[swap_indices[0]].set_hot(true);
