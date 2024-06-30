@@ -121,6 +121,10 @@ calculate_naive_allele_frequencies <- function(data) {
 #'
 #' @param allele_freqs Simplex of allele frequencies
 calculate_he <- function(allele_freqs) {
+  if (any(is.na(allele_freqs))) {
+    allele_freqs <- replace(allele_freqs, which(is.na(allele_freqs)), 0)
+    warning("NA values detected in allele frequency vector.This may indicate a problem with the MCMC chain or there are loci with no diversity. NA values will be replaced with 0.")
+  }
   return(1 - sum(allele_freqs**2))
 }
 
