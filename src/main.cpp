@@ -6,11 +6,8 @@
 #include "mcmc_utils.h"
 #include "parameters.h"
 
-#include <cmath>
-
-#include <Rcpp/utils/tinyformat.h>
-
 #include <progress.hpp>
+
 //----------------------------------------------
 // [[Rcpp::export(name='run_mcmc_rcpp')]]
 Rcpp::List run_mcmc(Rcpp::List args)
