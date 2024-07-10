@@ -5,6 +5,7 @@ vignette: >
   %\VignetteIndexEntry{Application to Namibia}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+  %\VignetteDepends{parallelly, dplyr}
 ---
 
 ```{r setup, include=FALSE}
@@ -19,18 +20,10 @@ knitr::opts_chunk$set(
 The following code reproduces our analysis of data from Namibia as described in our paper. 
 
 ```{r namibia, eval=FALSE, include=TRUE}
-library(moire)
-library(readr)
-library(dplyr)
-
 # Download Nambia data from here https://doi.org/10.7554/eLife.43510.018
 # and save it as namibia_data.xlsx in the working directory
 
-full_dat <- readxl::read_excel("namibia_data.xlsx", skip = 1) |>
-  dplyr::rename(sample_id = ID) |>
-  tidyr::pivot_longer(cols = 6:31, names_to = "locus", values_to = "allele") |>
-  tidyr::separate_rows(allele, sep = ";") |>
-  tidyr::drop_na()
+full_dat <- moire::namibia_data
 
 epi_dat <- full_dat |>
   dplyr::select(sample_id, HealthFacility, HealthDistrict, Region, Country) |>
@@ -42,15 +35,15 @@ all_hfs <- epi_dat |>
 
 verbose <- F
 allow_relatedness <- TRUE
-burnin <- 5e3
-num_samples <- 1e4
+burnin <- 5e2
+num_samples <- 1e2
 r_alpha <- 1
 r_beta <- 1
 eps_pos_alpha <- 1
 eps_pos_beta <- 1
 eps_neg_alpha <- 1
 eps_neg_beta <- 1
-num_threads <- parallely::availableCores() - 1
+num_threads <- parallelly::availableCores() - 1
 
 for (hf in all_hfs) {
   hf_dat <- full_dat |>
