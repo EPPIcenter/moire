@@ -54,6 +54,7 @@ simulated_data <- moire::simulate_data(
 ```
 
 ```{r load_simulated_data, eval=TRUE, include=FALSE}
+# actual simulated data is contained in the package as part of the build process
 simulated_data <- moire::simulated_data
 ```
 
@@ -63,17 +64,19 @@ Now that we have our data, let's go ahead and run the MCMC. Here we run 20 paral
 burnin <- 1e3
 num_samples <- 1e3
 pt_chains <- seq(1, 0, length.out = 80)
-pt_num_threads <- 20 # number of threads to use for parallel tempering
+num_cores <- parallelly::availableCores() - 1 # number of threads to use for parallel processing
 
 mcmc_results <- moire::run_mcmc(
   simulated_data,
   verbose = TRUE, burnin = burnin, samples_per_chain = num_samples,
-  pt_chains = pt_chains, pt_num_threads = pt_num_threads,
+  pt_chains = pt_chains, num_cores = num_cores,
   adapt_temp = TRUE
 )
 ```
 
 ```{r run_mcmc_load, eval = TRUE, include = FALSE}
+# actual MCMC results are contained in the package as part of the build process. Otherwise,
+# building the vignette will take a long time.
 mcmc_results <- moire::mcmc_results
 ```
 After running the MCMC, we can access the draws from the posterior distribution and analyze.
