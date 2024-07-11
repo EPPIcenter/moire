@@ -35,8 +35,8 @@ all_hfs <- epi_dat |>
 
 verbose <- F
 allow_relatedness <- TRUE
-burnin <- 5e2
-num_samples <- 1e2
+burnin <- 5e3
+num_samples <- 1e4
 r_alpha <- 1
 r_beta <- 1
 eps_pos_alpha <- 1
