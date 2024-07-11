@@ -5,3 +5,11 @@ run_mcmc_rcpp <- function(args) {
     .Call(`_moire_run_mcmc`, args)
 }
 
+start_profiler <- function(str) {
+    .Call(`_moire_start_profiler`, str)
+}
+
+stop_profiler <- function() {
+    .Call(`_moire_stop_profiler`)
+}
+
