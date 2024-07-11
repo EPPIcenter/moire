@@ -969,7 +969,6 @@ float Chain::calc_new_likelihood()
                             genotyping_llik_new.end(), 0.0f);
     #else
         float sum = 0.0f;
-        #pragma omp simd reduction(+:sum)
         for (int i = 0; i < genotyping_llik_new.size(); ++i) {
             sum += genotyping_llik_new[i];
         }
@@ -991,19 +990,15 @@ float Chain::calc_new_prior()
                mean_coi_hyper_prior_new;
     #else
         float sum = 0.0f;
-        #pragma omp simd reduction(+:sum)
         for (int i = 0; i < eps_neg_prior_new.size(); ++i) {
             sum += eps_neg_prior_new[i];
         }
-        #pragma omp simd reduction(+:sum)
         for (int i = 0; i < eps_pos_prior_new.size(); ++i) {
             sum += eps_pos_prior_new[i];
         }
-        #pragma omp simd reduction(+:sum)
         for (int i = 0; i < relatedness_prior_new.size(); ++i) {
             sum += relatedness_prior_new[i];
         }
-        #pragma omp simd reduction(+:sum)
         for (int i = 0; i < coi_prior_new.size(); ++i) {
             sum += coi_prior_new[i];
         }

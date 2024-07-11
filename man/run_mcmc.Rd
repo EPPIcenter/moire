@@ -29,7 +29,6 @@ run_mcmc(
   num_cores = 1,
   pt_chains = 1,
   pt_grad = 1,
-  pt_num_threads = 1,
   adapt_temp = TRUE,
   pre_adapt_steps = 25,
   temp_adapt_steps = 25,
@@ -94,8 +93,8 @@ the size of the output object significantly.}
 
 \item{num_chains}{Total number of chains to run, possibly simultaneously}
 
-\item{num_cores}{Total OMP parallel threads to use to run chains.
-num_cores * pt_num_threads should not exceed the number of cores available
+\item{num_cores}{Total parallel cores to use to run algorithm.
+num_cores * num_chains should not exceed the number of cores available
 on your system.}
 
 \item{pt_chains}{Total number of chains to run with parallel tempering or a
@@ -105,11 +104,6 @@ vector containing the temperatures that should be used for parallel tempering.}
 results in evenly distributed temperatures between [0,1], below 1 will bias
 towards 1 and above 1 will bias towards 0. Only used if pt_chains is a
 single value (i.e. not a vector).}
-
-\item{pt_num_threads}{Total number of OMP parallel threads to be used to
-process parallel tempered chains
-num_cores * pt_num_threads should not exceed the number of cores available
-on your system.}
 
 \item{adapt_temp}{Logical indicating whether or not to adapt the parallel
 tempering temperatures. If TRUE, the temperatures will be adapted during the
