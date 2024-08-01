@@ -39,5 +39,7 @@ reference:
 - contents:
   - simulated_data
   - mcmc_results
+  - namibia_data
+  - regional_allele_frequencies
 
 

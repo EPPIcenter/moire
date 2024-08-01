@@ -22,14 +22,20 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     : genotyping_data(genotyping_data), params(params)
 {
     p_store.resize(genotyping_data.num_loci);
+    latent_genotypes_store.resize(genotyping_data.num_samples);
+    for (size_t i = 0; i < genotyping_data.num_samples; ++i)
+    {
+        latent_genotypes_store[i].resize(genotyping_data.num_loci);
+    }
     m_store.resize(genotyping_data.num_samples);
     r_store.resize(genotyping_data.num_samples);
     eps_neg_store.resize(genotyping_data.num_samples);
     eps_pos_store.resize(genotyping_data.num_samples);
-    omp_set_num_threads(params.pt_num_threads);
     swap_acceptances.resize(params.pt_chains.size() - 1, 0);
     swap_barriers.resize(params.pt_chains.size() - 1, 0.0);
     swap_indices.resize(params.pt_chains.size(), 0);
+
+    omp_set_num_threads(params.pt_num_threads);
 
     
     chains.resize(params.pt_chains.size());
@@ -228,7 +234,6 @@ void MCMC::sample(int step)
         if (params.allow_relatedness)
         {
             chain.update_r(params.burnin + step);
-            // chain.update_m_r(params.burnin + step);
             chain.update_eff_coi(params.burnin + step);
         }
         chain.update_samples(params.burnin + step);
@@ -248,6 +253,13 @@ void MCMC::sample(int step)
                 eps_neg_store[jj].push_back(chain.eps_neg[jj]);
                 eps_pos_store[jj].push_back(chain.eps_pos[jj]);
                 r_store[jj].push_back(chain.r[jj]);
+
+                if (params.record_latent_genotypes) {
+                    for (size_t kk = 0; kk < genotyping_data.num_loci; ++kk)
+                    {
+                        latent_genotypes_store[jj][kk].push_back(chain.latent_genotypes_new[kk][jj]);
+                    }
+                }
             }
             mean_coi_store.push_back(chain.mean_coi);
         }

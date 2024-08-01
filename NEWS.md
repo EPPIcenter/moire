@@ -1,3 +1,5 @@
+# moire 3.4.0
+
 # moire 3.3.2
 Minor bugfix that corrects an issue with temperature gradient tuning when using parallel tempering.
 

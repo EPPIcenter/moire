@@ -30,3 +30,4 @@ manuscript/
 
 *.rds
 scratch.R
+data-raw/afs_resources/
