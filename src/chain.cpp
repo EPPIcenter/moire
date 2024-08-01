@@ -201,7 +201,7 @@ void Chain::update_m(int iteration)
                     lg_adj_old[jj][ii] = lg_adj_new[jj][ii];
                     latent_genotypes_old[jj][ii] = latent_genotypes_new[jj][ii];
                 }
-                m_accept[ii] += 1;
+                ++m_accept[ii];
             }
             else
             {
@@ -236,9 +236,9 @@ void Chain::update_eff_coi(int iteration)
         const int prop_m = m[i] + sampler.sample_coi_delta(2);
         const float prop_r = 1.0f - (prop_eff_coi - 1.0f) / (prop_m - 1.0f);
 
-        if (prop_m <= 0 or prop_m > params.max_coi or prop_r > 1.0f or
-            prop_r < 1e-32)
+        if (prop_m <= 0 || prop_m > params.max_coi || prop_r > 1.0f || prop_r < 1e-32) {
             continue;
+        }
 
         const int prev_m = m[i];
         const float prev_r = r[i];
@@ -292,7 +292,7 @@ void Chain::update_eff_coi(int iteration)
                 lg_adj_old[jj][i] = lg_adj_new[jj][i];
                 latent_genotypes_old[jj][i] = latent_genotypes_new[jj][i];
             }
-            m_r_accept[i] += 1;
+            ++m_r_accept[i];
         }
 
         if (iteration < params.burnin and
@@ -353,7 +353,7 @@ void Chain::update_r(int iteration)
             {
                 save_genotype_likelihood(i, jj);
             }
-            r_accept[i] += 1;
+            ++r_accept[i];
         }
 
         if (iteration < params.burnin and
@@ -439,7 +439,7 @@ void Chain::update_m_r(int iteration)
                 lg_adj_old[jj][i] = lg_adj_new[jj][i];
                 latent_genotypes_old[jj][i] = latent_genotypes_new[jj][i];
             }
-            m_r_accept[i] += 1;
+            ++m_r_accept[i];
         }
 
         if (iteration < params.burnin and
@@ -471,7 +471,7 @@ void Chain::update_p(int iteration)
         while (--rep >= 0)
         {
             const int idx = sampler.sample_random_int(0, k - 1);
-            p_attempt[j][idx] += 1;
+            ++p_attempt[j][idx];
 
             auto logitPropP = UtilFunctions::logitVec(p[j]);
 
@@ -543,7 +543,7 @@ void Chain::update_p(int iteration)
                 {
                     save_genotype_likelihood(ii, j);
                 }
-                p_accept[j][idx] += 1;
+                ++p_accept[j][idx];
             }
 
             // don't start adapting until there are at least a few samples
@@ -607,7 +607,7 @@ void Chain::update_eps_pos(int iteration)
                 {
                     save_genotype_likelihood(i, jj);
                 }
-                eps_pos_accept[i] += 1;
+                ++eps_pos_accept[i];
             }
 
             if (iteration < params.burnin and
@@ -672,7 +672,7 @@ void Chain::update_eps_neg(int iteration)
                 {
                     save_genotype_likelihood(i, jj);
                 }
-                eps_neg_accept[i] += 1;
+                ++eps_neg_accept[i];
             }
 
             if (iteration < params.burnin and
@@ -724,7 +724,7 @@ void Chain::update_samples(int iteration)
         }
 
         const int prop_m = m[ii] + sampler.sample_coi_delta(2);
-        const bool valid_prop_m = prop_m > 0 and prop_m <= params.max_coi;
+        const bool valid_prop_m = prop_m > 0 && prop_m <= params.max_coi;
 
         if (valid_prop_eps_neg && valid_prop_eps_pos && valid_prop_r &&
             valid_prop_m)
@@ -778,7 +778,7 @@ void Chain::update_samples(int iteration)
                     lg_adj_old[jj][ii] = lg_adj_new[jj][ii];
                     latent_genotypes_old[jj][ii] = latent_genotypes_new[jj][ii];
                 }
-                sample_accept[ii] += 1;
+                ++sample_accept[ii];
             }
             else
             {
@@ -829,7 +829,7 @@ void Chain::update_mean_coi(int iteration)
         {
             save_coi_likelihood(ii);
         }
-        mean_coi_accept += 1;
+        ++mean_coi_accept;
     }
     else
     {

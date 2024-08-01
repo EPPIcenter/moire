@@ -30,7 +30,7 @@ void CombinationIndicesGenerator::next() noexcept
     for (int i = r_ - 1; i >= 0; --i)
         if (curr[i] < lim + i)
         {
-            int j = curr[i] + 1;
+            char j = curr[i] + 1;
             while (i < r_)
             {
                 curr[i++] = j++;

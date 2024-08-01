@@ -150,15 +150,12 @@ int Sampler::sample_coi_delta() { return (2 * ber_distr(eng) - 1); }
 
 int Sampler::sample_coi_delta(float coi_prop_mean)
 {
-    geom_distr.param(std::geometric_distribution<int>::param_type(
-        1.0 / (1.0 + coi_prop_mean)));
-    // abs delta >= 1
+    geom_distr.param(std::geometric_distribution<int>::param_type(1.0 / (1.0 + coi_prop_mean)));
     return (2 * ber_distr(eng) - 1) * (geom_distr(eng));
 }
 
 float Sampler::get_epsilon_log_prior(float x, float alpha, float beta)
 {
-    // return dgamma(x, shape, scale, true);
     return dbeta(x, alpha, beta, true);
 }
 

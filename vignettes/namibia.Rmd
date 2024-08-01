@@ -20,9 +20,6 @@ knitr::opts_chunk$set(
 The following code reproduces our analysis of data from Namibia as described in our paper. 
 
 ```{r namibia, eval=FALSE, include=TRUE}
-# Download Nambia data from here https://doi.org/10.7554/eLife.43510.018
-# and save it as namibia_data.xlsx in the working directory
-
 full_dat <- moire::namibia_data
 
 epi_dat <- full_dat |>
@@ -33,7 +30,7 @@ all_hfs <- epi_dat |>
   dplyr::pull(HealthFacility) |>
   unique()
 
-verbose <- F
+verbose <- FALSE
 allow_relatedness <- TRUE
 burnin <- 5e3
 num_samples <- 1e4

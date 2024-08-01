@@ -6,8 +6,8 @@
 // Adapted from https://stackoverflow.com/a/9432150/2755374
 struct CombinationIndicesGenerator
 {
-    using combination_t = std::vector<int>;
-
+    using combination_t = std::vector<char>;
+    
     bool completed;
     unsigned long generated = 1;
     unsigned long numCombinations = 0;
