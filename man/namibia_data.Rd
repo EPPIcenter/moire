@@ -5,15 +5,15 @@
 \alias{namibia_data}
 \title{Genetic and epidemiological data from Namibia}
 \format{
-A data frame with 8 columns and 2585 rows:
+A data frame with 7 columns and 97214 rows:
 \describe{
 \item{sample_id}{Sample ID}
 \item{HealthFacility}{Health facility}
 \item{HealthDistrict}{Health district}
 \item{Region}{Region}
 \item{Country}{Country}
-\item{locus}{Locus}
-\item{allele}{Allele}
+\item{locus}{Genetic locus}
+\item{allele}{Allele observed}
 }
 }
 \source{
