@@ -1,4 +1,21 @@
 # moire 3.4.0
+## New features
+
+* Implemented logging of latent genotypes (#14)
+* Added new datasets: `namibia_data` and `regional_allele_frequencies` (#27)
+
+## Bug fixes and improvements
+
+* Fixed handling of NA values in allele frequency vector (#20)
+  - The code now replaces NA values with 0 and displays a warning message
+* Updated vignette with code examples using the new datasets (#27)
+* Various documentation updates and minor cleanup
+
+## Internal changes
+
+* Modified src/Makevars to include ENABLE_PROFILER flag and link with -lprofiler (#24)
+* Created new file src/profiler.cpp for profiling functions implementation (#24)
+* Added `start_profiler()` and `stop_profiler()` functions for performance profiling (#24)
 
 # moire 3.3.2
 Minor bugfix that corrects an issue with temperature gradient tuning when using parallel tempering.
