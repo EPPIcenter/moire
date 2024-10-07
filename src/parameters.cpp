@@ -21,6 +21,7 @@ Parameters::Parameters(const Rcpp::List &args)
     temp_adapt_steps = UtilFunctions::r_to_int(args["temp_adapt_steps"]);
     max_initialization_tries = UtilFunctions::r_to_int(args["max_initialization_tries"]);
     record_latent_genotypes = UtilFunctions::r_to_bool(args["record_latent_genotypes"]);
+    max_runtime = UtilFunctions::r_to_float(args["max_runtime"]);
 
     // Model
     max_coi = UtilFunctions::r_to_int(args["max_coi"]);

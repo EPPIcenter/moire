@@ -33,7 +33,8 @@ run_mcmc(
   adapt_temp = TRUE,
   pre_adapt_steps = 25,
   temp_adapt_steps = 25,
-  max_initialization_tries = 10000
+  max_initialization_tries = 10000,
+  max_runtime = Inf
 )
 }
 \arguments{
@@ -125,6 +126,10 @@ adaptation steps. Only used if \code{adapt_temp} is TRUE.}
 
 \item{max_initialization_tries}{Number of times to try to initialize the
 chain before giving up}
+
+\item{max_runtime}{Maximum runtime in minutes. If the MCMC is running for
+more than this amount of time, the function will stop and return the current
+state of the MCMC.}
 }
 \description{
 Sample from the target distribution using MCMC

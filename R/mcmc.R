@@ -62,6 +62,9 @@
 #' adaptation steps. Only used if `adapt_temp` is TRUE.
 #' @param max_initialization_tries Number of times to try to initialize the
 #' chain before giving up
+#' @param max_runtime Maximum runtime in minutes. If the MCMC is running for
+#' more than this amount of time, the function will stop and return the current
+#' state of the MCMC.
 run_mcmc <-
   function(data,
            is_missing = FALSE,
@@ -91,7 +94,8 @@ run_mcmc <-
            adapt_temp = TRUE,
            pre_adapt_steps = 25,
            temp_adapt_steps = 25,
-           max_initialization_tries = 10000) {
+           max_initialization_tries = 10000,
+           max_runtime = Inf) {
     start_time <- Sys.time()
     args <- as.list(environment())
     mcmc_args <- as.list(environment())
