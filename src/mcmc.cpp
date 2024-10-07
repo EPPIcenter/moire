@@ -31,6 +31,7 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     r_store.resize(genotyping_data.num_samples);
     eps_neg_store.resize(genotyping_data.num_samples);
     eps_pos_store.resize(genotyping_data.num_samples);
+    data_llik_store.resize(genotyping_data.num_samples);
     swap_acceptances.resize(params.pt_chains.size() - 1, 0);
     swap_barriers.resize(params.pt_chains.size() - 1, 0.0);
     swap_indices.resize(params.pt_chains.size(), 0);
@@ -253,6 +254,7 @@ void MCMC::sample(int step)
                 eps_neg_store[jj].push_back(chain.eps_neg[jj]);
                 eps_pos_store[jj].push_back(chain.eps_pos[jj]);
                 r_store[jj].push_back(chain.r[jj]);
+                data_llik_store[jj].push_back(chain.get_llik(jj));
 
                 if (params.record_latent_genotypes) {
                     for (size_t kk = 0; kk < genotyping_data.num_loci; ++kk)

@@ -123,6 +123,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res.push_back(Rcpp::wrap(mcmc.prior_sample));
     res.push_back(Rcpp::wrap(mcmc.posterior_burnin));
     res.push_back(Rcpp::wrap(mcmc.posterior_sample));
+    res.push_back(Rcpp::wrap(mcmc.data_llik_store));
     res.push_back(Rcpp::wrap(mcmc.m_store));
     res.push_back(Rcpp::wrap(mcmc.mean_coi_store));
     res.push_back(Rcpp::wrap(mcmc.p_store));
@@ -145,6 +146,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("prior_sample");
     res_names.push_back("posterior_burnin");
     res_names.push_back("posterior_sample");
+    res_names.push_back("data_llik");
     res_names.push_back("coi");
     res_names.push_back("lam_coi");
     res_names.push_back("allele_freqs");
