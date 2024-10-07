@@ -82,6 +82,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
     bool max_runtime_reached = timer.time_since_event(events::START_COMPUTATION).count() >= params.max_runtime && step < params.samples;
 
     mcmc.finalize();
+    float runtime = timer.time_since_event(events::START_COMPUTATION).count();
 
     Rcpp::List acceptance_rates;
     Rcpp::List sampling_variances;
@@ -147,6 +148,8 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res.push_back(Rcpp::wrap(acceptance_rates));
     res.push_back(Rcpp::wrap(sampling_variances));
     res.push_back(Rcpp::wrap(max_runtime_reached));
+    res.push_back(Rcpp::wrap(runtime));
+
 
     Rcpp::StringVector res_names;
     res_names.push_back("llik_burnin");
@@ -170,6 +173,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("acceptance_rates");
     res_names.push_back("sampling_variances");
     res_names.push_back("max_runtime_reached");
+    res_names.push_back("total_runtime");
 
     res.names() = res_names;
     return res;
