@@ -22,6 +22,7 @@ class Parameters
     int pre_adapt_steps;
     int temp_adapt_steps;
     int max_initialization_tries;
+    float max_runtime;
 
     bool record_latent_genotypes;
 
