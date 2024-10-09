@@ -5,6 +5,10 @@ run_mcmc_rcpp <- function(args) {
     .Call(`_moire_run_mcmc`, args)
 }
 
+openmp_enabled <- function() {
+    .Call(`_moire_openmp_enabled`)
+}
+
 start_profiler <- function(str) {
     .Call(`_moire_start_profiler`, str)
 }

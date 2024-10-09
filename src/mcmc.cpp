@@ -284,3 +284,13 @@ void MCMC::finalize()
 float MCMC::get_llik() { return chains[swap_indices[0]].get_llik(); }
 float MCMC::get_prior() { return chains[swap_indices[0]].get_prior(); }
 float MCMC::get_posterior() { return chains[swap_indices[0]].get_posterior(); }
+
+// [[Rcpp::export]]
+SEXP openmp_enabled()
+{
+    #ifdef _OPENMP
+        return Rcpp::wrap(true);
+    #else
+        return Rcpp::wrap(false);
+    #endif
+}
