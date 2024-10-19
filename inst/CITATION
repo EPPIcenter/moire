@@ -1,9 +1,12 @@
 bibentry(
   bibtype  = "Article",
   title    = "MOIRE: A software package for the estimation of allele frequencies and effective multiplicity of infection from polyallelic data",
-  author   = "Maxwell Murphy and Bryan Greenhouse",
-  journal  = "bioRxiv",
-  year     = "2023",
-  pages    = "2023.10.03.560769",
-  doi      = "10.1101/2023.10.03.560769",
+  author   = c(
+    person("Maxwell", "Murphy"),
+    person("Bryan", "Greenhouse")
+  ),
+  journal  = "Bioinformatics",
+  year     = "2024",
+  month    = "oct",
+  doi      = "10.1093/bioinformatics/btae619",
 )
