@@ -45,5 +45,6 @@ mcmc_results <- moire::run_mcmc(data, is_missing = data$is_missing)
 ## Manuscript
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10092403.svg)](https://doi.org/10.5281/zenodo.10092403)
+
 The paper describing our method may be found
-[here](https://doi.org/10.1101/2023.10.03.560769)
+[here](https://doi.org/10.1093/bioinformatics/btae619)
