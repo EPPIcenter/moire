@@ -69,6 +69,12 @@ std::vector<float> probAnyMissingFunctor::vectorized(
     const std::size_t totalEvents = eventProbs.size();
 
     std::vector<float> probVec(maxNumEvents - minNumEvents + 1, 0.0);
+    
+    if (maxNumEvents < totalEvents) {
+        std::fill_n(probVec.begin(), maxNumEvents - minNumEvents + 1, 1.0);
+        return probVec;
+    }
+
     std::fill_n(probVec.begin(), totalEvents - 1, 1.0);
 
     //      Calculate via inclusion-exclusion principle
