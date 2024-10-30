@@ -26,10 +26,6 @@ class Parameters
 
     bool record_latent_genotypes;
 
-    bool record_latent_genotypes;
-
-    bool record_latent_genotypes;
-
     // Model Parameters
     // Complexity of Infection
     int max_coi;
