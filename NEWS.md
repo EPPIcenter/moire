@@ -1,3 +1,31 @@
+# moire 3.5.0
+
+## New Features
+
+* Implemented maximum runtime functionality (#34)
+  - The user can now specify a maximum runtime for the MCMC. After the maximum runtime is reached, the MCMC will stop and the current state of the MCMC will be returned.
+  - Enabled by setting `max_runtime = {time in minutes}` in `run_mcmc()`
+
+
+## Bug Fixes
+
+* Fixed handling of NA values in allele frequency vector
+  - NA values are now replaced with 0
+  - Warning message added to alert users of potential MCMC chain issues or loci lacking diversity (#20)
+
+* Fixed memory crash in `prob_any_missing()` function (#38)
+
+## Other Changes
+
+* Modified data loading to ungroup input data when loading long form (#37)
+
+* Updated citation and manuscript information
+
+* Added OpenMP detection utility
+
+* Implement logging of individual sample log likelihoods
+  - May be useful for diagnosing issues with particular samples, such as those that come from different populations
+
 # moire 3.4.0
 ## New features
 
