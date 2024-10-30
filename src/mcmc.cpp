@@ -31,6 +31,7 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     r_store.resize(genotyping_data.num_samples);
     eps_neg_store.resize(genotyping_data.num_samples);
     eps_pos_store.resize(genotyping_data.num_samples);
+    data_llik_store.resize(genotyping_data.num_samples);
     swap_acceptances.resize(params.pt_chains.size() - 1, 0);
     swap_barriers.resize(params.pt_chains.size() - 1, 0.0);
     swap_indices.resize(params.pt_chains.size(), 0);
@@ -253,6 +254,7 @@ void MCMC::sample(int step)
                 eps_neg_store[jj].push_back(chain.eps_neg[jj]);
                 eps_pos_store[jj].push_back(chain.eps_pos[jj]);
                 r_store[jj].push_back(chain.r[jj]);
+                data_llik_store[jj].push_back(chain.get_llik(jj));
 
                 if (params.record_latent_genotypes) {
                     for (size_t kk = 0; kk < genotyping_data.num_loci; ++kk)
@@ -282,3 +284,13 @@ void MCMC::finalize()
 float MCMC::get_llik() { return chains[swap_indices[0]].get_llik(); }
 float MCMC::get_prior() { return chains[swap_indices[0]].get_prior(); }
 float MCMC::get_posterior() { return chains[swap_indices[0]].get_posterior(); }
+
+// [[Rcpp::export]]
+SEXP openmp_enabled()
+{
+    #ifdef _OPENMP
+        return Rcpp::wrap(true);
+    #else
+        return Rcpp::wrap(false);
+    #endif
+}

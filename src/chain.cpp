@@ -1016,6 +1016,37 @@ float Chain::get_llik() { return llik; }
 float Chain::get_prior() { return prior; }
 float Chain::get_posterior() { return llik * temp + prior; }
 
+float Chain::get_llik(int sample) { 
+    int idx = sample * genotyping_data.num_loci;
+
+    #ifdef HAS_EXECUTION
+        return std::reduce(std::execution::unseq, genotyping_llik_new.begin() + idx,
+                           genotyping_llik_new.begin() + idx + genotyping_data.num_loci);
+    #else
+        float llik = 0.0f;
+        #pragma omp simd reduction(+:llik)
+        for (int i = 0; i < genotyping_data.num_loci; ++i) {
+            llik += genotyping_llik_new[idx + i];
+        }
+        return llik;
+    #endif
+}
+float Chain::get_prior(int sample) { 
+    float prior = 0.0f;
+    if (params.allow_relatedness) {
+        prior += relatedness_prior_new[sample];
+    }
+    prior += coi_prior_new[sample];
+    prior += eps_neg_prior_new[sample];
+    prior += eps_pos_prior_new[sample];
+    return prior;
+}
+
+float Chain::get_posterior(int sample) { 
+    float posterior = get_llik(sample) * temp + get_prior(sample);
+    return posterior;
+}
+
 void Chain::calculate_genotype_likelihood(int sample_idx, int locus_idx)
 {
     int idx = sample_idx * genotyping_data.num_loci + locus_idx;

@@ -16,6 +16,7 @@
 #' @importFrom rlang .data
 load_long_form_data <- function(df, warn_uninformative = TRUE) {
   uninformative_loci <- df |>
+    dplyr::ungroup() |>
     dplyr::group_by(.data$locus) |>
     dplyr::summarise(total_alleles = length(unique(.data$allele))) |>
     dplyr::filter(.data$total_alleles == 1) |>

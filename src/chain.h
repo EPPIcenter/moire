@@ -154,6 +154,9 @@ class Chain
     float get_llik();
     float get_prior();
     float get_posterior();
+    float get_llik(int sample);
+    float get_prior(int sample);
+    float get_posterior(int sample);
 
     void set_llik(float llik);
     void set_temp(float temp);

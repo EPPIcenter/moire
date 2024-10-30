@@ -22,6 +22,7 @@ class MCMC
     std::vector<std::vector<int>> m_store{};
     std::vector<std::vector<std::vector<float>>> p_store{};
     std::vector<std::vector<std::vector<std::vector<int>>>> latent_genotypes_store{};
+    std::vector<std::vector<float>> data_llik_store{};
     std::vector<std::vector<float>> eps_pos_store{};
     std::vector<std::vector<float>> eps_neg_store{};
     std::vector<std::vector<float>> r_store{};

@@ -29,13 +29,20 @@ Rcpp::List run_mcmc(Rcpp::List args)
                              params.adapt_temp ? "Yes" : "No");
     }
 
+    enum events {
+        START_COMPUTATION
+    };
+    
+    Timer<events, std::chrono::minutes> timer;
+
     MCMC mcmc(genotyping_data, params);
     MCMCProgressBar pb(params.burnin, params.samples, params.use_message);
     Progress p(params.burnin + params.samples, params.verbose, pb);
     pb.set_llik(mcmc.get_llik());
 
     int step = 0;
-    while (step < params.burnin)
+    timer.record_event(events::START_COMPUTATION);
+    while (step < params.burnin && timer.time_since_event(events::START_COMPUTATION).count() < params.max_runtime)
     {
         Rcpp::checkUserInterrupt();
         mcmc.burnin(step);
@@ -54,7 +61,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
     }
 
     step = 0;
-    while (step < params.samples)
+    while (step < params.samples && timer.time_since_event(events::START_COMPUTATION).count() < params.max_runtime)
     {
         Rcpp::checkUserInterrupt();
         mcmc.sample(step);
@@ -72,7 +79,10 @@ Rcpp::List run_mcmc(Rcpp::List args)
         }
     }
 
+    bool max_runtime_reached = timer.time_since_event(events::START_COMPUTATION).count() >= params.max_runtime && step < params.samples;
+
     mcmc.finalize();
+    float runtime = timer.time_since_event(events::START_COMPUTATION).count();
 
     Rcpp::List acceptance_rates;
     Rcpp::List sampling_variances;
@@ -123,6 +133,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res.push_back(Rcpp::wrap(mcmc.prior_sample));
     res.push_back(Rcpp::wrap(mcmc.posterior_burnin));
     res.push_back(Rcpp::wrap(mcmc.posterior_sample));
+    res.push_back(Rcpp::wrap(mcmc.data_llik_store));
     res.push_back(Rcpp::wrap(mcmc.m_store));
     res.push_back(Rcpp::wrap(mcmc.mean_coi_store));
     res.push_back(Rcpp::wrap(mcmc.p_store));
@@ -137,6 +148,9 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res.push_back(Rcpp::wrap(mcmc.temp_gradient));
     res.push_back(Rcpp::wrap(acceptance_rates));
     res.push_back(Rcpp::wrap(sampling_variances));
+    res.push_back(Rcpp::wrap(max_runtime_reached));
+    res.push_back(Rcpp::wrap(runtime));
+
 
     Rcpp::StringVector res_names;
     res_names.push_back("llik_burnin");
@@ -145,6 +159,7 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("prior_sample");
     res_names.push_back("posterior_burnin");
     res_names.push_back("posterior_sample");
+    res_names.push_back("data_llik");
     res_names.push_back("coi");
     res_names.push_back("lam_coi");
     res_names.push_back("allele_freqs");
@@ -159,6 +174,8 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("temp_gradient");
     res_names.push_back("acceptance_rates");
     res_names.push_back("sampling_variances");
+    res_names.push_back("max_runtime_reached");
+    res_names.push_back("total_runtime");
 
     res.names() = res_names;
     return res;
