@@ -128,6 +128,17 @@ calculate_he <- function(allele_freqs) {
   return(1 - sum(allele_freqs**2))
 }
 
+#' Calcuate the expected number of distinct alleles under a given multiplicity of infection (n)
+#'
+#' @export
+#'
+#' @param allele_freqs Simplex of allele frequencies
+#' @param n multiplicity of infection
+calculate_eda <- function(allele_freqs, n) {
+  sum(1 - (1 - allele_freqs)^n)
+}
+
+
 #' Summarize COI
 #'
 #' @details Summarize complexity of infection results from MCMC. Returns
@@ -443,6 +454,42 @@ summarize_he <- function(mcmc_results,
   return(res)
 }
 
+#' Summarize expected number of distinct alleles
+#'
+#' @details Summarize expected number of distinct alleles results from MCMC estimates of allele frequencies.
+#' Returns a dataframe that contains summaries of the posterior distribution of expected number of distinct alleles
+#'
+#' @export
+#'
+#' @importFrom dplyr bind_rows
+#' @importFrom dplyr arrange
+#' @importFrom rlang .data
+#'
+#' @param mcmc_results Result of calling run_mcmc()
+#' @param n values of multiplicity of infection to evaluate the expected number of distinct alleles
+#' @param lower_quantile The lower quantile of the posterior distribution
+#' to return
+#' @param upper_quantile The upper quantile of the posterior distribution
+#' to return
+#' @param merge_chains boolean indicating that all chain results should be merged
+summarize_eda <- function(mcmc_results, n, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
+  res <- lapply(n, function(n_) {
+    out <- summarize_allele_freq_fn(
+      mcmc_results,
+      fn = function(x) calculate_eda(x, n_),
+      lower_quantile = lower_quantile,
+      upper_quantile = upper_quantile,
+      merge_chains = merge_chains
+    )
+    out$n <- n_
+    return(out)
+  }) |>
+    dplyr::bind_rows() |>
+    dplyr::arrange(.data$locus, n)
+
+  return(res)
+}
+
 names_or_idxs <- function(vec) {
   if (is.null(names(vec))) {
     return(sapply(seq(1, length(vec)), as.character))
@@ -450,7 +497,6 @@ names_or_idxs <- function(vec) {
     return(names(vec))
   }
 }
-
 
 #' Summarize allele frequencies
 #'
