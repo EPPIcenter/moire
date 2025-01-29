@@ -56,8 +56,8 @@ calculate_naive_coi_offset <- function(data, offset) {
     lapply(locus, sum)
   })
   num_alleles_by_sample <- list()
-  for (i in 1:length(num_alleles_by_locus)) {
-    for (j in 1:length(num_alleles_by_locus[[i]])) {
+  for (i in seq_along(num_alleles_by_locus)) {
+    for (j in seq_along(num_alleles_by_locus[[i]])) {
       if (i == 1) {
         num_alleles_by_sample[[j]] <- list()
       }
@@ -84,8 +84,8 @@ calculate_naive_coi <- function(data) {
     lapply(locus, sum)
   })
   num_alleles_by_sample <- list()
-  for (i in 1:length(num_alleles_by_locus)) {
-    for (j in 1:length(num_alleles_by_locus[[i]])) {
+  for (i in seq_along(num_alleles_by_locus)) {
+    for (j in seq_along(num_alleles_by_locus[[i]])) {
       if (i == 1) {
         num_alleles_by_sample[[j]] <- list()
       }
@@ -113,6 +113,7 @@ calculate_naive_allele_frequencies <- function(data) {
     allele_counts <- purrr::reduce(locus, function(f1, f2) f1 + f2)
     return(allele_counts / sum(allele_counts))
   })
+  return(allele_freqs)
 }
 
 #' Calculate the expected heterozygosity from allele frequencies
@@ -163,10 +164,10 @@ summarize_coi <- function(mcmc_results, lower_quantile = .025,
   offset_naive_coi <- calculate_naive_coi_offset(mcmc_results$args$data$data, 2)
 
   if (merge_chains) {
-    cois <- lapply(1:length(mcmc_results$args$data$sample_ids), function(x) c())
-    for (idx in 1:length(mcmc_results$chains)) {
+    cois <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(x) c())
+    for (idx in seq_along(mcmc_results$chains)) {
       chain <- mcmc_results$chains[[idx]]
-      for (s in 1:length(chain$coi)) {
+      for (s in seq_along(chain$coi)) {
         cois[[s]] <- c(cois[[s]], chain$coi[[s]])
       }
       post_coi_lower <- sapply(cois, function(x) {
@@ -189,7 +190,7 @@ summarize_coi <- function(mcmc_results, lower_quantile = .025,
       ))
     }
   } else {
-    chain_cois <- lapply(1:length(mcmc_results$chains), function(idx) {
+    chain_cois <- lapply(seq_along(mcmc_results$chains), function(idx) {
       chain <- mcmc_results$chains[[idx]]
       cois <- chain$coi
       post_coi_lower <- sapply(cois, function(x) {
@@ -234,10 +235,10 @@ summarize_coi <- function(mcmc_results, lower_quantile = .025,
 #' @param merge_chains boolean indicating that all chain results should be merged
 summarize_epsilon_neg <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
   if (merge_chains) {
-    epsilon_neg <- lapply(1:length(mcmc_results$args$data$sample_ids), function(x) c())
-    for (idx in 1:length(mcmc_results$chains)) {
+    epsilon_neg <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(x) c())
+    for (idx in seq_along(mcmc_results$chains)) {
       chain <- mcmc_results$chains[[idx]]
-      for (s in 1:length(chain$eps_neg)) {
+      for (s in seq_along(chain$eps_neg)) {
         epsilon_neg[[s]] <- c(epsilon_neg[[s]], chain$eps_neg[[s]])
       }
     }
@@ -257,7 +258,7 @@ summarize_epsilon_neg <- function(mcmc_results, lower_quantile = .025, upper_qua
       post_eps_neg_lower, post_eps_neg_med, post_eps_neg_upper, post_eps_neg_mean
     ))
   } else {
-    chain_eps_neg <- lapply(1:length(mcmc_results$chains), function(idx) {
+    chain_eps_neg <- lapply(seq_along(mcmc_results$chains), function(idx) {
       epsilon_neg <- mcmc_results$chains[[idx]]$eps_neg
       post_eps_neg_lower <- sapply(epsilon_neg, function(x) {
         quantile(x, lower_quantile)
@@ -298,9 +299,9 @@ summarize_epsilon_neg <- function(mcmc_results, lower_quantile = .025, upper_qua
 #' @param merge_chains boolean indicating that all chain results should be merged
 summarize_epsilon_pos <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
   if (merge_chains) {
-    epsilon_pos <- lapply(1:length(mcmc_results$args$data$sample_ids), function(x) c())
+    epsilon_pos <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(x) c())
     for (chain in mcmc_results$chains) {
-      for (s in 1:length(chain$eps_pos)) {
+      for (s in seq_along(chain$eps_pos)) {
         epsilon_pos[[s]] <- c(epsilon_pos[[s]], chain$eps_pos[[s]])
       }
     }
@@ -320,7 +321,7 @@ summarize_epsilon_pos <- function(mcmc_results, lower_quantile = .025, upper_qua
       post_eps_pos_lower, post_eps_pos_med, post_eps_pos_upper, post_eps_pos_mean
     ))
   } else {
-    chain_eps_pos <- lapply(1:length(mcmc_results$chains), function(idx) {
+    chain_eps_pos <- lapply(seq_along(mcmc_results$chains), function(idx) {
       epsilon_pos <- mcmc_results$chains[[idx]]$eps_pos
       post_eps_pos_lower <- sapply(epsilon_pos, function(x) {
         quantile(x, lower_quantile)
@@ -365,10 +366,10 @@ summarize_allele_freq_fn <- function(mcmc_results, fn,
                                      lower_quantile = .025,
                                      upper_quantile = .975, merge_chains = TRUE) {
   if (merge_chains) {
-    post_allele_freqs <- lapply(1:length(mcmc_results$args$data$loci), function(x) c())
+    post_allele_freqs <- lapply(seq_along(mcmc_results$args$data$loci), function(x) c())
 
     for (chain in mcmc_results$chains) {
-      for (l in 1:length(chain$allele_freqs)) {
+      for (l in seq_along(chain$allele_freqs)) {
         post_allele_freqs[[l]] <- c(post_allele_freqs[[l]], chain$allele_freqs[[l]])
       }
     }
@@ -396,7 +397,7 @@ summarize_allele_freq_fn <- function(mcmc_results, fn,
 
     return(res)
   } else {
-    res <- lapply(1:length(mcmc_results$chains), function(idx) {
+    res <- lapply(seq_along(mcmc_results$chains), function(idx) {
       post_allele_freqs <- mcmc_results$chains[[idx]]$allele_freqs
 
       post_statistic <- lapply(post_allele_freqs, function(locus_posterior) {
@@ -530,11 +531,11 @@ summarize_allele_freqs <- function(mcmc_results,
   warning_flag <- FALSE
 
   if (merge_chains) {
-    allele_freq_matrices <- lapply(1:length(mcmc_results$args$data$loci), function(x) c())
+    allele_freq_matrices <- lapply(seq_along(mcmc_results$args$data$loci), function(x) c())
     total_samples <- 0
     for (chain in mcmc_results$chains) {
       total_samples <- total_samples + length(chain$allele_freqs[[1]])
-      for (l in 1:length(chain$allele_freqs)) {
+      for (l in seq_along(chain$allele_freqs)) {
         locus <- chain$allele_freqs[[l]]
         allele_freq_matrices[[l]] <- c(allele_freq_matrices[[l]], unlist(locus))
       }
@@ -571,7 +572,7 @@ summarize_allele_freqs <- function(mcmc_results,
     return(cbind(do.call(rbind, res), locus_alleles))
   } else {
     res <- list()
-    for (idx in 1:length(mcmc_results$chains)) {
+    for (idx in seq_along(mcmc_results$chains)) {
       chain <- mcmc_results$chains[[idx]]
       chain_res <- lapply(
         chain$allele_freqs,
@@ -635,9 +636,9 @@ summarize_allele_freqs <- function(mcmc_results,
 #' @param merge_chains boolean indicating that all chain results should be merged
 summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
   if (merge_chains) {
-    relatedness <- lapply(1:length(mcmc_results$args$data$sample_ids), function(x) c())
+    relatedness <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(x) c())
     for (chain in mcmc_results$chains) {
-      for (s in 1:length(chain$relatedness)) {
+      for (s in seq_along(chain$relatedness)) {
         # Only include relatedness values for samples with COI > 1
         mask <- chain$coi[[s]] > 1
         rel <- chain$relatedness[[s]]
@@ -662,7 +663,7 @@ summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_qua
       post_relatedness_lower, post_relatedness_med, post_relatedness_upper, post_relatedness_mean
     ))
   } else {
-    chain_relatedness <- lapply(1:length(mcmc_results$chains), function(idx) {
+    chain_relatedness <- lapply(seq_along(mcmc_results$chains), function(idx) {
       coi <- mcmc_results$chains[[idx]]$coi
       relatedness <- mcmc_results$chains[[idx]]$relatedness * (coi > 1)
       relatedness[coi <= 1] <- NA
@@ -708,9 +709,9 @@ summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_qua
 #' @param merge_chains boolean indicating that all chain results should be merged
 summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
   if (merge_chains) {
-    effective_coi <- lapply(1:length(mcmc_results$args$data$sample_ids), function(x) c())
+    effective_coi <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(x) c())
     for (chain in mcmc_results$chains) {
-      for (s in 1:length(chain$relatedness)) {
+      for (s in seq_along(chain$relatedness)) {
         effective_coi[[s]] <- c(effective_coi[[s]], (1 - chain$relatedness[[s]]) * (chain$coi[[s]] - 1) + 1)
       }
     }
@@ -730,7 +731,7 @@ summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_q
       post_effective_coi_lower, post_effective_coi_med, post_effective_coi_upper, post_effective_coi_mean
     ))
   } else {
-    chain_effective_coi <- lapply(1:length(mcmc_results$chains), function(idx) {
+    chain_effective_coi <- lapply(seq_along(mcmc_results$chains), function(idx) {
       chain <- mcmc_results$chains[[idx]]
       r <- chain$relatedness
       coi <- chain$coi

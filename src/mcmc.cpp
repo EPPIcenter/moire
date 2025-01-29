@@ -243,23 +243,25 @@ void MCMC::sample(int step)
         if ((params.thin == 0 or step % params.thin == 0) and
             (chain.get_hot() or chains.size() == 1))
         {
-            for (size_t ii = 0; ii < genotyping_data.num_loci; ++ii)
+            for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                p_store[ii].push_back(chain.p[ii]);
+                const auto [begin, end] = chain.p.inner_iterators({locus_idx});
+                p_store[locus_idx].push_back(std::vector(begin, end));
             }
 
-            for (size_t jj = 0; jj < genotyping_data.num_samples; ++jj)
+            for (size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
             {
-                m_store[jj].push_back(chain.m[jj]);
-                eps_neg_store[jj].push_back(chain.eps_neg[jj]);
-                eps_pos_store[jj].push_back(chain.eps_pos[jj]);
-                r_store[jj].push_back(chain.r[jj]);
-                data_llik_store[jj].push_back(chain.get_llik(jj));
+                m_store[sample_idx].push_back(chain.m[sample_idx]);
+                eps_neg_store[sample_idx].push_back(chain.eps_neg[sample_idx]);
+                eps_pos_store[sample_idx].push_back(chain.eps_pos[sample_idx]);
+                r_store[sample_idx].push_back(chain.r[sample_idx]);
+                data_llik_store[sample_idx].push_back(chain.get_llik(sample_idx));
 
                 if (params.record_latent_genotypes) {
-                    for (size_t kk = 0; kk < genotyping_data.num_loci; ++kk)
+                    for (size_t sample_locus_idx = 0; sample_locus_idx < genotyping_data.num_loci; ++sample_locus_idx)
                     {
-                        latent_genotypes_store[jj][kk].push_back(chain.latent_genotypes_new[kk][jj]);
+                        const auto [begin, end] = chain.latent_genotypes_new.inner_iterators({sample_idx, sample_locus_idx});
+                        latent_genotypes_store[sample_idx][sample_locus_idx].push_back(std::vector(begin, end));
                     }
                 }
             }

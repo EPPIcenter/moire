@@ -29,5 +29,5 @@ compile_flags.txt
 manuscript/
 
 *.rds
-scratch.R
+scratch/
 data-raw/afs_resources/

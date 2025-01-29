@@ -15,34 +15,32 @@
 #include <limits>
 #include <map>
 #include <numeric>
+#include <span>
 
 constexpr float min_sampled = std::numeric_limits<float>::min();
 
 void Chain::initialize_latent_genotypes()
 {
     latent_genotypes_new.clear();
+    latent_genotypes_new.resize(std::array{genotyping_data.num_samples, genotyping_data.num_loci}, genotyping_data.num_alleles, -1);
     latent_genotypes_old.clear();
+    latent_genotypes_old.resize(std::array{genotyping_data.num_samples, genotyping_data.num_loci}, genotyping_data.num_alleles, -1);
     lg_adj_old.clear();
+    lg_adj_old.resize(std::array{genotyping_data.num_samples, genotyping_data.num_loci});
     lg_adj_new.clear();
-    for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+    lg_adj_new.resize(std::array{genotyping_data.num_samples, genotyping_data.num_loci});
+    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
     {
-        latent_genotypes_new.push_back(std::vector<std::vector<int>>{});
-        latent_genotypes_old.push_back(std::vector<std::vector<int>>{});
-        lg_adj_old.push_back(std::vector<float>{});
-        lg_adj_new.push_back(std::vector<float>{});
-
-        for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
+        for (std::size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
         {
-            auto obs_alleles = genotyping_data.get_observed_alleles(jj, ii);
-            std::vector<int> allele_index_vec{};
-            auto lg =
-                sampler.sample_latent_genotype(obs_alleles, m[ii], .2, .2);
+            const auto obs_alleles = genotyping_data.get_observed_alleles(locus_idx, sample_idx);
+            const auto lg = sampler.sample_latent_genotype(obs_alleles, m[sample_idx], .2, .2);
 
-            latent_genotypes_new.back().push_back(lg.value);
-            lg_adj_new.back().push_back(lg.log_prob);
+            latent_genotypes_new.inner_fill({sample_idx, locus_idx}, lg.value);
+            lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
 
-            latent_genotypes_old.back().push_back(lg.value);
-            lg_adj_old.back().push_back(lg.log_prob);
+            latent_genotypes_old.inner_fill({sample_idx, locus_idx}, lg.value);
+            lg_adj_old.at({sample_idx, locus_idx}) = lg.log_prob;
         }
     }
 }
@@ -51,27 +49,20 @@ void Chain::initialize_latent_genotypes()
 void Chain::initialize_p()
 {
     p.clear();
+    p.resize({genotyping_data.num_loci}, genotyping_data.num_alleles);
     p_prop_var.clear();
     p_accept.clear();
     p_attempt.clear();
 
     for (size_t i = 0; i < genotyping_data.num_loci; i++)
     {
-        p.push_back(sampler.sample_allele_frequencies(
+        p.inner_fill({i}, sampler.sample_allele_frequencies(
             std::vector<float>(genotyping_data.num_alleles[i], 1), 10));
     }
 
-    p_prop_var.resize(genotyping_data.num_loci);
-    p_accept.resize(genotyping_data.num_loci);
-    p_attempt.resize(genotyping_data.num_loci);
-
-    for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
-    {
-        const int total_alleles = p[jj].size();
-        p_prop_var[jj] = std::vector<float>(total_alleles, 1);
-        p_accept[jj] = std::vector<int>(total_alleles, 0);
-        p_attempt[jj] = std::vector<int>(total_alleles, 0);
-    }
+    p_prop_var.resize({genotyping_data.num_loci}, genotyping_data.num_alleles);
+    p_accept.resize({genotyping_data.num_loci}, genotyping_data.num_alleles);
+    p_attempt.resize({genotyping_data.num_loci}, genotyping_data.num_alleles);
 };
 
 void Chain::initialize_m()
@@ -83,7 +74,7 @@ void Chain::initialize_m()
     m.reserve(genotyping_data.num_samples);
     for (const auto coi : genotyping_data.observed_coi)
     {
-        int m_coi = std::clamp(coi + sampler.sample_coi_delta(3), 1, params.max_coi);
+        std::size_t m_coi = std::clamp(coi + sampler.sample_coi_delta(3), std::size_t(1), params.max_coi);
         m.push_back(m_coi);
     }
     m_accept.resize(genotyping_data.num_samples, 0);
@@ -155,34 +146,36 @@ void Chain::initialize_parameters()
     initialize_latent_genotypes();
     initialize_p();
     initialize_likelihood();
+    initialize_likelihood();
 }
 
 void Chain::update_m(int iteration)
 {
-    auto indices = std::vector<int>(genotyping_data.num_samples);
+    auto indices = std::vector<std::size_t>(genotyping_data.num_samples);
     std::iota(indices.begin(), indices.end(), 0);
     sampler.shuffle_vec(indices);
 
-    for (const auto ii : indices)
+    for (const auto sample_idx : indices)
     {
-        const int prop_m = m[ii] + sampler.sample_coi_delta(2);
+        const std::size_t prop_m = m[sample_idx] + sampler.sample_coi_delta(2);
         if (prop_m > 0 and prop_m <= params.max_coi)
         {
-            const float prev_m = m[ii];
-            m[ii] = prop_m;
-            calculate_coi_likelihood(ii);
+            const float prev_m = m[sample_idx];
+            m[sample_idx] = prop_m;
+            calculate_coi_likelihood(sample_idx);
 
             float adj_ratio = 0;
 
-            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                auto lg = sampler.sample_latent_genotype(
-                    genotyping_data.get_observed_alleles(jj, ii), m[ii],
-                    eps_pos[ii], eps_neg[ii]);
-                latent_genotypes_new[jj][ii] = lg.value;
-                lg_adj_new[jj][ii] = lg.log_prob;
-                adj_ratio = adj_ratio + lg_adj_new[jj][ii] - lg_adj_old[jj][ii];
-                calculate_genotype_likelihood(ii, jj);
+                const auto& lg = sampler.sample_latent_genotype(
+                    genotyping_data.get_observed_alleles(locus_idx, sample_idx), m[sample_idx],
+                    eps_pos[sample_idx], eps_neg[sample_idx]);
+                latent_genotypes_new.inner_fill({sample_idx, locus_idx}, -1);
+                latent_genotypes_new.inner_fill({sample_idx, locus_idx}, lg.value);
+                lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
+                adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
+                calculate_genotype_likelihood(sample_idx, locus_idx);
             }
 
             const float new_llik = calc_new_likelihood();
@@ -194,24 +187,26 @@ void Chain::update_m(int iteration)
             {
                 llik = new_llik;
                 prior = new_prior;
-                save_coi_likelihood(ii);
-                for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+                save_coi_likelihood(sample_idx);
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
                 {
-                    save_genotype_likelihood(ii, jj);
-                    lg_adj_old[jj][ii] = lg_adj_new[jj][ii];
-                    latent_genotypes_old[jj][ii] = latent_genotypes_new[jj][ii];
+                    save_genotype_likelihood(sample_idx, locus_idx);
+                    lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
+                    auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                    std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
                 }
-                ++m_accept[ii];
+                ++m_accept[sample_idx];
             }
             else
             {
-                m[ii] = prev_m;
-                restore_coi_likelihood(ii);
-                for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+                m[sample_idx] = prev_m;
+                restore_coi_likelihood(sample_idx);
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
                 {
-                    restore_genotype_likelihood(ii, jj);
-                    lg_adj_new[jj][ii] = lg_adj_old[jj][ii];
-                    latent_genotypes_new[jj][ii] = latent_genotypes_old[jj][ii];
+                    restore_genotype_likelihood(sample_idx, locus_idx);
+                    lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
+                    auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
+                    std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
                 }
             }
         }
@@ -220,44 +215,45 @@ void Chain::update_m(int iteration)
 
 void Chain::update_eff_coi(int iteration)
 {
-    auto indices = std::vector<int>(genotyping_data.num_samples);
+    auto indices = std::vector<std::size_t>(genotyping_data.num_samples);
     std::iota(indices.begin(), indices.end(), 0);
     sampler.shuffle_vec(indices);
 
-    for (const int i : indices)
+    for (const auto sample_idx : indices)
     {
-        const float curr_eff_coi = (m[i] - 1) * (1.0f - r[i]) + 1.0f;
+        const float curr_eff_coi = (m[sample_idx] - 1) * (1.0f - r[sample_idx]) + 1.0f;
         const auto prop_adj = sampler.sample_constrained(
-            curr_eff_coi, m_r_var[i], 1, params.max_coi);
+            curr_eff_coi, m_r_var[sample_idx], 1, params.max_coi);
 
         const float prop_eff_coi = std::get<0>(prop_adj);
         const float adj = std::get<1>(prop_adj);
 
-        const int prop_m = m[i] + sampler.sample_coi_delta(2);
+        const std::size_t prop_m = m[sample_idx] + sampler.sample_coi_delta(2);
         const float prop_r = 1.0f - (prop_eff_coi - 1.0f) / (prop_m - 1.0f);
 
         if (prop_m <= 0 || prop_m > params.max_coi || prop_r > 1.0f || prop_r < 1e-32) {
             continue;
         }
 
-        const int prev_m = m[i];
-        const float prev_r = r[i];
-        m[i] = prop_m;
-        r[i] = prop_r;
-        calculate_coi_likelihood(i);
-        calculate_relatedness_likelihood(i);
+        const int prev_m = m[sample_idx];
+        const float prev_r = r[sample_idx];
+        m[sample_idx] = prop_m;
+        r[sample_idx] = prop_r;
+        calculate_coi_likelihood(sample_idx);
+        calculate_relatedness_likelihood(sample_idx);
 
         float adj_ratio = adj;
 
-        for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+        for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
         {
             const auto &lg = sampler.sample_latent_genotype(
-                genotyping_data.get_observed_alleles(jj, i), m[i], eps_pos[i],
-                eps_neg[i]);
-            latent_genotypes_new[jj][i] = lg.value;
-            lg_adj_new[jj][i] = lg.log_prob;
-            adj_ratio = adj_ratio + lg_adj_new[jj][i] - lg_adj_old[jj][i];
-            calculate_genotype_likelihood(i, jj);
+                genotyping_data.get_observed_alleles(locus_idx, sample_idx), m[sample_idx], eps_pos[sample_idx],
+                eps_neg[sample_idx]);
+            latent_genotypes_new.inner_fill({sample_idx, locus_idx}, -1);
+            latent_genotypes_new.inner_fill({sample_idx, locus_idx}, lg.value);
+            lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
+            adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
+            calculate_genotype_likelihood(sample_idx, locus_idx);
         }
 
         const float new_llik = calc_new_likelihood();
@@ -269,40 +265,42 @@ void Chain::update_eff_coi(int iteration)
         // Reject
         if (std::isnan(new_post) or std::isnan(mh_ratio) or alpha > mh_ratio)
         {
-            m[i] = prev_m;
-            r[i] = prev_r;
-            restore_coi_likelihood(i);
-            restore_relatedness_likelihood(i);
-            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+            m[sample_idx] = prev_m;
+            r[sample_idx] = prev_r;
+            restore_coi_likelihood(sample_idx);
+            restore_relatedness_likelihood(sample_idx);
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                restore_genotype_likelihood(i, jj);
-                lg_adj_new[jj][i] = lg_adj_old[jj][i];
-                latent_genotypes_new[jj][i] = latent_genotypes_old[jj][i];
+                restore_genotype_likelihood(sample_idx, locus_idx);
+                lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
+                const auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
             }
         }
         else
         {
             llik = new_llik;
             prior = new_prior;
-            save_relatedness_likelihood(i);
-            save_coi_likelihood(i);
-            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+            save_relatedness_likelihood(sample_idx);
+            save_coi_likelihood(sample_idx);
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                save_genotype_likelihood(i, jj);
-                lg_adj_old[jj][i] = lg_adj_new[jj][i];
-                latent_genotypes_old[jj][i] = latent_genotypes_new[jj][i];
+                save_genotype_likelihood(sample_idx, locus_idx);
+                lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
+                const auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
             }
-            ++m_r_accept[i];
+            ++m_r_accept[sample_idx];
         }
 
         if (iteration < params.burnin and
             iteration > 15)  // don't start adapting until there are
                              // at least a few samples
         {
-            const float acceptanceRate = m_r_accept[i] / float(iteration);
+            const float acceptanceRate = m_r_accept[sample_idx] / float(iteration);
             const float update =
                 (acceptanceRate - .23) / std::pow(iteration + 1, .5);
-            m_r_var[i] = std::max(m_r_var[i] + update, .01f);
+            m_r_var[sample_idx] = std::max(m_r_var[sample_idx] + update, .01f);
         }
     }
 }
@@ -313,20 +311,20 @@ void Chain::update_r(int iteration)
     std::iota(indices.begin(), indices.end(), 0);
     sampler.shuffle_vec(indices);
 
-    for (const auto i : indices)
+    for (const auto sample_idx : indices)
     {
         const auto prop_adj =
-            sampler.sample_constrained(r[i], r_var[i], min_sampled, .99);
+            sampler.sample_constrained(r[sample_idx], r_var[sample_idx], min_sampled, .99);
         const float prop_r = std::get<0>(prop_adj);
         const float adj = std::get<1>(prop_adj);
 
-        const float prev_r = r[i];
-        r[i] = prop_r;
-        calculate_relatedness_likelihood(i);
+        const float prev_r = r[sample_idx];
+        r[sample_idx] = prop_r;
+        calculate_relatedness_likelihood(sample_idx);
 
-        for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+        for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
         {
-            calculate_genotype_likelihood(i, jj);
+            calculate_genotype_likelihood(sample_idx, locus_idx);
         }
 
         const float new_llik = calc_new_likelihood();
@@ -337,74 +335,73 @@ void Chain::update_r(int iteration)
         if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
                                         (new_post - get_posterior() + adj))
         {
-            r[i] = prev_r;
-            restore_relatedness_likelihood(i);
-            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+            r[sample_idx] = prev_r;
+            restore_relatedness_likelihood(sample_idx);
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                restore_genotype_likelihood(i, jj);
+                restore_genotype_likelihood(sample_idx, locus_idx);
             }
         }
         else
         {
             llik = new_llik;
             prior = new_prior;
-            save_relatedness_likelihood(i);
-            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+            save_relatedness_likelihood(sample_idx);
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                save_genotype_likelihood(i, jj);
+                save_genotype_likelihood(sample_idx, locus_idx);
             }
-            ++r_accept[i];
+            ++r_accept[sample_idx];
         }
 
         if (iteration < params.burnin and
             iteration > 15)  // don't start adapting until there are
                              // at least a few samples
         {
-            const float acceptanceRate = r_accept[i] / float(iteration);
+            const float acceptanceRate = r_accept[sample_idx] / float(iteration);
             const float update =
                 (acceptanceRate - .23) / std::pow(iteration + 1, .5);
-            r_var[i] = std::max(r_var[i] + update, .01f);
+            r_var[sample_idx] = std::max(r_var[sample_idx] + update, .0001f);
         }
     }
 }
 
 void Chain::update_m_r(int iteration)
 {
-    auto indices = std::vector<int>(genotyping_data.num_samples);
+    auto indices = std::vector<std::size_t>(genotyping_data.num_samples);
     std::iota(indices.begin(), indices.end(), 0);
     sampler.shuffle_vec(indices);
 
-    for (const auto i : indices)
+    for (const auto sample_idx : indices)
     {
         const auto prop_adj =
-            sampler.sample_constrained(r[i], m_r_var[i], min_sampled, .99);
+            sampler.sample_constrained(r[sample_idx], m_r_var[sample_idx], min_sampled, .99);
         const float prop_r = std::get<0>(prop_adj);
         const float adj = std::get<1>(prop_adj);
 
-        const int prop_m = m[i] + sampler.sample_coi_delta(1);
+        const std::size_t prop_m = m[sample_idx] + sampler.sample_coi_delta(1);
 
         if (prop_m <= 0 or prop_m > params.max_coi) return;
 
-        const float prev_m = m[i];
-        const float prev_r = r[i];
-        r[i] = prop_r;
-        calculate_relatedness_likelihood(i);
-        m[i] = prop_m;
-        calculate_coi_likelihood(i);
+        const float prev_m = m[sample_idx];
+        const float prev_r = r[sample_idx];
+        r[sample_idx] = prop_r;
+        calculate_relatedness_likelihood(sample_idx);
+        m[sample_idx] = prop_m;
+        calculate_coi_likelihood(sample_idx);
 
         float adj_ratio = adj;
 
-        for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+        for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
         {
             const auto &lg = sampler.sample_latent_genotype(
-                genotyping_data.get_observed_alleles(jj, i), m[i], eps_pos[i],
-                eps_neg[i]);
-            // const auto &lg = sampler.sample_latent_genotype(
-            //     latent_genotypes_old[jj][i], m[i], eps_pos[i], eps_neg[i]);
-            latent_genotypes_new[jj][i] = lg.value;
-            lg_adj_new[jj][i] = lg.log_prob;
-            adj_ratio = adj_ratio + lg_adj_new[jj][i] - lg_adj_old[jj][i];
-            calculate_genotype_likelihood(i, jj);
+                genotyping_data.get_observed_alleles(locus_idx, sample_idx), m[sample_idx], eps_pos[sample_idx],
+                eps_neg[sample_idx]);
+            latent_genotypes_new.inner_fill({sample_idx, locus_idx}, -1);
+            latent_genotypes_new.inner_fill({sample_idx, locus_idx}, lg.value);
+            lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
+            adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
+            calculate_genotype_likelihood(sample_idx, locus_idx);
         }
 
         const float new_llik = calc_new_likelihood();
@@ -416,40 +413,42 @@ void Chain::update_m_r(int iteration)
             sampler.sample_log_mh_acceptance() >
                 (new_post - get_posterior() + adj_ratio))
         {
-            r[i] = prev_r;
-            restore_relatedness_likelihood(i);
-            m[i] = prev_m;
-            restore_coi_likelihood(i);
-            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+            r[sample_idx] = prev_r;
+            restore_relatedness_likelihood(sample_idx);
+            m[sample_idx] = prev_m;
+            restore_coi_likelihood(sample_idx);
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                restore_genotype_likelihood(i, jj);
-                lg_adj_new[jj][i] = lg_adj_old[jj][i];
-                latent_genotypes_new[jj][i] = latent_genotypes_old[jj][i];
+                restore_genotype_likelihood(sample_idx, locus_idx);
+                lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
+                auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
             }
         }
         else
         {
             llik = new_llik;
             prior = new_prior;
-            save_relatedness_likelihood(i);
-            save_coi_likelihood(i);
-            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+            save_relatedness_likelihood(sample_idx);
+            save_coi_likelihood(sample_idx);
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                save_genotype_likelihood(i, jj);
-                lg_adj_old[jj][i] = lg_adj_new[jj][i];
-                latent_genotypes_old[jj][i] = latent_genotypes_new[jj][i];
+                save_genotype_likelihood(sample_idx, locus_idx);
+                lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
+                auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
             }
-            ++m_r_accept[i];
+            ++m_r_accept[sample_idx];
         }
 
         if (iteration < params.burnin and
             iteration > 15)  // don't start adapting until there are
                              // at least a few samples
         {
-            const float acceptanceRate = m_r_accept[i] / float(iteration);
+            const float acceptanceRate = m_r_accept[sample_idx] / float(iteration);
             const float update =
                 (acceptanceRate - .23) / std::pow(iteration + 1, .5);
-            m_r_var[i] = std::max(m_r_var[i] + update, .01f);
+            m_r_var[sample_idx] = std::max(m_r_var[sample_idx] + update, .0001f);
         }
     }
 }
@@ -460,38 +459,41 @@ void Chain::update_m_r(int iteration)
  */
 void Chain::update_p(int iteration)
 {
-    auto indices = std::vector<int>(genotyping_data.num_loci);
+    auto indices = std::vector<std::size_t>(genotyping_data.num_loci);
     std::iota(indices.begin(), indices.end(), 0);
     sampler.shuffle_vec(indices);
 
-    for (const auto j : indices)
+    for (const std::size_t locus_idx : indices)
     {
-        const int k = p[j].size();
-        int rep = k;
-        while (--rep >= 0)
+        const std::size_t num_alleles = p.ragged_dimensions(locus_idx);
+        std::size_t rep = num_alleles; // +1 for post order decrement, total of attem
+
+        const auto [begin, end] = p.inner_iterators({locus_idx});
+        while (rep-- > 0)
         {
-            const int idx = sampler.sample_random_int(0, k - 1);
-            ++p_attempt[j][idx];
+            const size_t allele_idx = sampler.sample_random_int(0, num_alleles - 1);
 
-            auto logitPropP = UtilFunctions::logitVec(p[j]);
+            ++p_attempt.at({locus_idx, allele_idx});
 
-            const float logitCurr = logitPropP[idx];
+            auto logitPropP = UtilFunctions::logitVec(begin, end);
+
+            const float logitCurr = logitPropP[allele_idx];
             const float logitProp =
-                sampler.sample_epsilon(logitCurr, p_prop_var[j][idx]);
+                sampler.sample_epsilon(logitCurr, p_prop_var.at({locus_idx, allele_idx}));
 
             const auto currLogPQ = UtilFunctions::log_pq(logitCurr);
             const auto propLogPQ = UtilFunctions::log_pq(logitProp);
 
-            logitPropP.erase(logitPropP.begin() + idx);
+            logitPropP.erase(logitPropP.begin() + allele_idx);
 
             const float ls =
                 propLogPQ.second - UtilFunctions::logitSum(logitPropP);
             logitPropP = UtilFunctions::logitScale(logitPropP, ls);
-            logitPropP.insert(logitPropP.begin() + idx, logitProp);
+            logitPropP.insert(logitPropP.begin() + allele_idx, logitProp);
 
             const float logAdj =
                 (currLogPQ.first - propLogPQ.first) +
-                (k - 1) * (currLogPQ.second - propLogPQ.second);
+                (num_alleles - 1) * (currLogPQ.second - propLogPQ.second);
 
             const auto prop_p = UtilFunctions::expitVec(logitPropP);
             // check to make sure the proposed simplex is within a bounded range
@@ -512,12 +514,12 @@ void Chain::update_p(int iteration)
                 break;
             }
 
-            const auto prev_p = p[j];
-            p[j] = prop_p;
+            const auto prev_p = std::vector<float>(begin, end);
+            p.inner_fill({locus_idx}, prop_p);
 
-            for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
+            for (std::size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
             {
-                calculate_genotype_likelihood(ii, j);
+                calculate_genotype_likelihood(sample_idx, locus_idx);
             }
 
             const float new_llik = calc_new_likelihood();
@@ -529,31 +531,31 @@ void Chain::update_p(int iteration)
             if (std::isnan(new_post) or
                 sampler.sample_log_mh_acceptance() > acceptanceRatio)
             {
-                p[j] = prev_p;
-                for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
+                p.inner_fill({locus_idx}, prev_p);
+                for (std::size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
                 {
-                    restore_genotype_likelihood(ii, j);
+                    restore_genotype_likelihood(sample_idx, locus_idx);
                 }
             }
             else
             {
                 llik = new_llik;
                 prior = new_prior;
-                for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
+                for (std::size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
                 {
-                    save_genotype_likelihood(ii, j);
+                    save_genotype_likelihood(sample_idx, locus_idx);
                 }
-                ++p_accept[j][idx];
+                ++p_accept.at({locus_idx, allele_idx});
             }
 
             // don't start adapting until there are at least a few samples
-            if (iteration < params.burnin and p_attempt[j][idx] > 15)
+            if (iteration < params.burnin and p_attempt.at({locus_idx, allele_idx}) > 15)
             {
                 const float acceptanceRate =
-                    (p_accept[j][idx] + 1) / (float(p_attempt[j][idx]) + 1);
-                p_prop_var[j][idx] += (acceptanceRate - .23) /
-                                      std::pow(p_attempt[j][idx] + 1, .5);
-                p_prop_var[j][idx] = std::max(p_prop_var[j][idx], .01f);
+                    (p_accept.at({locus_idx, allele_idx}) + 1) / (float(p_attempt.at({locus_idx, allele_idx})) + 1);
+                p_prop_var.at({locus_idx, allele_idx}) += (acceptanceRate - .23) /
+                                      std::pow(p_attempt.at({locus_idx, allele_idx}) + 1, .5);
+                p_prop_var.at({locus_idx, allele_idx}) = std::max(p_prop_var.at({locus_idx, allele_idx}), .01f);
             }
         }
     }
@@ -618,7 +620,7 @@ void Chain::update_eps_pos(int iteration)
                     eps_pos_accept[i] / float(iteration);
                 const float update =
                     (acceptanceRate - .23) / std::pow(iteration + 1, .5);
-                eps_pos_var[i] = std::max(eps_pos_var[i] + update, .01f);
+                eps_pos_var[i] = std::max(eps_pos_var[i] + update, .0001f);
             }
         }
     }
@@ -683,7 +685,7 @@ void Chain::update_eps_neg(int iteration)
                     eps_neg_accept[i] / float(iteration);
                 const float update =
                     (acceptanceRate - .23) / std::pow(iteration + 1, .5);
-                eps_neg_var[i] = std::max(eps_neg_var[i] + update, .01f);
+                eps_neg_var[i] = std::max(eps_neg_var[i] + update, .0001f);
             }
         }
     }
@@ -691,21 +693,21 @@ void Chain::update_eps_neg(int iteration)
 
 void Chain::update_samples(int iteration)
 {
-    auto indices = std::vector<int>(genotyping_data.num_samples);
+    auto indices = std::vector<std::size_t>(genotyping_data.num_samples);
     std::iota(indices.begin(), indices.end(), 0);
     sampler.shuffle_vec(indices);
 
-    for (const auto ii : indices)
+    for (const auto sample_idx : indices)
     {
         const auto eps_neg_prop_adj = sampler.sample_constrained(
-            eps_neg[ii], eps_neg_var[ii], min_sampled, 1);
+            eps_neg[sample_idx], eps_neg_var[sample_idx], min_sampled, 1);
         const float prop_eps_neg = std::get<0>(eps_neg_prop_adj);
         const float eps_neg_adj = std::get<1>(eps_neg_prop_adj);
         const bool valid_prop_eps_neg =
             prop_eps_neg < 1 && prop_eps_neg > 1e-32;
 
         const auto eps_pos_prop_adj = sampler.sample_constrained(
-            eps_pos[ii], eps_pos_var[ii], min_sampled, 1);
+            eps_pos[sample_idx], eps_pos_var[sample_idx], min_sampled, 1);
         const float prop_eps_pos = std::get<0>(eps_pos_prop_adj);
         const float eps_pos_adj = std::get<1>(eps_pos_prop_adj);
         const bool valid_prop_eps_pos =
@@ -717,45 +719,46 @@ void Chain::update_samples(int iteration)
         if (params.allow_relatedness)
         {
             auto r_prop_adj =
-                sampler.sample_constrained(r[ii], r_var[ii], min_sampled, .99);
+                sampler.sample_constrained(r[sample_idx], r_var[sample_idx], min_sampled, .99);
             prop_r = std::get<0>(r_prop_adj);
             r_adj = std::get<1>(r_prop_adj);
             valid_prop_r = prop_r < 1 && prop_r > 1e-32;
         }
 
-        const int prop_m = m[ii] + sampler.sample_coi_delta(2);
+        const std::size_t prop_m = m[sample_idx] + sampler.sample_coi_delta(2);
         const bool valid_prop_m = prop_m > 0 && prop_m <= params.max_coi;
 
         if (valid_prop_eps_neg && valid_prop_eps_pos && valid_prop_r &&
             valid_prop_m)
         {
-            const float prev_eps_pos = eps_pos[ii];
-            eps_pos[ii] = prop_eps_pos;
-            calculate_eps_pos_likelihood(ii);
+            const float prev_eps_pos = eps_pos[sample_idx];
+            eps_pos[sample_idx] = prop_eps_pos;
+            calculate_eps_pos_likelihood(sample_idx);
 
-            const float prev_eps_neg = eps_neg[ii];
-            eps_neg[ii] = prop_eps_neg;
-            calculate_eps_neg_likelihood(ii);
+            const float prev_eps_neg = eps_neg[sample_idx];
+            eps_neg[sample_idx] = prop_eps_neg;
+            calculate_eps_neg_likelihood(sample_idx);
 
-            const float prev_r = r[ii];
-            r[ii] = prop_r;
-            calculate_relatedness_likelihood(ii);
+            const float prev_r = r[sample_idx];
+            r[sample_idx] = prop_r;
+            calculate_relatedness_likelihood(sample_idx);
 
-            const float prev_m = m[ii];
-            m[ii] = prop_m;
-            calculate_coi_likelihood(ii);
+            const float prev_m = m[sample_idx];
+            m[sample_idx] = prop_m;
+            calculate_coi_likelihood(sample_idx);
 
             float adj_ratio = eps_neg_adj + eps_pos_adj + r_adj;
 
-            for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
                 auto lg = sampler.sample_latent_genotype(
-                    genotyping_data.get_observed_alleles(jj, ii), m[ii],
-                    eps_pos[ii], eps_neg[ii]);
-                latent_genotypes_new[jj][ii] = lg.value;
-                lg_adj_new[jj][ii] = lg.log_prob;
-                adj_ratio = adj_ratio + lg_adj_new[jj][ii] - lg_adj_old[jj][ii];
-                calculate_genotype_likelihood(ii, jj);
+                    genotyping_data.get_observed_alleles(locus_idx, sample_idx), m[sample_idx],
+                    eps_pos[sample_idx], eps_neg[sample_idx]);
+                latent_genotypes_new.inner_fill({sample_idx, locus_idx}, -1);
+                latent_genotypes_new.inner_fill({sample_idx, locus_idx}, lg.value);
+                lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
+                adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
+                calculate_genotype_likelihood(sample_idx, locus_idx);
             }
 
             const float new_llik = calc_new_likelihood();
@@ -768,33 +771,35 @@ void Chain::update_samples(int iteration)
             {
                 llik = new_llik;
                 prior = new_prior;
-                save_eps_neg_likelihood(ii);
-                save_eps_pos_likelihood(ii);
-                save_relatedness_likelihood(ii);
-                save_coi_likelihood(ii);
-                for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+                save_eps_neg_likelihood(sample_idx);
+                save_eps_pos_likelihood(sample_idx);
+                save_relatedness_likelihood(sample_idx);
+                save_coi_likelihood(sample_idx);
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
                 {
-                    save_genotype_likelihood(ii, jj);
-                    lg_adj_old[jj][ii] = lg_adj_new[jj][ii];
-                    latent_genotypes_old[jj][ii] = latent_genotypes_new[jj][ii];
+                    save_genotype_likelihood(sample_idx, locus_idx);
+                    lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
+                    auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                    std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
                 }
-                ++sample_accept[ii];
+                ++sample_accept[sample_idx];
             }
             else
             {
-                m[ii] = prev_m;
-                eps_pos[ii] = prev_eps_pos;
-                eps_neg[ii] = prev_eps_neg;
-                r[ii] = prev_r;
-                restore_eps_neg_likelihood(ii);
-                restore_eps_pos_likelihood(ii);
-                restore_relatedness_likelihood(ii);
-                restore_coi_likelihood(ii);
-                for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+                m[sample_idx] = prev_m;
+                eps_pos[sample_idx] = prev_eps_pos;
+                eps_neg[sample_idx] = prev_eps_neg;
+                r[sample_idx] = prev_r;
+                restore_eps_neg_likelihood(sample_idx);
+                restore_eps_pos_likelihood(sample_idx);
+                restore_relatedness_likelihood(sample_idx);
+                restore_coi_likelihood(sample_idx);
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
                 {
-                    restore_genotype_likelihood(ii, jj);
-                    lg_adj_new[jj][ii] = lg_adj_old[jj][ii];
-                    latent_genotypes_new[jj][ii] = latent_genotypes_old[jj][ii];
+                    restore_genotype_likelihood(sample_idx, locus_idx);
+                    lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
+                    auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
+                    std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
                 }
             }
         }
@@ -846,33 +851,37 @@ void Chain::update_mean_coi(int iteration)
         const float acceptance_rate = mean_coi_accept / (iteration + 1);
         const float update =
             (acceptance_rate - .23) / std::pow(iteration + 1, .5);
-        mean_coi_var = std::max(mean_coi_var + update, .1f);
+        mean_coi_var = std::max(mean_coi_var + update, .0001f);
     }
 }
 
 float Chain::calc_transmission_process(
-    std::vector<int> const &allele_index_vec,
-    std::vector<float> const &allele_frequencies, int coi, float relatedness)
+    std::span<int const> full_allele_index_vec,
+    std::span<float const> allele_frequencies, int coi, float relatedness)
 {
     // transmission process - prob that after "coi" number of draws, all
     // alleles are drawn at least once conditional on all draws come
     // from the constrained set, where the constrained set is the set of
     // positive alleles in the latent genotype
 
+    // get span up to first instance of -1
+    auto first_instance = std::find(full_allele_index_vec.begin(), full_allele_index_vec.end(), -1);
+    std::span<int const> allele_index_vec = full_allele_index_vec.subspan(0, first_instance - full_allele_index_vec.begin());
+
     float constrained_set_total_prob = 0;
     std::vector<float> res{};
     const size_t total_alleles = allele_index_vec.size();
+    std::vector<float> prVec_{};
 
-    prVec_.clear();
-    prVec_.reserve(total_alleles);
     res.reserve(coi - total_alleles + 1);
-    for (size_t j = 0; j < total_alleles; j++)
+    prVec_.reserve(total_alleles);
+    for (const auto &e : allele_index_vec)
     {
-        prVec_.push_back(allele_frequencies[allele_index_vec[j]]);
+        prVec_.push_back(allele_frequencies[e]);
         constrained_set_total_prob += prVec_.back();
     }
 
-    float log_constrained_set_total_prob = std::log(constrained_set_total_prob);
+    const float log_constrained_set_total_prob = std::log(constrained_set_total_prob);
 
     // normalize the vector
     for (float &k : prVec_)
@@ -888,7 +897,7 @@ float Chain::calc_transmission_process(
 
     // Only go up to coi - total_alleles because there must be at least
     // total_alleles unrelated strains at this locus
-    std::vector<float> pamVec = probAnyMissing_.vectorized(prVec_, coi);
+    const std::vector<float> pamVec = probAnyMissing_.vectorized(prVec_, coi);
     for (size_t i = 0; i <= coi - total_alleles; ++i)
     {
         // Calculate the probability of `i` related strains being present, where
@@ -903,12 +912,11 @@ float Chain::calc_transmission_process(
         res.push_back(pr + i_res);
     }
 
-    const float out = UtilFunctions::logSumExp(res);
-    return out;
+    return UtilFunctions::logSumExp(res);
 }
 
-float Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
-                                      std::vector<int> const &obs_genotype,
+float Chain::calc_observation_process(std::span<int const> full_allele_index_vec,
+                                      std::span<int const> obs_genotype,
                                       float epsilon_neg, float epsilon_pos)
 {
     float res = 0;
@@ -916,6 +924,9 @@ float Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
     unsigned int tp = 0;
     unsigned int fn = 0;
     unsigned int tn = 0;
+
+    auto first_instance = std::find(full_allele_index_vec.begin(), full_allele_index_vec.end(), -1);
+    std::span<int const> allele_index_vec = full_allele_index_vec.subspan(0, first_instance - full_allele_index_vec.begin());
 
     unsigned int total_alleles = allele_index_vec.size(); 
     unsigned int vec_pointer = 0;
@@ -947,11 +958,11 @@ float Chain::calc_observation_process(std::vector<int> const &allele_index_vec,
     return res;
 };
 
-float Chain::calc_genotype_log_pmf(const std::vector<int> &allele_index_vec,
-                                   const std::vector<int> &obs_genotype,
+float Chain::calc_genotype_log_pmf(std::span<int const> allele_index_vec,
+                                   std::span<int const> obs_genotype,
                                    float epsilon_pos, float epsilon_neg,
                                    int coi, float relatedness,
-                                   const std::vector<float> &allele_frequencies)
+                                   std::span<float const> allele_frequencies)
 {
     float res = 0.0;
     res += calc_transmission_process(allele_index_vec, allele_frequencies, coi,
@@ -1047,25 +1058,27 @@ float Chain::get_posterior(int sample) {
     return posterior;
 }
 
-void Chain::calculate_genotype_likelihood(int sample_idx, int locus_idx)
+void Chain::calculate_genotype_likelihood(std::size_t sample_idx, std::size_t locus_idx)
 {
-    int idx = sample_idx * genotyping_data.num_loci + locus_idx;
+    const std::size_t idx = sample_idx * genotyping_data.num_loci + locus_idx;
     if (genotyping_data.is_missing(locus_idx, sample_idx))
     {
         genotyping_llik_new[idx] = 0;
     }
     else
     {
-        float res;
+        auto [latent_genotypes_begin, latent_genotypes_end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+        auto [p_begin, p_end] = p.inner_iterators({locus_idx});
         const float transmission_prob = calc_transmission_process(
-            latent_genotypes_new[locus_idx][sample_idx], p[locus_idx],
-            m[sample_idx], r[sample_idx]);
+            std::span(latent_genotypes_begin, latent_genotypes_end), 
+            std::span(p_begin, p_end), m[sample_idx], r[sample_idx]
+        );
         const float obs_prob = calc_observation_process(
-            latent_genotypes_new[locus_idx][sample_idx],
+            std::span(latent_genotypes_begin, latent_genotypes_end),
             genotyping_data.get_observed_alleles(locus_idx, sample_idx),
-            eps_neg[sample_idx], eps_pos[sample_idx]);
-        res = transmission_prob + obs_prob;
-        genotyping_llik_new[idx] = res;
+            eps_neg[sample_idx], eps_pos[sample_idx]
+        );
+        genotyping_llik_new[idx] = transmission_prob + obs_prob;
     }
 }
 
@@ -1101,8 +1114,8 @@ void Chain::calculate_mean_coi_likelihood()
 
 void Chain::initialize_likelihood()
 {
-    const int num_samples = genotyping_data.num_samples;
-    const int num_loci = genotyping_data.num_loci;
+    const std::size_t num_samples = genotyping_data.num_samples;
+    const std::size_t num_loci = genotyping_data.num_loci;
 
     genotyping_llik_new.resize(num_samples * num_loci);
     genotyping_llik_old.resize(num_samples * num_loci);
@@ -1116,37 +1129,37 @@ void Chain::initialize_likelihood()
     coi_prior_new.resize(num_samples);
     coi_prior_old.resize(num_samples);
 
-    for (std::size_t ii = 0; ii < genotyping_data.num_samples; ++ii)
+    for (std::size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
     {
-        const int row_idx = ii * num_loci;
-        for (std::size_t jj = 0; jj < genotyping_data.num_loci; ++jj)
+        const int row_idx = sample_idx * num_loci;
+        for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
         {
-            const int idx = row_idx + jj;
-            calculate_genotype_likelihood(ii, jj);
+            const int idx = row_idx + locus_idx;
+            calculate_genotype_likelihood(sample_idx, locus_idx);
             genotyping_llik_old[idx] = genotyping_llik_new[idx];
         }
     }
 
-    for (size_t ii = 0; ii < genotyping_data.num_samples; ii++)
+    for (size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; sample_idx++)
     {
         const float eps_neg_prior = sampler.get_epsilon_log_prior(
-            eps_neg[ii], params.eps_neg_alpha, params.eps_neg_beta);
+            eps_neg[sample_idx], params.eps_neg_alpha, params.eps_neg_beta);
         const float eps_pos_prior = sampler.get_epsilon_log_prior(
-            eps_pos[ii], params.eps_pos_alpha, params.eps_pos_beta);
+            eps_pos[sample_idx], params.eps_pos_alpha, params.eps_pos_beta);
 
         const float relatedness_prior = sampler.get_relatedness_log_prior(
-            r[ii], params.r_alpha, params.r_beta);
+            r[sample_idx], params.r_alpha, params.r_beta);
 
-        const float coi_prior = sampler.get_coi_log_prior(m[ii], mean_coi);
+        const float coi_prior = sampler.get_coi_log_prior(m[sample_idx], mean_coi);
 
-        eps_neg_prior_old[ii] = eps_neg_prior;
-        eps_neg_prior_new[ii] = eps_neg_prior;
-        eps_pos_prior_old[ii] = eps_pos_prior;
-        eps_pos_prior_new[ii] = eps_pos_prior;
-        relatedness_prior_old[ii] = relatedness_prior;
-        relatedness_prior_new[ii] = relatedness_prior;
-        coi_prior_old[ii] = coi_prior;
-        coi_prior_new[ii] = coi_prior;
+        eps_neg_prior_old[sample_idx] = eps_neg_prior;
+        eps_neg_prior_new[sample_idx] = eps_neg_prior;
+        eps_pos_prior_old[sample_idx] = eps_pos_prior;
+        eps_pos_prior_new[sample_idx] = eps_pos_prior;
+        relatedness_prior_old[sample_idx] = relatedness_prior;
+        relatedness_prior_new[sample_idx] = relatedness_prior;
+        coi_prior_old[sample_idx] = coi_prior;
+        coi_prior_new[sample_idx] = coi_prior;
     }
 
     mean_coi_hyper_prior_old = sampler.get_coi_mean_log_hyper_prior(
@@ -1231,8 +1244,6 @@ Chain::Chain(GenotypingData genotyping_data, Parameters params, float temp)
     : genotyping_data(genotyping_data), params(params), sampler()
 
 {
-    p_prop_var = std::vector<std::vector<float>>(genotyping_data.num_loci);
-    p_accept = std::vector<std::vector<int>>(genotyping_data.num_loci);
     mean_coi_accept = 0;
     mean_coi_var = 1;
     mean_coi =

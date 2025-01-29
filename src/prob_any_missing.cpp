@@ -23,7 +23,6 @@ float probAnyMissingFunctor::operator()(const std::vector<float> &eventProbs,
     {
         sign = -sign;
         c.reset(totalEvents, i);
-        baseVec.resize(0);
         while (!c.completed)
         {
             float base = 1.0;
@@ -32,12 +31,8 @@ float probAnyMissingFunctor::operator()(const std::vector<float> &eventProbs,
             {
                 base -= eventProbs[j];
             }
-            baseVec.push_back(base);
             c.next();
-        }
 
-        for (float base : baseVec)
-        {
             float r = sign;
             int multCounter = static_cast<signed>(numEvents);
             // squared exponentiation
@@ -83,8 +78,6 @@ std::vector<float> probAnyMissingFunctor::vectorized(
     {
         sign = -sign;
         c.reset(totalEvents, i);
-        baseVec.clear();
-        baseVec.reserve(c.numCombinations);
 
         for (std::size_t k = 0; k < c.numCombinations; ++k)
         {
@@ -94,12 +87,8 @@ std::vector<float> probAnyMissingFunctor::vectorized(
             {
                 base -= eventProbs[j];
             }
-            baseVec.push_back(base);
             c.next();
-        }
 
-        for (const float base : baseVec)
-        {
             float r = sign;
             for (std::size_t j = 0; j < totalEvents - 1; ++j)
             {

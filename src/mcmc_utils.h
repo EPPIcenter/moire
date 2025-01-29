@@ -5,6 +5,7 @@
 
 #include <Rcpp.h>
 #include <algorithm>
+#include <span>
 
 // #include <boost/math/distributions.hpp>
 #include <boost/math/special_functions/binomial.hpp>
@@ -169,6 +170,18 @@ inline std::vector<float> logitVec(const std::vector<T> &x)
     return res;
 }
 
+template <typename InputIterator>
+inline std::vector<float> logitVec(InputIterator begin, InputIterator end)
+{
+    std::vector<float> res;
+    std::transform(begin, end, std::back_inserter(res),
+                   UtilFunctions::logit<typename std::iterator_traits<InputIterator>::value_type>);
+    return res;
+}
+
+
+
+
 template <class T>
 inline std::pair<std::vector<float>, std::vector<float>> log_pq(
     const std::vector<T> &x)
@@ -179,6 +192,32 @@ inline std::pair<std::vector<float>, std::vector<float>> log_pq(
     logq.reserve(x.size());
 
     for (const auto el : x)
+    {
+        float ex = std::exp(el);
+        if (el < 0)
+        {
+            logq.push_back(-std::log1p(ex));
+            logp.push_back(logq.back() + el);
+        }
+        else
+        {
+            logp.push_back(-std::log1p(1 / ex));
+            logq.push_back(logp.back() - el);
+        }
+    }
+
+    return std::pair<std::vector<float>, std::vector<float>>(logp, logq);
+}
+
+template <class InputIterator>
+inline std::pair<std::vector<float>, std::vector<float>> log_pq(InputIterator begin, InputIterator end)
+{
+    std::vector<float> logp;
+    logp.reserve(std::distance(begin, end));
+    std::vector<float> logq;
+    logq.reserve(std::distance(begin, end));
+
+    for (const auto el : std::span<typename std::iterator_traits<InputIterator>::value_type const>(begin, end))
     {
         float ex = std::exp(el);
         if (el < 0)

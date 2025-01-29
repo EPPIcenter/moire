@@ -18,7 +18,7 @@ struct probAnyMissingFunctor
                                    unsigned int minNumEvents,
                                    unsigned int maxNumEvents);
 
-    std::vector<float> baseVec{};
+    // std::vector<float> baseVec{};
     CombinationIndicesGenerator c;
 };
 

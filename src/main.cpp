@@ -90,7 +90,15 @@ Rcpp::List run_mcmc(Rcpp::List args)
     for (const auto &chain : mcmc.chains)
     {
         Rcpp::List chain_acceptance_rates;
-        chain_acceptance_rates.push_back(Rcpp::wrap(chain.p_accept));
+
+        const std::size_t num_loci = mcmc.genotyping_data.num_loci;
+
+        std::vector<std::vector<int>> p_accept_vecs;
+        for (std::size_t locus_idx = 0; locus_idx < num_loci; ++locus_idx) {
+            const auto [begin, end] = chain.p_accept.inner_iterators({locus_idx});
+            p_accept_vecs.push_back(std::vector(begin, end));
+        }
+        chain_acceptance_rates.push_back(Rcpp::wrap(p_accept_vecs));
         chain_acceptance_rates.push_back(Rcpp::wrap(chain.m_accept));
         chain_acceptance_rates.push_back(Rcpp::wrap(chain.eps_neg_accept));
         chain_acceptance_rates.push_back(Rcpp::wrap(chain.eps_pos_accept));
@@ -112,7 +120,12 @@ Rcpp::List run_mcmc(Rcpp::List args)
         acceptance_rates.push_back(chain_acceptance_rates);
 
         Rcpp::List chain_sampling_variances;
-        chain_sampling_variances.push_back(Rcpp::wrap(chain.p_prop_var));
+        std::vector<std::vector<float>> p_prop_var_vecs;
+        for (std::size_t locus_idx = 0; locus_idx < num_loci; ++locus_idx) {
+            const auto [begin, end] = chain.p_prop_var.inner_iterators({locus_idx});
+            p_prop_var_vecs.push_back(std::vector(begin, end));
+        }
+        chain_sampling_variances.push_back(Rcpp::wrap(p_prop_var_vecs));
         chain_sampling_variances.push_back(Rcpp::wrap(chain.eps_neg_var));
         chain_sampling_variances.push_back(Rcpp::wrap(chain.eps_pos_var));
         chain_sampling_variances.push_back(Rcpp::wrap(chain.r_var));

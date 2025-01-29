@@ -8,8 +8,10 @@
 #include "parameters.h"
 #include "prob_any_missing.h"
 #include "sampler.h"
+#include "multivector.h"
 
 #include <Rcpp.h>
+
 
 class Chain
 {
@@ -18,7 +20,6 @@ class Chain
     Parameters params;
     Sampler sampler;
     probAnyMissingFunctor probAnyMissing_;
-    std::vector<float> prVec_{};
     bool hot = false;
 
     CombinationIndicesGenerator allele_index_generator_;
@@ -32,30 +33,30 @@ class Chain
     void initialize_likelihood();
 
     float calc_transmission_process(
-        std::vector<int> const &allele_index_vec,
-        std::vector<float> const &allele_frequencies, int coi,
+        std::span<int const> allele_index_vec,
+        std::span<float const> allele_frequencies, int coi,
         float relatedness);
 
-    float calc_observation_process(std::vector<int> const &allele_index_vec,
-                                   std::vector<int> const &obs_genotype,
+    float calc_observation_process(std::span<int const> allele_index_vec,
+                                   std::span<int const> obs_genotype,
                                    float epsilon_neg, float epsilon_pos);
 
-    float calc_genotype_log_pmf(std::vector<int> const &allele_index_vec,
-                                std::vector<int> const &obs_genotype,
+    float calc_genotype_log_pmf(std::span<int const> allele_index_vec,
+                                std::span<int const> obs_genotype,
                                 float epsilon_pos, float epsilon_neg, int coi,
                                 float relatedness,
-                                std::vector<float> const &allele_frequencies);
+                                std::span<float const> allele_frequencies);
 
     std::vector<float> calc_obs_genotype_lliks(
-        std::vector<int> const &obs_genotype,
-        std::vector<std::vector<int>> const &true_genotypes, float epsilon_neg,
+        std::span<int const> obs_genotype,
+        std::span<std::span<int const>> true_genotypes, float epsilon_neg,
         float epsilon_pos, int num_genotypes);
 
     float calculate_llik(int num_samples);
     float calc_new_likelihood();
     float calc_new_prior();
 
-    void calculate_genotype_likelihood(int sample_idx, int locux_idx);
+    void calculate_genotype_likelihood(std::size_t sample_idx, std::size_t locus_idx);
     void calculate_eps_neg_likelihood(int sample_idx);
     void calculate_eps_pos_likelihood(int sample_idx);
     void calculate_coi_likelihood(int sample_idx);
@@ -95,10 +96,12 @@ class Chain
     float temp;
 
     // Latent Genotypes
-    std::vector<std::vector<std::vector<int>>> latent_genotypes_old{};
-    std::vector<std::vector<std::vector<int>>> latent_genotypes_new{};
-    std::vector<std::vector<float>> lg_adj_old{};
-    std::vector<std::vector<float>> lg_adj_new{};
+    // sample, locus, allele
+    RaggedMultiVector<int, 3> latent_genotypes_old{};
+    RaggedMultiVector<int, 3> latent_genotypes_new{};
+    // sample, locus
+    MultiVector<float, 2> lg_adj_old{};
+    MultiVector<float, 2> lg_adj_new{};
 
     // COI
     std::vector<int> m{};
@@ -118,11 +121,11 @@ class Chain
     std::vector<float> m_r_var{};
 
     // Allele Frequencies
-    std::vector<std::vector<float>> p{};
+    RaggedMultiVector<float, 2> p{};
     std::vector<float> prop_p{};
-    std::vector<std::vector<float>> p_prop_var{};
-    std::vector<std::vector<int>> p_accept{};
-    std::vector<std::vector<int>> p_attempt{};
+    RaggedMultiVector<float, 2> p_prop_var{};
+    RaggedMultiVector<int, 2> p_accept{};
+    RaggedMultiVector<int, 2> p_attempt{};
 
     // Epsilon Positive
     // float eps_pos;

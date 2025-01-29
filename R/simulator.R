@@ -164,8 +164,8 @@ simulate_data <- function(mean_coi = NULL,
                           missingness = 0) {
   if (is.null(allele_freqs)) {
     allele_freqs <- list()
-    allele_freq_names <- paste0("L", 1:length(locus_freq_alphas))
-    for (i in 1:length(locus_freq_alphas)) {
+    allele_freq_names <- paste0("L", seq_along(locus_freq_alphas))
+    for (i in seq_along(locus_freq_alphas)) {
       total_alleles <- length(locus_freq_alphas[[i]])
       allele_names <- 1:total_alleles
       allele_freqs[[allele_freq_names[i]]] <- simulate_allele_frequencies(locus_freq_alphas[[i]], 1)[, 1]

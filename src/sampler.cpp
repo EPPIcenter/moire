@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <random>
 #include <tuple>
-
+#include <span>
 std::random_device Sampler::rd;
 
 Sampler::Sampler()
@@ -211,23 +211,22 @@ std::vector<float> Sampler::sample_allele_frequencies(
     return rdirichlet(shape_vec);
 };
 
+
 std::vector<float> Sampler::sample_allele_frequencies2(
     std::vector<float> const &curr_allele_frequencies, float variance)
 {
     return rlogit_norm(curr_allele_frequencies, variance);
 };
 
-void Sampler::shuffle_vec(std::vector<int> &vec)
-{
-    std::shuffle(vec.begin(), vec.end(), eng);
-}
+
+
 
 float Sampler::sample_unif() { return unif_distr(eng); };
 
 float Sampler::sample_log_mh_acceptance() { return std::log(unif_distr(eng)); };
 
 LatentGenotype Sampler::sample_latent_genotype(
-    const std::vector<int> &obs_genotype, int coi, float epsilon_pos,
+    std::span<int const> obs_genotype, int coi, float epsilon_pos,
     float epsilon_neg)
 {
     int total_alleles = obs_genotype.size();

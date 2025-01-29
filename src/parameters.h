@@ -28,7 +28,7 @@ class Parameters
 
     // Model Parameters
     // Complexity of Infection
-    int max_coi;
+    std::size_t max_coi;
     float mean_coi_shape;
     float mean_coi_scale;
 

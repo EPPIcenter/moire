@@ -21,3 +21,5 @@ data-raw
 ^README\.Rmd
 \.lintr
 scratch\.R
+src/tests
+src/benchmarks

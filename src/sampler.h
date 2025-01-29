@@ -4,7 +4,7 @@
 #include <algorithm>
 
 #include <boost/random.hpp>
-
+#include <span>
 #include <random>
 #include <array>
 
@@ -59,7 +59,12 @@ class Sampler
 
     float sample_log_mh_acceptance();
     float sample_unif();
-    void shuffle_vec(std::vector<int> &vec);
+
+    template <typename T>
+    void shuffle_vec(std::vector<T> &vec)
+    {
+        std::shuffle(vec.begin(), vec.end(), eng);
+    }
 
     float dbeta(float x, float alpha, float beta, bool return_log);
     float dpois(int x, float mean, bool return_log);
@@ -69,7 +74,7 @@ class Sampler
     float rgamma(float alpha, float beta);
     float rgamma2(float shape, float rate);
 
-    LatentGenotype sample_latent_genotype(const std::vector<int> &obs_genotype,
+    LatentGenotype sample_latent_genotype(std::span<int const> obs_genotype,
                                           int coi, float epsilon_pos,
                                           float epsilon_neg);
 
