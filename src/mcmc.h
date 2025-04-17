@@ -20,13 +20,18 @@ class MCMC
     std::vector<Chain> chains{};
 
     std::vector<std::vector<int>> m_store{};
-    std::vector<std::vector<std::vector<float>>> p_store{};
+    // indexed by population, locus, step
+    std::vector<std::vector<std::vector<std::vector<float>>>> p_store{};
     std::vector<std::vector<std::vector<std::vector<int>>>> latent_genotypes_store{};
     std::vector<std::vector<float>> data_llik_store{};
     std::vector<std::vector<float>> eps_pos_store{};
     std::vector<std::vector<float>> eps_neg_store{};
     std::vector<std::vector<float>> r_store{};
-    std::vector<float> mean_coi_store{};
+    std::vector<float> population_coi_p_store{};
+    std::vector<float> population_coi_r_store{};
+    std::vector<std::vector<float>> population_responsibility_store{};
+    // indexed by sample, step
+    std::vector<std::vector<std::vector<float>>> population_assignment_store{};
     std::vector<int> swap_store{};
 
     std::vector<float> llik_burnin{};

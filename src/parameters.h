@@ -29,8 +29,10 @@ class Parameters
     // Model Parameters
     // Complexity of Infection
     std::size_t max_coi;
-    float mean_coi_shape;
-    float mean_coi_scale;
+    float population_coi_p_alpha;
+    float population_coi_p_beta;
+    float population_coi_r_shape;
+    float population_coi_r_rate;
 
     // False Positive Rate
     float max_eps_pos;    // Max allowed value
@@ -46,7 +48,9 @@ class Parameters
     float r_alpha;
     float r_beta;
 
-    // float allele_freq_var;
+    // number of populations
+    std::size_t num_populations;
+    std::vector<float> population_responsibility_vector_alpha;
 
     // constructors
     Parameters(const Rcpp::List &args);

@@ -21,7 +21,12 @@
 MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     : genotyping_data(genotyping_data), params(params)
 {
-    p_store.resize(genotyping_data.num_loci);
+    p_store.resize(params.num_populations);
+    for (size_t i = 0; i < params.num_populations; ++i) {
+        p_store[i].resize(genotyping_data.num_loci);
+    }
+    population_assignment_store.resize(genotyping_data.num_samples);
+    
     latent_genotypes_store.resize(genotyping_data.num_samples);
     for (size_t i = 0; i < genotyping_data.num_samples; ++i)
     {
@@ -37,7 +42,6 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     swap_indices.resize(params.pt_chains.size(), 0);
 
     omp_set_num_threads(params.pt_num_threads);
-
     
     chains.resize(params.pt_chains.size());
     std::vector<bool> any_ill_conditioned(params.pt_chains.size(), false);
@@ -51,12 +55,13 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
         }
         float temp = params.pt_chains[i];
         chains[i] = Chain(genotyping_data, params, temp);
-        
+
         bool ill_conditioned = std::isnan(chains[i].get_llik());
         int max_tries = params.max_initialization_tries;
 
         while (ill_conditioned and max_tries > 0)
         {
+            Rcpp::checkUserInterrupt();
             chains[i].initialize_parameters();
             max_tries--;
             ill_conditioned = std::isnan(chains[i].get_llik());
@@ -85,11 +90,12 @@ void MCMC::burnin(int step)
         if (params.allow_relatedness)
         {
             chain.update_r(step);
-            // chain.update_m_r(step);
             chain.update_eff_coi(step);
         }
         chain.update_samples(step);
-        chain.update_mean_coi(step);
+        chain.update_population_coi_p(step);
+        chain.update_population_coi_r(step);
+        chain.update_population_responsibility_vector(step);
     }
     llik_burnin.push_back(get_llik());
     prior_burnin.push_back(get_prior());
@@ -238,24 +244,28 @@ void MCMC::sample(int step)
             chain.update_eff_coi(params.burnin + step);
         }
         chain.update_samples(params.burnin + step);
-        chain.update_mean_coi(params.burnin + step);
+        chain.update_population_coi_p(params.burnin + step);
+        chain.update_population_coi_r(params.burnin + step);
+        chain.update_population_responsibility_vector(params.burnin + step);
 
         if ((params.thin == 0 or step % params.thin == 0) and
-            (chain.get_hot() or chains.size() == 1))
+            (chain.is_hot() or chains.size() == 1))
         {
-            for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-            {
-                const auto [begin, end] = chain.p.inner_iterators({locus_idx});
-                p_store[locus_idx].push_back(std::vector(begin, end));
+            for (size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
+                {
+                    const auto [begin, end] = chain.p.inner_iterators({pop_idx, locus_idx});
+                    p_store[pop_idx][locus_idx].push_back(std::vector(begin, end));
+                }
             }
 
             for (size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
             {
-                m_store[sample_idx].push_back(chain.m[sample_idx]);
-                eps_neg_store[sample_idx].push_back(chain.eps_neg[sample_idx]);
-                eps_pos_store[sample_idx].push_back(chain.eps_pos[sample_idx]);
-                r_store[sample_idx].push_back(chain.r[sample_idx]);
-                data_llik_store[sample_idx].push_back(chain.get_llik(sample_idx));
+                m_store[sample_idx].push_back(chain.m.at({sample_idx}));
+                eps_neg_store[sample_idx].push_back(chain.eps_neg.at({sample_idx}));
+                eps_pos_store[sample_idx].push_back(chain.eps_pos.at({sample_idx}));
+                r_store[sample_idx].push_back(chain.r.at({sample_idx}));
+                // data_llik_store[sample_idx].push_back(chain.get_llik(sample_idx));
 
                 if (params.record_latent_genotypes) {
                     for (size_t sample_locus_idx = 0; sample_locus_idx < genotyping_data.num_loci; ++sample_locus_idx)
@@ -264,8 +274,18 @@ void MCMC::sample(int step)
                         latent_genotypes_store[sample_idx][sample_locus_idx].push_back(std::vector(begin, end));
                     }
                 }
+
             }
-            mean_coi_store.push_back(chain.mean_coi);
+            const auto population_assignment_vec = (chain.transmission_llik_new.parallel_sum() + chain.coi_prior_new)
+                    .parallel_element_add(chain.population_responsibility_vector.parallel_log())
+                    .parallel_softmax(true);
+            for (size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx) {
+                const auto [begin, end] = population_assignment_vec.inner_iterators({sample_idx});
+                population_assignment_store[sample_idx].push_back(std::vector(begin, end));
+            }
+            population_coi_p_store.push_back(chain.population_coi_p);
+            population_coi_r_store.push_back(chain.population_coi_r);
+            population_responsibility_store.push_back(chain.population_responsibility_vector.data());
         }
     }
     llik_sample.push_back(get_llik());

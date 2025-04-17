@@ -5,7 +5,7 @@
 
 // todo: try implementing this with simd intrinsics by precomputing the event
 // probabilities
-float probAnyMissingFunctor::operator()(const std::vector<float> &eventProbs,
+double probAnyMissingFunctor::operator()(const std::vector<float> &eventProbs,
                                         int numEvents)
 {
     const int totalEvents = eventProbs.size();
@@ -15,7 +15,7 @@ float probAnyMissingFunctor::operator()(const std::vector<float> &eventProbs,
         return 1.0;
     }
 
-    float prob = 0.0;
+    double prob = 0.0;
 
     // Calculate via inclusion-exclusion principle
     int sign = -1;
@@ -25,7 +25,7 @@ float probAnyMissingFunctor::operator()(const std::vector<float> &eventProbs,
         c.reset(totalEvents, i);
         while (!c.completed)
         {
-            float base = 1.0;
+            double base = 1.0;
 
             for (const auto j : c.curr)
             {
@@ -33,7 +33,7 @@ float probAnyMissingFunctor::operator()(const std::vector<float> &eventProbs,
             }
             c.next();
 
-            float r = sign;
+            double r = sign;
             int multCounter = static_cast<signed>(numEvents);
             // squared exponentiation
             while (multCounter > 0)
@@ -51,19 +51,19 @@ float probAnyMissingFunctor::operator()(const std::vector<float> &eventProbs,
     return prob;
 }
 
-std::vector<float> probAnyMissingFunctor::vectorized(
+std::vector<double> probAnyMissingFunctor::vectorized(
     const std::vector<float> &eventProbs, unsigned int numEvents)
 {
     return vectorized(eventProbs, 1, numEvents);
 }
 
-std::vector<float> probAnyMissingFunctor::vectorized(
+std::vector<double> probAnyMissingFunctor::vectorized(
     const std::vector<float> &eventProbs, unsigned int minNumEvents,
     unsigned int maxNumEvents)
 {
     const std::size_t totalEvents = eventProbs.size();
 
-    std::vector<float> probVec(maxNumEvents - minNumEvents + 1, 0.0);
+    std::vector<double> probVec(maxNumEvents - minNumEvents + 1, 0.0);
     
     if (maxNumEvents < totalEvents) {
         std::fill_n(probVec.begin(), maxNumEvents - minNumEvents + 1, 1.0);

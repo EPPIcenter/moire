@@ -22,11 +22,12 @@ Parameters::Parameters(const Rcpp::List &args)
     max_initialization_tries = UtilFunctions::r_to_int(args["max_initialization_tries"]);
     record_latent_genotypes = UtilFunctions::r_to_bool(args["record_latent_genotypes"]);
     max_runtime = UtilFunctions::r_to_float(args["max_runtime"]);
-
     // Model
     max_coi = UtilFunctions::r_to_int(args["max_coi"]);
-    mean_coi_shape = UtilFunctions::r_to_float(args["mean_coi_shape"]);
-    mean_coi_scale = UtilFunctions::r_to_float(args["mean_coi_scale"]);
+    population_coi_p_alpha = UtilFunctions::r_to_float(args["population_coi_p_alpha"]);
+    population_coi_p_beta = UtilFunctions::r_to_float(args["population_coi_p_beta"]);
+    population_coi_r_shape = UtilFunctions::r_to_float(args["population_coi_r_shape"]);
+    population_coi_r_rate = UtilFunctions::r_to_float(args["population_coi_r_rate"]);
     max_eps_pos = UtilFunctions::r_to_float(args["max_eps_pos"]);
     eps_pos_alpha = UtilFunctions::r_to_float(args["eps_pos_alpha"]);
     eps_pos_beta = UtilFunctions::r_to_float(args["eps_pos_beta"]);
@@ -35,4 +36,6 @@ Parameters::Parameters(const Rcpp::List &args)
     eps_neg_beta = UtilFunctions::r_to_float(args["eps_neg_beta"]);
     r_alpha = UtilFunctions::r_to_float(args["r_alpha"]);
     r_beta = UtilFunctions::r_to_float(args["r_beta"]);
+    num_populations = UtilFunctions::r_to_int(args["num_populations"]);
+    population_responsibility_vector_alpha = UtilFunctions::r_to_vector_float(args["populations_prior"]);
 };

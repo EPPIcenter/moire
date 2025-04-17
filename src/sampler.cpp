@@ -1,4 +1,3 @@
-
 #include "sampler.h"
 
 #include "mcmc_utils.h"
@@ -10,6 +9,7 @@
 #include <random>
 #include <tuple>
 #include <span>
+
 std::random_device Sampler::rd;
 
 Sampler::Sampler()
@@ -18,7 +18,7 @@ Sampler::Sampler()
     unif_distr = std::uniform_real_distribution<float>(0, 1);
     ber_distr = std::bernoulli_distribution(.5);
 
-    for (int i = 0; i < 128; i++)
+    for (int i = 0; i < std::size(lgamma_lut); i++)
     {
         lgamma_lut[i] = std::lgamma(i + 1);
     }
@@ -38,6 +38,12 @@ float Sampler::dztpois(int x, float lambda)
 {
     return x * std::log(lambda) - std::log(std::exp(lambda) - 1) -
            lgamma_lut[x];
+}
+
+float Sampler::dztnbinom(int x, float p, float r)
+{
+    return lgamma_lut[x + r] + r * std::log(p) + x * std::log(1 - p) -
+           lgamma_lut[r] - lgamma_lut[x + 1] - std::log(1 - std::pow(p, r));
 }
 
 float Sampler::dbinom(int x, int size, float prob)
@@ -123,7 +129,7 @@ std::vector<float> Sampler::rlogit_norm(std::vector<float> const &p,
     return ret;
 }
 
-float Sampler::sample_mean_coi(float mean_shape, float mean_scale)
+float Sampler::sample_gamma(float mean_shape, float mean_scale)
 {
     return rgamma(mean_shape, mean_scale);
 }
@@ -140,10 +146,21 @@ float Sampler::get_coi_log_prior(int coi, float mean)
     return dztpois(coi, mean);
 }
 
+float Sampler::get_coi_log_prior(int coi, float p, float r)
+{
+    return dztnbinom(coi, p, r);
+}
+
 float Sampler::get_coi_mean_log_hyper_prior(float mean, float shape,
                                             float scale)
 {
     return dgamma(mean, shape, scale, true);
+}
+
+float Sampler::get_gamma_log_prior(float variance, float shape,
+                                                float scale)
+{
+    return dgamma(variance, shape, scale, true);
 }
 
 int Sampler::sample_coi_delta() { return (2 * ber_distr(eng) - 1); }
@@ -154,7 +171,7 @@ int Sampler::sample_coi_delta(float coi_prop_mean)
     return (2 * ber_distr(eng) - 1) * (geom_distr(eng));
 }
 
-float Sampler::get_epsilon_log_prior(float x, float alpha, float beta)
+float Sampler::get_beta_log_prior(float x, float alpha, float beta)
 {
     return dbeta(x, alpha, beta, true);
 }
@@ -198,28 +215,65 @@ float Sampler::sample_epsilon_neg(float curr_epsilon_neg, float variance)
     return sample_epsilon(curr_epsilon_neg, variance);
 };
 
-std::vector<float> Sampler::sample_allele_frequencies(
+std::vector<float> Sampler::sample_dirichlet(
     std::vector<float> const &curr_allele_frequencies, float alpha)
 {
-    std::vector<float> shape_vec(curr_allele_frequencies.size());
+    std::vector<float> shape_vec;
+    shape_vec.reserve(curr_allele_frequencies.size());
 
-    for (size_t i = 0; i < shape_vec.size(); i++)
-    {
-        shape_vec[i] = curr_allele_frequencies[i] * alpha;
-    }
+    std::transform(curr_allele_frequencies.begin(), curr_allele_frequencies.end(), 
+                   std::back_inserter(shape_vec), 
+                   [alpha](float freq) { return freq * alpha; });
 
     return rdirichlet(shape_vec);
 };
 
+float Sampler::unnormalized_dirichlet_log_prior(std::span<float> x, std::span<float> alpha)
+{
+    float res = 0.0f;
+    const size_t n = x.size();
+    
+    switch (n) {
+        case 1:
+            return (alpha[0] - 1.0f) * std::log(x[0]);
+        case 2:
+            return (alpha[0] - 1.0f) * std::log(x[0]) +
+                   (alpha[1] - 1.0f) * std::log(x[1]);
+        case 3:
+            return (alpha[0] - 1.0f) * std::log(x[0]) +
+                   (alpha[1] - 1.0f) * std::log(x[1]) +
+                   (alpha[2] - 1.0f) * std::log(x[2]);
+    }
+    
+    // For sizes 4 and above, use the unrolled loop
+    size_t i = 0;
+    for (; i + 3 < n; i += 4) {
+        res += (alpha[i] - 1.0f) * std::log(x[i]);
+        res += (alpha[i+1] - 1.0f) * std::log(x[i+1]);
+        res += (alpha[i+2] - 1.0f) * std::log(x[i+2]);
+        res += (alpha[i+3] - 1.0f) * std::log(x[i+3]);
+    }
+    
+    // Handle remaining elements
+    for (; i < n; ++i) {
+        res += (alpha[i] - 1.0f) * std::log(x[i]);
+    }
+    
+    return res;
+}
 
-std::vector<float> Sampler::sample_allele_frequencies2(
+float Sampler::dirichlet_log_prior(std::span<float> x, std::span<float> alpha)
+{
+    return unnormalized_dirichlet_log_prior(x, alpha) - 
+        std::lgamma(std::reduce(alpha.begin(), alpha.end())) + 
+        std::transform_reduce(alpha.begin(), alpha.end(), 0.0f, std::plus<float>(), [](float a) { return std::lgamma(a); });
+}
+
+std::vector<float> Sampler::sample_logit_norm(
     std::vector<float> const &curr_allele_frequencies, float variance)
 {
     return rlogit_norm(curr_allele_frequencies, variance);
 };
-
-
-
 
 float Sampler::sample_unif() { return unif_distr(eng); };
 
@@ -322,6 +376,7 @@ LatentGenotype Sampler::sample_latent_genotype(
                      log_prob_total_false_negatives;
 
     assert(allele_index_vec.size() > 0);
+    assert(allele_index_vec.size() <= coi);
 
     return LatentGenotype{allele_index_vec, log_prob};
 }

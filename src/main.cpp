@@ -39,7 +39,6 @@ Rcpp::List run_mcmc(Rcpp::List args)
     MCMCProgressBar pb(params.burnin, params.samples, params.use_message);
     Progress p(params.burnin + params.samples, params.verbose, pb);
     pb.set_llik(mcmc.get_llik());
-
     int step = 0;
     timer.record_event(events::START_COMPUTATION);
     while (step < params.burnin && timer.time_since_event(events::START_COMPUTATION).count() < params.max_runtime)
@@ -99,13 +98,14 @@ Rcpp::List run_mcmc(Rcpp::List args)
             p_accept_vecs.push_back(std::vector(begin, end));
         }
         chain_acceptance_rates.push_back(Rcpp::wrap(p_accept_vecs));
-        chain_acceptance_rates.push_back(Rcpp::wrap(chain.m_accept));
-        chain_acceptance_rates.push_back(Rcpp::wrap(chain.eps_neg_accept));
-        chain_acceptance_rates.push_back(Rcpp::wrap(chain.eps_pos_accept));
-        chain_acceptance_rates.push_back(Rcpp::wrap(chain.r_accept));
-        chain_acceptance_rates.push_back(Rcpp::wrap(chain.m_r_accept));
-        chain_acceptance_rates.push_back(Rcpp::wrap(chain.sample_accept));
-        chain_acceptance_rates.push_back(Rcpp::wrap(chain.mean_coi_accept));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.m_accept.data()));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.eps_neg_accept.data()));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.eps_pos_accept.data()));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.r_accept.data()));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.m_r_accept.data()));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.sample_accept.data()));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.population_coi_p_accept));
+        chain_acceptance_rates.push_back(Rcpp::wrap(chain.population_coi_r_accept));
 
         Rcpp::StringVector acceptance_rate_names;
         acceptance_rate_names.push_back("allele_freq_accept");
@@ -115,7 +115,8 @@ Rcpp::List run_mcmc(Rcpp::List args)
         acceptance_rate_names.push_back("r_accept");
         acceptance_rate_names.push_back("m_r_accept");
         acceptance_rate_names.push_back("full_sample_accept");
-        acceptance_rate_names.push_back("mean_coi_accept");
+        acceptance_rate_names.push_back("population_coi_p_accept");
+        acceptance_rate_names.push_back("population_coi_r_accept");
         chain_acceptance_rates.names() = acceptance_rate_names;
         acceptance_rates.push_back(chain_acceptance_rates);
 
@@ -126,15 +127,16 @@ Rcpp::List run_mcmc(Rcpp::List args)
             p_prop_var_vecs.push_back(std::vector(begin, end));
         }
         chain_sampling_variances.push_back(Rcpp::wrap(p_prop_var_vecs));
-        chain_sampling_variances.push_back(Rcpp::wrap(chain.eps_neg_var));
-        chain_sampling_variances.push_back(Rcpp::wrap(chain.eps_pos_var));
-        chain_sampling_variances.push_back(Rcpp::wrap(chain.r_var));
-        chain_sampling_variances.push_back(Rcpp::wrap(chain.m_r_var));
-        chain_sampling_variances.push_back(Rcpp::wrap(chain.mean_coi_var));
-
+        chain_sampling_variances.push_back(Rcpp::wrap(chain.eps_neg_var.data()));
+        chain_sampling_variances.push_back(Rcpp::wrap(chain.eps_pos_var.data()));
+        chain_sampling_variances.push_back(Rcpp::wrap(chain.r_var.data()));
+        chain_sampling_variances.push_back(Rcpp::wrap(chain.m_r_var.data()));
+        chain_sampling_variances.push_back(Rcpp::wrap(chain.population_coi_p_sampling_variance));
+        chain_sampling_variances.push_back(Rcpp::wrap(chain.population_coi_r_sampling_variance));
         Rcpp::StringVector sampling_variance_names{
             "allele_freq_var", "eps_neg_var", "eps_pos_var",
-            "r_var",           "m_r_var",     "mean_coi_var"};
+            "r_var",           "m_r_var",     "population_coi_p_var",
+            "population_coi_r_var"};
         chain_sampling_variances.names() = sampling_variance_names;
         sampling_variances.push_back(chain_sampling_variances);
     }
@@ -148,7 +150,10 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res.push_back(Rcpp::wrap(mcmc.posterior_sample));
     res.push_back(Rcpp::wrap(mcmc.data_llik_store));
     res.push_back(Rcpp::wrap(mcmc.m_store));
-    res.push_back(Rcpp::wrap(mcmc.mean_coi_store));
+    res.push_back(Rcpp::wrap(mcmc.population_coi_p_store));
+    res.push_back(Rcpp::wrap(mcmc.population_coi_r_store));
+    res.push_back(Rcpp::wrap(mcmc.population_responsibility_store));
+    res.push_back(Rcpp::wrap(mcmc.population_assignment_store));
     res.push_back(Rcpp::wrap(mcmc.p_store));
     res.push_back(Rcpp::wrap(mcmc.eps_neg_store));
     res.push_back(Rcpp::wrap(mcmc.eps_pos_store));
@@ -174,7 +179,10 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("posterior_sample");
     res_names.push_back("data_llik");
     res_names.push_back("coi");
-    res_names.push_back("lam_coi");
+    res_names.push_back("population_coi_p");
+    res_names.push_back("population_coi_r");
+    res_names.push_back("population_responsibility");
+    res_names.push_back("population_assignment");
     res_names.push_back("allele_freqs");
     res_names.push_back("eps_neg");
     res_names.push_back("eps_pos");

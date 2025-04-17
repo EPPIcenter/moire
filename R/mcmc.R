@@ -80,8 +80,15 @@ run_mcmc <-
            eps_neg_beta = 1,
            r_alpha = 1,
            r_beta = 1,
-           mean_coi_shape = .1,
-           mean_coi_scale = 10,
+           population_coi_p_alpha = 1,
+           population_coi_p_beta = 1,
+           population_coi_r_shape = .1,
+           population_coi_r_rate = 10,
+           population_coi_lam_shape = .1,
+           population_coi_lam_rate = 10,
+           population_coi_method = "nb",
+           num_populations = 1,
+           populations_prior = NULL,
            max_eps_pos = 2,
            max_eps_neg = 2,
            max_coi = 40,
@@ -116,22 +123,37 @@ run_mcmc <-
       }
     })
 
+    if (is.null(mcmc_args$populations_prior)) {
+      mcmc_args$populations_prior <- rep(1 / num_populations, num_populations)
+    }
+
+    if (length(mcmc_args$populations_prior) == 1) {
+      mcmc_args$populations_prior <- rep(mcmc_args$populations_prior, num_populations)
+    }
+
+    if (length(mcmc_args$populations_prior) != num_populations) {
+      stop("populations_prior must be a scalar or a vector of length num_populations.")
+    }
+
     total_alleles <- lapply(mcmc_args$data, function(x) {
       return(length(x[[1]]))
     })
 
     if (any(total_alleles < 2)) {
-      stop("Loci with less than 2 alleles present, remove these loci")
+      stop("Loci with less than 2 alleles present, remove these loci.")
     }
 
     if (max_coi < 1) {
-      stop("Max COI must be greater than 1")
+      stop("max_coi must be greater than 1.")
     }
 
     if (length(pt_chains) == 1) {
       mcmc_args$pt_chains <- seq(1, 0, length.out = pt_chains)**pt_grad
     }
 
+    if (!(mcmc_args$population_coi_method %in% c("nb", "poisson"))) {
+      stop("population_coi_method must be either 'nb' or 'poisson'.")
+    }
 
     res <- list()
     chains <- list()
@@ -143,7 +165,9 @@ run_mcmc <-
           mcmc_args$simple_verbose <- (mcmc_args$num_chains > 1)
           mcmc_args$samples <- round(mcmc_args$samples_per_chain)
           chain <- run_mcmc_rcpp(mcmc_args)
-          chain$mean_coi <- chain$lam_coi / (1 - exp(-chain$lam_coi))
+          if (mcmc_args$population_coi_method == "poisson") {
+            chain$mean_coi <- chain$lam_coi / (1 - exp(-chain$lam_coi))
+          }
           return(chain)
         },
         mc.cores = num_cores
@@ -153,7 +177,9 @@ run_mcmc <-
       mcmc_args$simple_verbose <- FALSE
       mcmc_args$samples <- mcmc_args$samples_per_chain
       chain <- run_mcmc_rcpp(mcmc_args)
-      chain$mean_coi <- chain$lam_coi / (1 - exp(-chain$lam_coi))
+      if (mcmc_args$population_coi_method == "poisson") {
+        chain$mean_coi <- chain$lam_coi / (1 - exp(-chain$lam_coi))
+      }
       chains[[1]] <- chain
     }
 

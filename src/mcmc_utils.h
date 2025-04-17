@@ -12,9 +12,9 @@
 #include <boost/random.hpp>
 #include <boost/range/algorithm.hpp>
 
-#if !defined(WIN32) && !defined(__WIN32) && !defined(__WIN32__)
-#include <Rinterface.h>
-#endif
+#include "multivector.h"
+#include "env_defs.h"
+
 
 #define OVERFLO 1e100
 #define UNDERFLO 1e-100
@@ -405,9 +405,15 @@ typename std::iterator_traits<Iter>::value_type logSumExp(const Iter &begin,
         return -std::numeric_limits<ValueType>::infinity();
     }
 
+#ifdef HAS_EXECUTION
+    auto sum = std::reduce(std::execution::unseq, begin, end, ValueType{},
+                           [max_el](ValueType a, ValueType b)
+                           { return a + std::exp(b - max_el); });
+#else
     auto sum = std::accumulate(begin, end, ValueType{},
                                [max_el](ValueType a, ValueType b)
                                { return a + std::exp(b - max_el); });
+#endif
     return max_el + std::log(sum);
 }
 
@@ -436,7 +442,7 @@ inline float logSumExp(const std::vector<float> &x)
 }
 
 template <typename T>
-constexpr const T &clamp(T &el, T &low, T &high)
+constexpr const T &clamp(const T &el, const T &low, const T &high)
 {
     return el < low ? low : el > high ? high : el;
 }

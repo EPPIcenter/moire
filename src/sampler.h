@@ -34,10 +34,12 @@ class Sampler
     std::ranlux24_base eng;
     boost::random::mt19937 r;
 
-    float get_epsilon_log_prior(float x, float alpha, float beta);
+    float get_beta_log_prior(float x, float alpha, float beta);
     float get_relatedness_log_prior(float x, float alpha, float beta);
     float get_coi_log_prior(int coi, float mean);
+    float get_coi_log_prior(int coi, float mean, float variance);
     float get_coi_mean_log_hyper_prior(float mean, float shape, float scale);
+    float get_gamma_log_prior(float variance, float shape, float scale);
 
     float sample_epsilon(float curr_epsilon, float variance);
     std::tuple<float, float> sample_constrained(float curr, float var,
@@ -47,15 +49,15 @@ class Sampler
 
     int sample_coi_delta(float coi_prop_mean);
     int sample_coi_delta();
-    float sample_mean_coi(float coi_mean_shape, float coi_mean_rate);
+    float sample_gamma(float mean_shape, float mean_scale);
 
     int sample_random_int(int lower, int upper);
-    std::vector<float> sample_allele_frequencies(
-        std::vector<float> const &curr_allele_frequencies, float alpha);
-    std::vector<float> sample_allele_frequencies2(
-        std::vector<float> const &curr_allele_frequencies, float variance);
-    std::vector<std::vector<int>> &sample_genotype(
-        int coi, std::vector<float> const &allele_frequencies, int num_samples);
+    std::vector<float> sample_dirichlet(std::vector<float> const &curr_allele_frequencies, float alpha);
+    std::vector<float> sample_logit_norm(std::vector<float> const &curr_allele_frequencies, float variance);
+    std::vector<std::vector<int>> &sample_genotype(int coi, std::vector<float> const &allele_frequencies, int num_samples);
+
+    float unnormalized_dirichlet_log_prior(std::span<float> x, std::span<float> alpha);
+    float dirichlet_log_prior(std::span<float> x, std::span<float> alpha);
 
     float sample_log_mh_acceptance();
     float sample_unif();
@@ -70,6 +72,7 @@ class Sampler
     float dpois(int x, float mean, bool return_log);
     float dbinom(int x, int size, float prob);
     float dztpois(int x, float mean);
+    float dztnbinom(int x, float p, float r);
     float dgamma(float x, float shape, float scale, bool return_log);
     float rgamma(float alpha, float beta);
     float rgamma2(float shape, float rate);
