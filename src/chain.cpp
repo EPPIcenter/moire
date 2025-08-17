@@ -73,14 +73,16 @@ void Chain::initialize_p()
     p_accept.clear();
     p_attempt.clear();
 
-    for (size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
-    {
-        for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-        {
-            p.inner_fill({pop_idx, locus_idx}, sampler.sample_dirichlet(
-                std::vector<float>(genotyping_data.num_alleles[locus_idx], 1), 10));
-        }
-    }
+    p = UtilFunctions::calculate_clustered_allele_frequencies<float>(genotyping_data, params.num_populations, sampler);
+
+    // for (size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+    // {
+    //     for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
+    //     {
+    //         p.inner_fill({pop_idx, locus_idx}, sampler.sample_dirichlet(
+    //             std::vector<float>(genotyping_data.num_alleles[locus_idx], 1), 10));
+    //     }
+    // }
 
     p_prop_var.resize({params.num_populations, genotyping_data.num_loci}, genotyping_data.num_alleles, 1);
     p_accept.resize({params.num_populations, genotyping_data.num_loci}, genotyping_data.num_alleles, 0);
@@ -1115,26 +1117,27 @@ void Chain::update_population_responsibility_vector(int iteration)
         }
 
         // sort the proposed population responsibility vector 
-        // auto prop_p_begin = prop_p.begin();
-        // auto prop_p_end = prop_p.end();
-        // auto [var_begin, var_end] = population_responsibility_vector_prop_var.inner_iterators();
+        auto prop_p_begin = prop_p.begin();
+        auto prop_p_end = prop_p.end();
+        auto [var_begin, var_end] = population_responsibility_vector_prop_var.inner_iterators();
         // // Create a vector of indices
-        // std::vector<size_t> indices(params.num_populations);
-        // std::iota(indices.begin(), indices.end(), 0);
+        std::vector<size_t> indices(params.num_populations);
+        std::iota(indices.begin(), indices.end(), 0);
         
         // // Sort indices based on population responsibility values
-        // std::sort(indices.begin(), indices.end(), 
-        //     [prop_p_begin](size_t i1, size_t i2) { return prop_p_begin[i1] > prop_p_begin[i2]; });
+        std::sort(indices.begin(), indices.end(), 
+            [prop_p_begin](size_t i1, size_t i2) { return prop_p_begin[i1] > prop_p_begin[i2]; });
         
-        // std::vector<float> sorted_resp(params.num_populations);
+        std::vector<float> sorted_resp(params.num_populations);
         // std::vector<float> sorted_var(params.num_populations);
 
-        // for (size_t i = 0; i < params.num_populations; ++i) {
-        //     sorted_resp[i] = prop_p_begin[indices[i]];
-        // }
+        for (size_t i = 0; i < params.num_populations; ++i) {
+            sorted_resp[i] = prop_p_begin[indices[i]];
+        }
 
         const auto prev_p = std::vector<float>(begin, end);
-        population_responsibility_vector.inner_fill(prop_p);
+        // population_responsibility_vector.inner_fill(prop_p);
+        population_responsibility_vector.inner_fill(sorted_resp);
         calculate_population_responsibility_vector_likelihood();
 
         const float new_llik = calc_new_likelihood();
@@ -1486,7 +1489,9 @@ void Chain::calculate_population_coi_r_likelihood()
 
 void Chain::calculate_population_responsibility_vector_likelihood()
 {
-    population_responsibility_vector_prior_new = sampler.unnormalized_dirichlet_log_prior(population_responsibility_vector, params.population_responsibility_vector_alpha);
+    population_responsibility_vector_prior_new = sampler.unnormalized_dirichlet_log_prior(
+        population_responsibility_vector, params.population_responsibility_vector_alpha
+    );
 }
 
 void Chain::save_population_responsibility_vector_likelihood()

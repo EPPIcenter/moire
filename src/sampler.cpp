@@ -279,6 +279,14 @@ float Sampler::sample_unif() { return unif_distr(eng); };
 
 float Sampler::sample_log_mh_acceptance() { return std::log(unif_distr(eng)); };
 
+std::vector<int> Sampler::sample_random_sequence(int min, int max)
+{
+    std::vector<int> indices(max - min);
+    std::iota(std::begin(indices), std::end(indices), min);
+    std::shuffle(indices.begin(), indices.end(), eng);
+    return indices;
+}
+
 LatentGenotype Sampler::sample_latent_genotype(
     std::span<int const> obs_genotype, int coi, float epsilon_pos,
     float epsilon_neg)

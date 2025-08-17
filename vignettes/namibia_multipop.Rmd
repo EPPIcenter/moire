@@ -1,0 +1,637 @@
+---
+title: "Application to Namibia"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Application to Namibia}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteDepends{parallelly, dplyr}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.align = "center"
+)
+```
+
+## Running MOIRE on Namibia data
+The following code reproduces our analysis of data from Namibia as described in our paper. 
+
+```{r namibia, eval=FALSE, include=TRUE}
+full_dat <- moire::namibia_data
+
+epi_dat <- full_dat |>
+  dplyr::select(sample_id, HealthFacility, HealthDistrict, Region, Country) |>
+  dplyr::distinct()
+
+# all_hfs <- epi_dat |>
+#   dplyr::pull(HealthFacility) |>
+#   unique()
+
+# verbose <- FALSE
+allow_relatedness <- TRUE
+burnin <- 1e3
+num_samples <- 1e3
+r_alpha <- 3
+r_beta <- 3
+eps_pos_alpha <- 1
+eps_pos_beta <- 1
+eps_neg_alpha <- 1
+eps_neg_beta <- 1
+
+# pt_chains <- seq(1, 0.75, length.out = 20)
+
+# full_dat_filtered <- full_dat |>
+#   dplyr::group_by(locus, allele) |>
+#   dplyr::mutate(n = dplyr::n()) |>
+#   dplyr::ungroup() |>
+#   dplyr::filter(n > 5)
+
+andara_dat <- full_dat |>
+  dplyr::filter(HealthDistrict == "Andara")
+nyangana_dat <- full_dat |>
+  dplyr::filter(HealthDistrict == "Nyangana")
+rundu_dat <- full_dat |>
+  dplyr::filter(HealthDistrict == "Rundu")
+zambezi_dat <- full_dat |>
+  dplyr::filter(HealthDistrict == "Zambezi")
+
+dat <- moire::load_long_form_data(andara_dat)
+res_andara <- moire::run_mcmc(
+  dat, dat$is_missing,
+  allow_relatedness = allow_relatedness,
+  burnin = burnin, samples_per_chain = num_samples,
+  r_alpha = r_alpha, r_beta = r_beta,
+  eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+  eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
+  # max_runtime = 60 * 6, 
+  num_populations = 10,
+  populations_prior = rep(1 / 10, 10),
+  max_initialization_tries = 5
+)
+
+dat <- moire::load_long_form_data(nyangana_dat)
+res_nyangana <- moire::run_mcmc(
+  dat, dat$is_missing,
+  allow_relatedness = allow_relatedness,
+  burnin = burnin, samples_per_chain = num_samples,
+  r_alpha = r_alpha, r_beta = r_beta,
+  eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+  eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
+  num_populations = 10,
+  populations_prior = rep(1 / 10, 10),
+  max_initialization_tries = 5
+)
+
+moire_rundu_dat <- moire::load_long_form_data(rundu_dat)
+res_rundu <- moire::run_mcmc(
+  moire_rundu_dat, moire_rundu_dat$is_missing,
+  allow_relatedness = allow_relatedness,
+  burnin = burnin, samples_per_chain = num_samples,
+  r_alpha = r_alpha, r_beta = r_beta,
+  eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+  eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
+  num_populations = 10,
+  populations_prior = rep(1 / 10, 10),
+  max_initialization_tries = 5
+)
+
+dat <- moire::load_long_form_data(zambezi_dat)
+res_zambezi <- moire::run_mcmc(
+  dat, dat$is_missing,
+  allow_relatedness = allow_relatedness,
+  burnin = burnin, samples_per_chain = num_samples,
+  r_alpha = r_alpha, r_beta = r_beta,
+  eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+  eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
+  # max_runtime = 60 * 6, 
+  num_populations = 10,
+  populations_prior = rep(1 / 10, 10),
+  max_initialization_tries = 5
+)
+
+full_moire_dat <- moire::load_long_form_data(full_dat)
+res_full <- moire::run_mcmc(
+  full_moire_dat, full_moire_dat$is_missing,
+  allow_relatedness = allow_relatedness,
+  burnin = burnin, samples_per_chain = num_samples,
+  r_alpha = r_alpha, r_beta = r_beta,
+  eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+  eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
+  # max_runtime = 60 * 6, 
+  num_populations = 10,
+  populations_prior = rep(1 / 10, 10),
+  max_initialization_tries = 5
+)
+
+
+dir.create("mcmc_output", showWarnings = FALSE)
+
+saveRDS(res, file.path("mcmc_output", "namibia_multipop.rds"))
+
+cluster_assignments <- sapply(res_rundu$chains[[1]]$population_assignment, function(x) {
+  sapply(x, function(y) which.max(y))[1000]
+})
+
+rundu_sample_ids <- res_rundu$args$data$sample_id
+
+rundu_clusters <- tibble::tibble(sample_id = rundu_sample_ids, cluster = cluster_assignments) |>
+  dplyr::left_join(epi_dat, by = "sample_id")
+
+rundu_clusters |>
+  dplyr::group_by(cluster, HealthDistrict, HealthFacility) |>
+  dplyr::summarize(n = dplyr::n()) |>
+  dplyr::ungroup() |>
+  dplyr::group_by(HealthDistrict, HealthFacility) |>
+  dplyr::mutate(prop = n / sum(n)) |>
+  dplyr::arrange(HealthDistrict, HealthFacility, desc(n))
+
+rundu_sample_summary <- moire::summarize_effective_coi(res_rundu)
+
+rundu_cluster_assignments <- lapply(res_rundu$chains[[1]]$population_assignment, function(x) {
+  sapply(x, function(y) which.max(y))
+})
+
+rundu_cluster_assignments_df <- purrr::imap(rundu_cluster_assignments, ~ tibble::tibble(sample_id = rundu_sample_ids[.y], cluster = .x, iteration = 1:length(.x))) |>
+  dplyr::bind_rows() |>
+  dplyr::left_join(epi_dat, by = "sample_id") |>
+  dplyr::left_join(rundu_sample_summary, by = "sample_id")
+
+rundu_cluster_assignments_df |>
+  dplyr::group_by(cluster, HealthFacility) |>
+  dplyr::summarize(
+    mean_ecoi = mean(post_effective_coi_med), 
+    median_ecoi = median(post_effective_coi_med), 
+    lower_ecoi = quantile(post_effective_coi_med, 0.025), 
+    upper_ecoi = quantile(post_effective_coi_med, 0.975),
+    n = dplyr::n()
+  ) |>
+  dplyr::arrange(HealthFacility, desc(cluster))
+
+cluster_prop_summary <- rundu_cluster_assignments_df |>
+  dplyr::group_by(cluster, HealthDistrict, HealthFacility, iteration) |>
+  dplyr::summarize(n = dplyr::n()) |>
+  dplyr::ungroup() |>
+  dplyr::group_by(HealthDistrict, HealthFacility, iteration) |>
+  dplyr::mutate(prop = n / sum(n), n_obs = sum(n)) |>
+  dplyr::group_by(cluster, HealthDistrict, HealthFacility) |>
+  dplyr::summarize(prop_lower = quantile(prop, 0.025), prop_median = quantile(prop, 0.5), prop_upper = quantile(prop, 0.975), n_obs = mean(n_obs)) |>
+  dplyr::arrange(HealthDistrict, HealthFacility, desc(cluster))
+
+# healthfacility ordering from west to east
+healthfacility_order <- c("Sauyemwa C", "Ndama C", "Rundu DH", "Nkarapamwe C", "Kaisosi C", "Kayengona C", "Sambyu HC", "Mashare C", "Mabushe", "Ndonga Linenea", "Karukuta C", "Nyangana DH", "Katere C", "Shinyungwe C", "Mbambi East")
+
+# plot pie chart of cluster assignments by health facility with ordering
+ggplot(cluster_prop_summary, aes(x = "", y = prop_median, fill = factor(cluster))) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ factor(HealthFacility, levels = healthfacility_order), nrow = 1) +
+  theme_minimal() +
+  coord_polar(theta = "y") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  theme(axis.text.y = element_text(angle = 0, hjust = 1, vjust = 0.5))
+
+pop_3_afs <- res_rundu$chains[[1]]$allele_freqs[[3]]
+pop_6_afs <- res_rundu$chains[[1]]$allele_freqs[[6]]
+
+pop_3_afs_summary <- lapply(pop_3_afs, function(x) {
+  x[[1000]] |> round(2)
+})
+
+pop_6_afs_summary <- lapply(pop_6_afs, function(x) {
+  x[[1000]] |> round(2)
+})
+
+for (i in 1:length(pop_3_afs_summary)) {
+  print(pop_3_afs_summary[[i]])
+  print(pop_6_afs_summary[[i]])
+  print("---")
+}
+
+
+rundu_nyangana_full_dat <- full_dat |>
+  dplyr::filter(HealthDistrict == "Rundu" | HealthDistrict == "Nyangana")
+
+rundu_nyangana_dat <- moire::load_long_form_data(rundu_nyangana_full_dat)
+
+res_rundu_nyangana <- moire::run_mcmc(
+  rundu_nyangana_dat, rundu_nyangana_dat$is_missing,
+  allow_relatedness = allow_relatedness,
+  burnin = burnin, samples_per_chain = num_samples,
+  r_alpha = r_alpha, r_beta = r_beta,
+  eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+  eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
+  # max_runtime = 60 * 6, 
+  num_populations = 10,
+  populations_prior = rep(1 / 10, 10),
+  max_initialization_tries = 5
+)
+
+cluster_assignments <- sapply(res_rundu_nyangana$chains[[1]]$population_assignment, function(x) {
+  sapply(x, function(y) which.max(y))[1000]
+})
+
+res_rundu_sample_ids <- res_rundu_nyangana$args$data$sample_id
+
+rundu_nyangana_clusters <- tibble::tibble(sample_id = res_rundu_sample_ids, cluster = cluster_assignments) |>
+  dplyr::left_join(epi_dat, by = "sample_id")
+
+rundu_nyangana_clusters |>
+  dplyr::group_by(cluster, HealthDistrict, HealthFacility) |>
+  dplyr::summarize(n = dplyr::n()) |>
+  dplyr::ungroup() |>
+  dplyr::group_by(HealthDistrict, HealthFacility) |>
+  dplyr::mutate(prop = n / sum(n)) |>
+  dplyr::arrange(HealthDistrict, HealthFacility, desc(n))
+
+rundu_nyangana_sample_summary <- moire::summarize_effective_coi(res_rundu_nyangana)
+
+rundu_nyangana_cluster_assignments <- lapply(res_rundu_nyangana$chains[[1]]$population_assignment, function(x) {
+  sapply(x, function(y) which.max(y))
+})
+
+rundu_nyangana_cluster_assignments_df <- purrr::imap(rundu_nyangana_cluster_assignments, ~ tibble::tibble(sample_id = res_rundu_sample_ids[.y], cluster = .x, iteration = 1:length(.x))) |>
+  dplyr::bind_rows() |>
+  dplyr::left_join(epi_dat, by = "sample_id") |>
+  dplyr::left_join(rundu_nyangana_sample_summary, by = "sample_id")
+
+rundu_nyangana_cluster_assignments_df |>
+  dplyr::group_by(cluster, HealthFacility) |>
+  dplyr::summarize(
+    mean_ecoi = mean(post_effective_coi_med), 
+    median_ecoi = median(post_effective_coi_med), 
+    lower_ecoi = quantile(post_effective_coi_med, 0.025), 
+    upper_ecoi = quantile(post_effective_coi_med, 0.975),
+    n = dplyr::n()
+  ) |>
+  dplyr::arrange(HealthFacility, desc(cluster))
+
+cluster_prop_summary <- rundu_nyangana_cluster_assignments_df |>
+  dplyr::group_by(cluster, HealthDistrict, HealthFacility, iteration) |>
+  dplyr::summarize(n = dplyr::n()) |>
+  dplyr::ungroup() |>
+  dplyr::group_by(HealthDistrict, HealthFacility, iteration) |>
+  dplyr::mutate(prop = n / sum(n), n_obs = sum(n)) |>
+  dplyr::group_by(cluster, HealthDistrict, HealthFacility) |>
+  dplyr::summarize(prop_lower = quantile(prop, 0.025), prop_median = quantile(prop, 0.5), prop_upper = quantile(prop, 0.975), n_obs = mean(n_obs)) |>
+  dplyr::arrange(HealthDistrict, HealthFacility, desc(cluster))
+
+ggplot(cluster_prop_summary, aes(x = "", y = prop_median, fill = factor(cluster))) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ factor(HealthFacility, levels = healthfacility_order), nrow = 1) +
+  theme_minimal() +
+  coord_polar(theta = "y") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  theme(axis.text.y = element_text(angle = 0, hjust = 1, vjust = 0.5))
+
+rundu_dh_full_dat <- full_dat |>
+  dplyr::filter(HealthFacility == "Rundu DH")
+
+rundu_dh_dat <- moire::load_long_form_data(rundu_dh_full_dat)
+
+res_rundu_dh <- moire::run_mcmc(
+  rundu_dh_dat, rundu_dh_dat$is_missing,
+  allow_relatedness = allow_relatedness,
+  burnin = burnin, samples_per_chain = num_samples,
+  r_alpha = r_alpha, r_beta = r_beta,
+  eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+  eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
+  num_populations = 10,
+  populations_prior = rep(1 / 10, 10),
+  max_initialization_tries = 5
+)
+
+
+healthfacility_order <- c(
+  "Sauyemwa C", "Ndama C", "Rundu DH", "Nkarapamwe C", "Kaisosi C", "Kayengona C", "Sambyu HC", "Mashare C", 
+  "Mabushe", "Ndonga Linenea", "Karukuta C", "Nyangana DH", "Katere C", "Shinyungwe C", "Mbambi East",
+  "Kangongo C", "Mayara C", "Biro C", "Shadikongoro C", "Andara DH", "Divundu C", "Mutjiku C", "Old Bagani C",
+  "Choi C", "Sesheke C", "Sibbinda HC", "Chinchimani C", "Kanono C", "Kasheshe C"
+)
+
+healthdistrict_order <- c(
+  "Rundu", "Nyangana", "Andara", "Zambezi"
+)
+
+res_full <- readr::read_rds("mcmc_output/namibia_multipop_single_mean.rds")
+
+cluster_assignments <- sapply(res_full$chains[[1]]$population_assignment, function(x) {
+  sapply(x, function(y) which.max(y))[1000]
+})
+
+full_sample_ids <- res_full$args$data$sample_id
+
+full_clusters <- tibble::tibble(sample_id = full_sample_ids, cluster = cluster_assignments) |>
+  dplyr::left_join(epi_dat, by = "sample_id")
+
+full_clusters |>
+  dplyr::group_by(cluster, HealthDistrict, HealthFacility) |>
+  dplyr::summarize(n = dplyr::n()) |>
+  dplyr::ungroup() |>
+  dplyr::group_by(HealthDistrict, HealthFacility) |>
+  dplyr::mutate(prop = n / sum(n)) |>
+  dplyr::arrange(HealthDistrict, HealthFacility, desc(n))
+
+full_sample_summary <- moire::summarize_effective_coi(res_full)
+
+full_cluster_assignments <- lapply(res_full$chains[[1]]$population_assignment, function(x) {
+  sapply(x, function(y) which.max(y))
+})
+
+full_cluster_assignments_df <- purrr::imap(full_cluster_assignments, ~ tibble::tibble(sample_id = full_sample_ids[.y], cluster = .x, iteration = 1:length(.x))) |>
+  dplyr::bind_rows() |>
+  dplyr::left_join(epi_dat, by = "sample_id") |>
+  dplyr::left_join(full_sample_summary, by = "sample_id")
+
+full_cluster_assignments_df |>
+  dplyr::group_by(cluster, HealthFacility) |>
+  dplyr::summarize(
+    mean_ecoi = mean(post_effective_coi_med), 
+    median_ecoi = median(post_effective_coi_med), 
+    lower_ecoi = quantile(post_effective_coi_med, 0.025), 
+    upper_ecoi = quantile(post_effective_coi_med, 0.975),
+    n = dplyr::n()
+  ) |>
+  dplyr::arrange(HealthFacility, desc(cluster))
+
+cluster_prop_summary <- full_cluster_assignments_df |>
+  # dplyr::filter(iteration == 1000) |>
+  dplyr::group_by(cluster, HealthDistrict, HealthFacility, iteration) |>
+  dplyr::summarize(n = dplyr::n()) |>
+  dplyr::ungroup() |>
+  dplyr::group_by(HealthDistrict, HealthFacility, iteration) |>
+  dplyr::mutate(prop = n / sum(n), n_obs = sum(n)) |>
+  dplyr::group_by(cluster, HealthDistrict, HealthFacility) |>
+  dplyr::summarize(prop_lower = quantile(prop, 0.025), prop_median = quantile(prop, 0.5), prop_upper = quantile(prop, 0.975), n_obs = mean(n_obs)) |>
+  dplyr::arrange(HealthDistrict, HealthFacility, desc(cluster))
+
+hd_cluster_prop_summary <- full_cluster_assignments_df |>
+  dplyr::filter(iteration == 1000) |>
+  dplyr::group_by(cluster, HealthDistrict) |>
+  dplyr::summarize(n = dplyr::n()) |>
+  dplyr::ungroup() |>
+  dplyr::group_by(HealthDistrict) |>
+  dplyr::mutate(prop = n / sum(n), n_obs = sum(n)) |>
+  dplyr::group_by(cluster, HealthDistrict) |>
+  dplyr::summarize(prop_lower = quantile(prop, 0.025), prop_median = quantile(prop, 0.5), prop_upper = quantile(prop, 0.975), n_obs = mean(n_obs)) |>
+  dplyr::arrange(HealthDistrict, desc(cluster))
+
+ggplot(cluster_prop_summary, aes(x = "", y = prop_median, fill = factor(cluster))) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ factor(HealthFacility, levels = healthfacility_order), nrow = 4) +
+  theme_minimal() +
+  ylim(0, 1) +
+  coord_polar(theta = "y") +
+  theme(axis.text.x = element_blank()) +
+  theme(axis.text.y = element_blank())
+
+ggplot(hd_cluster_prop_summary, aes(x = "", y = prop_median, fill = factor(cluster))) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ factor(HealthDistrict, levels = healthdistrict_order), nrow = 1) +
+  theme_minimal() +
+  ylim(0, 1) +
+  coord_polar(theta = "y") +
+  theme(axis.text.x = element_blank()) +
+  theme(axis.text.y = element_blank())
+
+pop_1_afs <- res_full$chains[[1]]$allele_freqs[[1]]
+pop_2_afs <- res_full$chains[[1]]$allele_freqs[[2]]
+pop_3_afs <- res_full$chains[[1]]$allele_freqs[[3]]
+pop_4_afs <- res_full$chains[[1]]$allele_freqs[[4]]
+
+pop_1_afs_summary <- lapply(pop_1_afs, function(x) {
+  x[[1000]] |> round(2)
+})
+
+pop_2_afs_summary <- lapply(pop_2_afs, function(x) {
+  x[[1000]] |> round(2)
+})
+
+pop_3_afs_summary <- lapply(pop_3_afs, function(x) {
+  x[[1000]] |> round(2)
+})
+
+pop_4_afs_summary <- lapply(pop_4_afs, function(x) {
+  x[[1000]] |> round(2)
+})
+
+for (i in 1:length(pop_1_afs_summary)) {
+  print(pop_1_afs_summary[[i]])
+  print(pop_3_afs_summary[[i]])
+  print(pop_2_afs_summary[[i]])
+  print(pop_4_afs_summary[[i]])
+  print("---")
+}
+
+
+calculate_cluster_assignments <- function(res) {
+  cluster_assignments <- lapply(res$chains[[1]]$population_assignment, function(x) {
+    sapply(x, function(y) which.max(y))
+  })
+
+  cluster_assignments_df <- purrr::imap(cluster_assignments, ~ tibble::tibble(sample_id = res$args$data$sample_id[.y], cluster = .x, iteration = 1:length(.x))) |>
+    dplyr::bind_rows() |>
+    dplyr::group_by(sample_id, cluster) |>
+    dplyr::summarize(n = dplyr::n()) |>
+    dplyr::ungroup() |>
+    dplyr::group_by(sample_id) |>
+    dplyr::mutate(prop = n / sum(n)) |>
+    dplyr::arrange(desc(n))
+
+  return(cluster_assignments_df)
+}
+
+plot_sample_cluster_assignments <- function(cluster_assignments_df) {
+  sample_order <- cluster_assignments_df |>
+    dplyr::group_by(sample_id) |>
+    dplyr::summarize(entropy = -sum(prop * log(prop)), max_lik = cluster[which.max(prop)]) |>
+    dplyr::arrange(desc(max_lik), entropy) |>
+    dplyr::mutate(sample_id = as.character(sample_id)) |>
+    dplyr::pull(sample_id)
+
+  ggplot(cluster_assignments_df, aes(x = as.character(sample_id), y = prop, fill = factor(cluster))) +
+    geom_bar(stat = "identity") +
+    theme_minimal() +
+    scale_x_discrete(limits = sample_order) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+    theme(axis.text.y = element_text(angle = 0, hjust = 1, vjust = 0.5))
+}
+
+clust_df |>
+  dplyr::left_join(epi_dat, by = "sample_id") |>
+  dplyr::filter(HealthDistrict == "Zambezi") |>
+  plot_sample_cluster_assignments()
+
+nam_dsmp <- dcifer::formatDat(full_dat, "sample_id", "locus", "allele")
+namibia_dcifer_res <- run_dcifer(
+  dsmp = nam_dsmp,
+  coi = getCOI(nam_dsmp, lrank = 2),
+  afreq = calcAfreq(nam_dsmp, getCOI(nam_dsmp, lrank = 2), tol = 1e-5)
+)
+
+
+sample_ids <- full_dat$sample_id |> unique()
+ibd_dist_matrix <- matrix(0, nrow = length(sample_ids), ncol = length(sample_ids))
+rownames(ibd_dist_matrix) <- sample_ids
+colnames(ibd_dist_matrix) <- sample_ids
+
+# for (i in 1:(length(sample_ids) - 1)) {
+#   for (j in (i + 1):length(sample_ids)) {
+#     print(paste(i, " ", j))
+#     est <- dcifer_res |>
+#       dplyr::filter(sample_a == sample_ids[i] & sample_b == sample_ids[j]) |>
+#       dplyr::pull(estimate)
+#     ibd_dist_matrix[i, j] <- est
+#     ibd_dist_matrix[j, i] <- est
+#   }
+# }
+for (i in 1:nrow(namibia_dcifer_res)) {
+  ibd_dist_matrix[namibia_dcifer_res$sample_a[i], namibia_dcifer_res$sample_b[i]] <- namibia_dcifer_res$estimate[i]
+  ibd_dist_matrix[namibia_dcifer_res$sample_b[i], namibia_dcifer_res$sample_a[i]] <- namibia_dcifer_res$estimate[i]
+}
+diag(ibd_dist_matrix) <- 0
+
+ibd_dist_matrix <- as.dist(1 - ibd_dist_matrix)
+mds <- cmdscale(ibd_dist_matrix, k = 2)
+
+mds_df <- tibble::tibble(x = mds[, 1], y = mds[, 2], sample_id = sample_ids)
+
+ggplot(mds_df, aes(x = x, y = y, label = sample_id)) +
+  geom_point() +
+  geom_text() +
+  theme_minimal()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# calculate the average shared cluster assignment between all pairs
+shared_cluster_assignments <- matrix(0, nrow = length(cluster_assignments), ncol = length(cluster_assignments))
+for (i in 1:length(cluster_assignments)) {
+  print(i)
+  for (j in 1:length(cluster_assignments)) {
+    shared_cluster_assignments[i, j] <- mean(cluster_assignments[[i]] == cluster_assignments[[j]])
+  }
+}
+
+sample_id_df <- tibble::tibble(sample_id = res$args$data$sample_id, row = 1:length(res$args$data$sample_id))
+
+shared_cluster_assignments_df <- as.data.frame(shared_cluster_assignments) |>
+  dplyr::mutate(row = 1:dplyr::n()) |>
+  tidyr::pivot_longer(cols = -row, names_to = "col", values_to = "value") |>
+  dplyr::mutate(col = stringr::str_remove(col, "V")) |>
+  dplyr::mutate(col = as.numeric(col)) |>
+  dplyr::left_join(sample_id_df, by = c("row" = "row")) |>
+  dplyr::left_join(sample_id_df, by = c("col" = "row"), suffix = c(".x", ".y")) |>
+  dplyr::select(sample_id.x, sample_id.y, value)
+
+
+clust <- hclust(as.dist(1 - shared_cluster_assignments))
+hclust_order <- clust$order
+
+clustered_sample_ids_df <- tibble::tibble(sample_id = res$args$data$sample_id[hclust_order], row = 1:length(res$args$data$sample_id))
+
+clustered_shared_cluster_assignments <- shared_cluster_assignments[hclust_order, hclust_order]
+
+clustered_shared_cluster_assignments_df <- as.data.frame(clustered_shared_cluster_assignments) |>
+  dplyr::mutate(row = 1:dplyr::n()) |>
+  tidyr::pivot_longer(cols = -row, names_to = "col", values_to = "value") |>
+  dplyr::mutate(col = stringr::str_remove(col, "V")) |>
+  dplyr::mutate(col = as.numeric(col)) |>
+  dplyr::left_join(clustered_sample_ids_df, by = c("row" = "row")) |>
+  dplyr::left_join(clustered_sample_ids_df, by = c("col" = "row"), suffix = c(".x", ".y"))
+
+out <- ggplot(clustered_shared_cluster_assignments_df, aes(x = col, y = row, fill = value)) +
+  geom_raster() +
+  scale_fill_gradient(low = "white", high = "black") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  theme(axis.text.y = element_text(angle = 0, hjust = 1, vjust = 0.5))
+
+ggsave("shared_cluster_assignments.png", out, width = 10, height = 10)
+
+
+pop_1_afs <- res$chains[[1]]$allele_freqs[[1]]
+pop_2_afs <- res$chains[[1]]$allele_freqs[[2]]
+pop_3_afs <- res$chains[[1]]$allele_freqs[[3]]
+pop_4_afs <- res$chains[[1]]$allele_freqs[[4]]
+
+pop_1_afs_summary <- lapply(pop_1_afs, function(x) {
+  x[[1000]] |> round(2)
+})
+
+pop_2_afs_summary <- lapply(pop_2_afs, function(x) {
+  x[[1000]] |> round(2)
+})
+
+pop_3_afs_summary <- lapply(pop_3_afs, function(x) {
+  x[[1000]] |> round(2)
+})
+
+pop_4_afs_summary <- lapply(pop_4_afs, function(x) {
+  x[[1000]] |> round(2)
+})
+
+for (i in 1:length(pop_1_afs_summary)) {
+  print(pop_1_afs_summary[[i]])
+  print(pop_2_afs_summary[[i]])
+  print(pop_3_afs_summary[[i]])
+  print(pop_4_afs_summary[[i]])
+  print("---")
+}
+
+
+
+clusters <- tibble::tibble(
+  cluster = sapply(res$chains[[1]]$population_assignment, function(x) {which.max(x[[1000]])}),
+  sample_id = res$args$data$sample_id
+)
+
+annotated_dat <- epi_dat |>
+  dplyr::left_join(clusters, by = "sample_id")
+
+annotated_dat |>
+  dplyr::group_by(cluster, HealthDistrict, HealthFacility) |>
+  dplyr::summarize(n = dplyr::n()) |>
+  dplyr::ungroup() |>
+  dplyr::group_by(HealthDistrict, HealthFacility) |>
+  dplyr::mutate(prop = n / sum(n)) |>
+  dplyr::arrange(HealthDistrict, HealthFacility, desc(n))
+
+
+for (hf in all_hfs) {
+  hf_dat <- full_dat |>
+    dplyr::filter(HealthFacility == hf) |>
+    dplyr::select(sample_id, locus, allele) |>
+    moire::load_long_form_data()
+
+  hf_res <- moire::run_mcmc(
+    hf_dat, hf_dat$is_missing,
+    allow_relatedness = allow_relatedness,
+    burnin = burnin, samples_per_chain = num_samples,
+    pt_chains = 40, pt_num_threads = num_threads, thin = 10,
+    verbose = verbose, adapt_temp = TRUE, r_alpha = r_alpha, r_beta = r_beta,
+    eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+    eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta
+  )
+
+  # create an output directory
+  dir.create("mcmc_output", showWarnings = FALSE)
+
+  # format path name
+  hf <- gsub(" ", "_", hf)
+
+  # save the results
+  saveRDS(hf_res, file.path("mcmc_output", paste0(hf, ".rds")))
+}
+```

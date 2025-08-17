@@ -62,6 +62,19 @@ GenotypingData::GenotypingData(const Rcpp::List &args)
             }
         }
     }
+
+    jaccard_similarity_matrix = MultiVector<float, 2>({num_samples, num_samples});
+    jaccard_similarity_matrix.fill(0.0);
+
+    for (size_t i = 0; i < num_samples; ++i) {
+        for (size_t j = i + 1; j < num_samples; ++j) {
+            for (size_t locus_idx = 0; locus_idx < num_loci; ++locus_idx) {
+                jaccard_similarity_matrix.at({i, j}) += UtilFunctions::jaccard_similarity<float>(get_observed_alleles(i, locus_idx), get_observed_alleles(j, locus_idx));
+            }
+            jaccard_similarity_matrix.at({i, j}) /= num_loci;
+            jaccard_similarity_matrix.at({j, i}) = jaccard_similarity_matrix.at({i, j});
+        }
+    }
 }
 
 std::span<int const> GenotypingData::get_observed_alleles(std::size_t sample, std::size_t locus) const

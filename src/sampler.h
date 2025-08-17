@@ -55,6 +55,7 @@ class Sampler
     std::vector<float> sample_dirichlet(std::vector<float> const &curr_allele_frequencies, float alpha);
     std::vector<float> sample_logit_norm(std::vector<float> const &curr_allele_frequencies, float variance);
     std::vector<std::vector<int>> &sample_genotype(int coi, std::vector<float> const &allele_frequencies, int num_samples);
+    std::vector<int> sample_random_sequence(int min, int max);
 
     float unnormalized_dirichlet_log_prior(std::span<float> x, std::span<float> alpha);
     float dirichlet_log_prior(std::span<float> x, std::span<float> alpha);

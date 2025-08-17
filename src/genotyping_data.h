@@ -26,6 +26,8 @@ class GenotypingData
     std::size_t num_samples;
     std::size_t num_loci;
 
+    MultiVector<float, 2> jaccard_similarity_matrix;
+
     // constructors
     GenotypingData(){};
     GenotypingData(const Rcpp::List &args);

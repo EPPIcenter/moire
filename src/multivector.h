@@ -272,6 +272,12 @@ public:
         return data_;
     }
 
+    /// Fill the MultiVector with a single value
+    /// @param value The value to fill the MultiVector with.
+    void fill(const T& value) {
+        std::fill(data_.begin(), data_.end(), value);
+    }
+
     /// Reduce the innermost dimension using a binary operation, returning a MultiVector of dimension N-1
     /// @param binary_op The binary operation to use for reduction
     /// @param init The initial value for the reduction

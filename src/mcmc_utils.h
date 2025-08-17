@@ -14,6 +14,8 @@
 
 #include "multivector.h"
 #include "env_defs.h"
+#include "genotyping_data.h"
+#include "sampler.h"
 
 
 #define OVERFLO 1e100
@@ -42,6 +44,8 @@ std::vector<int> r_to_vector_int(SEXP x);
 std::vector<float> r_to_vector_float(SEXP x);
 
 std::vector<std::string> r_to_vector_string(SEXP x);
+
+
 
 template <class T>
 std::vector<std::vector<T>> r_to_mat(
@@ -351,22 +355,6 @@ inline std::vector<T> expitVec(std::vector<T> x)
     return out;
 }
 
-template <typename Engine>
-std::vector<int> randomSequence(int min, int max, Engine rng)
-{
-    assert(min < max);
-    std::vector<int> indices(max - min);
-    std::iota(std::begin(indices), std::end(indices), min);
-
-    auto int_generator = [=](int max_val)
-    {
-        boost::random::uniform_int_distribution<> dist_{0, max_val - 1};
-        return dist_(*rng);
-    };
-
-    boost::range::random_shuffle(indices, int_generator);
-    return indices;
-}
 
 inline float logSumExp(const float a, const float b)
 {
@@ -445,6 +433,171 @@ template <typename T>
 constexpr const T &clamp(const T &el, const T &low, const T &high)
 {
     return el < low ? low : el > high ? high : el;
+}
+
+template <typename T>
+T jaccard_similarity(std::span<int const> x, std::span<int const> y) {
+    std::vector<int> intersection;
+    std::vector<int> union_;
+    std::set_intersection(x.begin(), x.end(), y.begin(), y.end(), std::back_inserter(intersection));
+    std::set_union(x.begin(), x.end(), y.begin(), y.end(), std::back_inserter(union_));
+
+    if (union_.size() == 0) {
+        UtilFunctions::print("Warning: Empty union in Jaccard similarity calculation");
+        return 0.0;
+    }
+
+    T similarity = static_cast<T>(intersection.size()) / union_.size();
+    
+    // Log extreme values for debugging
+    if (similarity < 0.0 || similarity > 1.0) {
+        UtilFunctions::print("Warning: Jaccard similarity out of range:", similarity, "intersection:", intersection.size(), "union:", union_.size());
+    }
+    
+    return similarity;
+}
+
+template <typename T>
+MultiVector<T, 2> calculate_pairwise_jaccard_similarity(GenotypingData &genotyping_data) {
+    UtilFunctions::print("Starting calculate_pairwise_jaccard_similarity for", genotyping_data.num_samples, "samples");
+    
+    MultiVector<T, 2> dist({genotyping_data.num_samples, genotyping_data.num_samples});
+    dist.fill(0.0);
+
+    for (size_t i = 0; i < genotyping_data.num_samples; ++i) {
+        for (size_t j = i + 1; j < genotyping_data.num_samples; ++j) {
+            T total_similarity = 0.0;
+            for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
+                T locus_similarity = jaccard_similarity<T>(genotyping_data.get_observed_alleles(i, locus_idx), genotyping_data.get_observed_alleles(j, locus_idx));
+                total_similarity += locus_similarity;
+            }
+            dist.at({i, j}) = total_similarity / genotyping_data.num_loci;
+            dist.at({j, i}) = dist.at({i, j});
+        }
+        
+        if (i % 100 == 0) {
+            UtilFunctions::print("Processed", i, "samples for Jaccard similarity");
+        }
+    }
+    
+    UtilFunctions::print("Completed calculate_pairwise_jaccard_similarity");
+    return dist;
+}
+
+template <class T>
+RaggedMultiVector<T, 3> calculate_clustered_allele_frequencies(GenotypingData &genotyping_data, int num_populations, Sampler &sampler)
+{
+    UtilFunctions::print("Starting calculate_clustered_allele_frequencies with", num_populations, "populations");
+    UtilFunctions::print("Genotyping data has", genotyping_data.num_samples, "samples and", genotyping_data.num_loci, "loci");
+    
+    RaggedMultiVector<T, 3> p;
+    p.resize({num_populations, genotyping_data.num_loci}, genotyping_data.num_alleles);
+    UtilFunctions::print("Initialized RaggedMultiVector with dimensions:", num_populations, "x", genotyping_data.num_loci);
+
+    MultiVector<T, 2> jaccard_similarity_matrix = genotyping_data.jaccard_similarity_matrix;
+    UtilFunctions::print("Calculated pairwise Jaccard similarity matrix");
+
+    // Calculate the number of samples to be used for each cluster
+    int max_samples_per_cluster = std::ceil(static_cast<float>(genotyping_data.num_samples) / num_populations);
+    std::vector<int> samples_per_population(num_populations, max_samples_per_cluster);
+    samples_per_population[num_populations - 1] = genotyping_data.num_samples - std::accumulate(samples_per_population.begin(), samples_per_population.end() - 1, 0);
+    
+    UtilFunctions::print("Samples per population:");
+    UtilFunctions::print_vector(samples_per_population);
+
+    // Track which samples have been assigned to clusters
+    std::vector<bool> sample_assigned(genotyping_data.num_samples, false);
+    std::vector<int> available_samples;
+    available_samples.reserve(genotyping_data.num_samples);
+    for (int i = 0; i < genotyping_data.num_samples; ++i) {
+        available_samples.push_back(i);
+    }
+    
+    UtilFunctions::print("Initial available samples:", available_samples.size());
+
+    for (size_t pop_idx = 0; pop_idx < num_populations; ++pop_idx) {
+        UtilFunctions::print("Processing population", pop_idx, "with", samples_per_population[pop_idx], "samples");
+        UtilFunctions::print("Available samples remaining:", available_samples.size());
+        
+        if (available_samples.size() < samples_per_population[pop_idx]) {
+            UtilFunctions::print("Warning: Not enough samples available for population", pop_idx, 
+                               "need", samples_per_population[pop_idx], "but only have", available_samples.size());
+            samples_per_population[pop_idx] = available_samples.size();
+        }
+        
+        // select one random sample from the available samples
+        std::vector<int> random_indices = sampler.sample_random_sequence(0, available_samples.size());
+        int sample_idx = available_samples[random_indices[0]];
+        UtilFunctions::print("Selected random sample", sample_idx, "as seed for population", pop_idx);
+
+        // select the samples_per_population[pop_idx] samples closest to the selected sample based on the jaccard distance
+        std::vector<int> closest_samples(samples_per_population[pop_idx]);
+        closest_samples[0] = sample_idx;
+        
+        // Create a vector of distances from the selected sample to all other available samples
+        std::vector<std::pair<float, int>> distances;
+        for (size_t i = 0; i < available_samples.size(); ++i) {
+            int other_sample = available_samples[i];
+            if (other_sample != sample_idx) {
+                distances.push_back({jaccard_similarity_matrix.at({sample_idx, other_sample}), other_sample});
+            }
+        }
+        
+        // Sort by distance in descending order and select the farthest ones
+        std::sort(distances.begin(), distances.end(), std::greater<std::pair<float, int>>());
+        for (size_t i = 1; i < samples_per_population[pop_idx]; ++i) {
+            UtilFunctions::print("Distance:", distances[i-1].first, "sample:", distances[i-1].second);
+            closest_samples[i] = distances[i-1].second;
+        }
+        
+        UtilFunctions::print("Selected closest samples for population", pop_idx, ":");
+        UtilFunctions::print_vector(closest_samples);
+
+        // Remove the selected samples from available samples
+        for (int selected_sample : closest_samples) {
+            sample_assigned[selected_sample] = true;
+            auto it = std::find(available_samples.begin(), available_samples.end(), selected_sample);
+            if (it != available_samples.end()) {
+                available_samples.erase(it);
+            }
+        }
+        
+        UtilFunctions::print("Removed", closest_samples.size(), "samples from available pool. Remaining:", available_samples.size());
+
+        // use the closest samples to calculate the allele frequencies for the population
+        for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
+            for (size_t allele_idx = 0; allele_idx < genotyping_data.num_alleles[locus_idx]; ++allele_idx) {
+                p.at({pop_idx, locus_idx, allele_idx}) = 2.0f;
+            }
+        }
+
+        std::vector<int> total_alleles(genotyping_data.num_loci, 0);
+        for (size_t sample_idx : closest_samples) {
+            for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
+                for (size_t allele_idx = 0; allele_idx < genotyping_data.num_alleles[locus_idx]; ++allele_idx) {
+                    p.at({pop_idx, locus_idx, allele_idx}) += genotyping_data.get_observed_alleles(sample_idx, locus_idx)[allele_idx]; 
+                    total_alleles[locus_idx] += genotyping_data.get_observed_alleles(sample_idx, locus_idx)[allele_idx];
+                }
+            }
+        }
+        for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
+            for (size_t allele_idx = 0; allele_idx < genotyping_data.num_alleles[locus_idx]; ++allele_idx) {
+                p.at({pop_idx, locus_idx, allele_idx}) /= total_alleles[locus_idx];
+            }
+        }
+
+        // Log some allele frequency statistics for this population
+        float sum_freqs = 0.0f;
+        for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
+            for (size_t allele_idx = 0; allele_idx < genotyping_data.num_alleles[locus_idx]; ++allele_idx) {
+                sum_freqs += p.at({pop_idx, locus_idx, allele_idx});
+            }
+        }
+    }
+
+    UtilFunctions::print("Completed calculate_clustered_allele_frequencies");
+    UtilFunctions::print("Final unassigned samples:", available_samples.size());
+    return p;
 }
 
 }  // namespace UtilFunctions

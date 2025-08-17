@@ -210,3 +210,25 @@ simulate_data <- function(mean_coi = NULL,
     input = as.list(environment())
   )
 }
+
+
+combine_simulated_data <- function(simulated_data, simulated_data2) {
+  data1 <- simulated_data$data
+  data2 <- simulated_data2$data
+  combined_data <- list()
+  for (i in seq_along(data1)) {
+    combined_data[[i]] <- rbind(data1[[i]], data2[[i]])
+  }
+  # prefix sample ids with pop1_ or pop2_
+  combined_sample_ids <- c(paste0("pop1_", simulated_data$sample_ids), paste0("pop2_", simulated_data2$sample_ids))
+  is_missing <- cbind(simulated_data$is_missing, simulated_data2$is_missing)
+
+  output <- list(
+    data = combined_data,
+    loci = simulated_data$loci,
+    sample_ids = combined_sample_ids,
+    is_missing = is_missing,
+    original_data = list(simulated_data, simulated_data2)
+  )
+  return(output)
+}
