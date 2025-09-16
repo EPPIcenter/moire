@@ -52,14 +52,14 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
         float temp = params.pt_chains[i];
         chains[i] = Chain(genotyping_data, params, temp);
         
-        bool ill_conditioned = std::isnan(chains[i].get_llik());
+        bool ill_conditioned = !std::isfinite(chains[i].get_llik());
         int max_tries = params.max_initialization_tries;
 
         while (ill_conditioned and max_tries > 0)
         {
             chains[i].initialize_parameters();
             max_tries--;
-            ill_conditioned = std::isnan(chains[i].get_llik());
+            ill_conditioned = !std::isfinite(chains[i].get_llik());
         }
 
         any_ill_conditioned[i] = ill_conditioned;
@@ -131,7 +131,7 @@ void MCMC::swap_chains(int step, bool burnin)
         float u = log(R::runif(0, 1));
 
         if ((acceptanceRatio > 0 || u < acceptanceRatio) and
-            !std::isnan(acceptanceRatio))
+            std::isfinite(acceptanceRatio))
         {
             std::swap(swap_indices[i], swap_indices[i + 1]);
             chain_a.set_temp(temp_b);
@@ -203,7 +203,7 @@ void MCMC::adapt_temp()
     // check if any new temperatures are NAN, bail on the update if so and keep updating the swap barriers
     for (size_t i = 0; i < new_temp_gradient.size(); i++)
     {
-        if (std::isnan(new_temp_gradient[i]))
+        if (!std::isfinite(new_temp_gradient[i]))
         {
             return;
         }

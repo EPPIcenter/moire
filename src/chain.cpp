@@ -189,7 +189,7 @@ void Chain::update_m(int iteration)
             const float new_prior = calc_new_prior();
             const float new_post = new_llik * temp + new_prior;
             const float alpha = sampler.sample_log_mh_acceptance();
-            if (!std::isnan(new_post) and
+            if (std::isfinite(new_post) and
                 alpha <= (new_post - get_posterior() + adj_ratio))
             {
                 llik = new_llik;
@@ -267,7 +267,7 @@ void Chain::update_eff_coi(int iteration)
         const double alpha = sampler.sample_log_mh_acceptance();
 
         // Reject
-        if (std::isnan(new_post) or std::isnan(mh_ratio) or alpha > mh_ratio)
+        if (!std::isfinite(new_post) or !std::isfinite(mh_ratio) or alpha > mh_ratio)
         {
             m[i] = prev_m;
             r[i] = prev_r;
@@ -334,7 +334,7 @@ void Chain::update_r(int iteration)
         const float new_post = new_llik * temp + new_prior;
 
         // Reject
-        if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
+        if (!std::isfinite(new_post) or sampler.sample_log_mh_acceptance() >
                                         (new_post - get_posterior() + adj))
         {
             r[i] = prev_r;
@@ -412,7 +412,7 @@ void Chain::update_m_r(int iteration)
         const float new_post = new_llik * temp + new_prior;
 
         // Reject
-        if (std::isnan(new_post) or
+        if (!std::isfinite(new_post) or
             sampler.sample_log_mh_acceptance() >
                 (new_post - get_posterior() + adj_ratio))
         {
@@ -526,7 +526,7 @@ void Chain::update_p(int iteration)
 
             const float acceptanceRatio = new_post - get_posterior() + logAdj;
 
-            if (std::isnan(new_post) or
+            if (!std::isfinite(new_post) or
                 sampler.sample_log_mh_acceptance() > acceptanceRatio)
             {
                 p[j] = prev_p;
@@ -588,7 +588,7 @@ void Chain::update_eps_pos(int iteration)
             const float new_post = new_llik * temp + new_prior;
 
             // Reject
-            if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
+            if (!std::isfinite(new_post) or sampler.sample_log_mh_acceptance() >
                                             (new_post - get_posterior() + adj))
             {
                 eps_pos[i] = prev_eps_pos;
@@ -653,7 +653,7 @@ void Chain::update_eps_neg(int iteration)
             const float new_post = new_llik * temp + new_prior;
 
             // Reject
-            if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
+            if (!std::isfinite(new_post) or sampler.sample_log_mh_acceptance() >
                                             (new_post - get_posterior() + adj))
             {
                 eps_neg[i] = prev_eps_neg;
@@ -763,7 +763,7 @@ void Chain::update_samples(int iteration)
             const float new_post = new_llik * temp + new_prior;
             const float alpha = sampler.sample_log_mh_acceptance();
 
-            if (!std::isnan(new_post) and
+            if (std::isfinite(new_post) and
                 alpha <= (new_post - get_posterior() + adj_ratio))
             {
                 llik = new_llik;
@@ -820,7 +820,7 @@ void Chain::update_mean_coi(int iteration)
     const float new_post = new_llik * temp + new_prior;
 
     const float alpha = sampler.sample_log_mh_acceptance();
-    if (!std::isnan(new_post) and alpha <= (new_post - get_posterior() + adj))
+    if (std::isfinite(new_post) and alpha <= (new_post - get_posterior() + adj))
     {
         llik = new_llik;
         prior = new_prior;
