@@ -18,7 +18,7 @@ Sampler::Sampler()
     unif_distr = std::uniform_real_distribution<float>(0, 1);
     ber_distr = std::bernoulli_distribution(.5);
 
-    for (int i = 0; i < std::size(lgamma_lut); i++)
+    for (std::size_t i = 0; i < std::size(lgamma_lut); i++)
     {
         lgamma_lut[i] = std::lgamma(i + 1);
     }
@@ -384,7 +384,7 @@ LatentGenotype Sampler::sample_latent_genotype(
                      log_prob_total_false_negatives;
 
     assert(allele_index_vec.size() > 0);
-    assert(allele_index_vec.size() <= coi);
+    assert(allele_index_vec.size() <= static_cast<std::size_t>(coi));
 
     return LatentGenotype{allele_index_vec, log_prob};
 }

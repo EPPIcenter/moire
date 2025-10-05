@@ -21,6 +21,17 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * ---------------------------------------------------------------------
  *
+ * Modifications for the moire R package
+ * Copyright (C) 2025 Maxwell Murphy and contributors
+ *
+ * This file has been adapted from the original by Tino Kluge to integrate
+ * with the moire codebase. All original license terms remain in effect under
+ * GPL-2.0-or-later. Redistribution of this package is under GPL-3.0 or later,
+ * consistent with the package's License field in DESCRIPTION.
+ *
+ * Upstream source: https://github.com/ttk592/spline (commit 5894bea)
+ *
+ *
  */
 
 #ifndef TK_SPLINE_H

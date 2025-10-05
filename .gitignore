@@ -31,3 +31,43 @@ manuscript/
 *.rds
 scratch/
 data-raw/afs_resources/
+
+# C++ Testing and CMake build artifacts
+cpp_tests/build/
+cpp_tests/build/_deps/
+cpp_tests/CMakeCache.txt
+cpp_tests/CMakeFiles/
+cpp_tests/cmake_install.cmake
+cpp_tests/Makefile
+cpp_tests/*.cmake
+cpp_tests/*.exe
+cpp_tests/*.out
+cpp_tests/*.test
+cpp_tests/compile_commands.json
+
+build/
+
+# C++ object files and executables
+*.obj
+*.exe
+*.out
+*.app
+*.dSYM/
+*.dylib
+*.dll
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

@@ -37,7 +37,7 @@ Imports:
 URL: https://github.com/EPPIcenter/moire, https://EPPIcenter.github.io/moire/, https://eppicenter.ucsf.edu/resources
 BugReports: https://github.com/EPPIcenter/moire/issues
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Suggests: 
     knitr,
     rmarkdown,

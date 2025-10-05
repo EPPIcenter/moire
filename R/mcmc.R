@@ -34,6 +34,9 @@
 #' @param max_eps_pos Numeric. Maximum allowed value for eps_pos
 #' @param max_eps_neg Numeric. Maximum allowed value for eps_neg
 #' @param max_coi Positive Numeric. Maximum allowed complexity of infection
+#' @param population_coi_method Character. Method for modeling population COI.
+#'  For negative binomial model, accepts: "nb", "nbinom", "negbinom", "negative_binomial".
+#'  For Poisson model, accepts: "pois", "poisson".
 #' @param record_latent_genotypes Logical indicating whether or not to record
 #' the latent genotypes at each step of the MCMC. WARNING: This will increase
 #' the size of the output object significantly.
@@ -65,6 +68,11 @@
 #' @param max_runtime Maximum runtime in minutes. If the MCMC is running for
 #' more than this amount of time, the function will stop and return the current
 #' state of the MCMC.
+#' @param initial_allele_frequencies Optional list of initial allele frequencies
+#' for each population. If provided, should be a list of length `num_populations`,
+#' where each element is a list of length `num_loci`, and each locus element is
+#' a numeric vector of allele frequencies that sum to 1. If NULL, allele frequencies
+#' will be initialized using clustering-based approach.
 run_mcmc <-
   function(data,
            is_missing = FALSE,
@@ -102,7 +110,8 @@ run_mcmc <-
            pre_adapt_steps = 25,
            temp_adapt_steps = 25,
            max_initialization_tries = 10000,
-           max_runtime = Inf) {
+           max_runtime = Inf,
+           initial_allele_frequencies = NULL) {
     start_time <- Sys.time()
     args <- as.list(environment())
     mcmc_args <- as.list(environment())
@@ -134,6 +143,21 @@ run_mcmc <-
     if (length(mcmc_args$populations_prior) != num_populations) {
       stop("populations_prior must be a scalar or a vector of length num_populations.")
     }
+    
+    # Log information about initial allele frequencies
+    if (!is.null(mcmc_args$initial_allele_frequencies)) {
+      cat("=== MCMC Initialization with Custom Allele Frequencies ===\n")
+      cat("Using provided initial allele frequencies\n")
+      cat("Number of populations:", length(mcmc_args$initial_allele_frequencies), "\n")
+      for (i in seq_along(mcmc_args$initial_allele_frequencies)) {
+        cat("Population", i, "has", length(mcmc_args$initial_allele_frequencies[[i]]), "loci\n")
+      }
+      cat("========================================================\n")
+    } else {
+      cat("=== MCMC Initialization with Clustering-Based Approach ===\n")
+      cat("No initial allele frequencies provided, using clustering-based initialization\n")
+      cat("============================================================\n")
+    }
 
     total_alleles <- lapply(mcmc_args$data, function(x) {
       return(length(x[[1]]))
@@ -151,8 +175,19 @@ run_mcmc <-
       mcmc_args$pt_chains <- seq(1, 0, length.out = pt_chains)**pt_grad
     }
 
-    if (!(mcmc_args$population_coi_method %in% c("nb", "poisson"))) {
-      stop("population_coi_method must be either 'nb' or 'poisson'.")
+    # Normalize population_coi_method to standard values
+    nb_aliases <- c("nb", "nbinom", "negbinom", "negative_binomial")
+    poisson_aliases <- c("pois", "poisson")
+
+    if (mcmc_args$population_coi_method %in% nb_aliases) {
+      mcmc_args$population_coi_method <- "nb"
+    } else if (mcmc_args$population_coi_method %in% poisson_aliases) {
+      mcmc_args$population_coi_method <- "poisson"
+    } else {
+      stop(
+        "population_coi_method must be one of: ",
+        paste(c(nb_aliases, poisson_aliases), collapse = ", ")
+      )
     }
 
     res <- list()
@@ -166,7 +201,7 @@ run_mcmc <-
           mcmc_args$samples <- round(mcmc_args$samples_per_chain)
           chain <- run_mcmc_rcpp(mcmc_args)
           if (mcmc_args$population_coi_method == "poisson") {
-            chain$mean_coi <- chain$lam_coi / (1 - exp(-chain$lam_coi))
+            chain$mean_coi <- chain$lam_coi / (1 - exp(-chain$population_lam_coi))
           }
           return(chain)
         },
@@ -178,7 +213,7 @@ run_mcmc <-
       mcmc_args$samples <- mcmc_args$samples_per_chain
       chain <- run_mcmc_rcpp(mcmc_args)
       if (mcmc_args$population_coi_method == "poisson") {
-        chain$mean_coi <- chain$lam_coi / (1 - exp(-chain$lam_coi))
+        chain$mean_coi <- chain$lam_coi / (1 - exp(-chain$population_lam_coi))
       }
       chains[[1]] <- chain
     }

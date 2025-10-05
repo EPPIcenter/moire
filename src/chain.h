@@ -52,7 +52,7 @@ class Chain
     float calc_new_posterior();
 
     void calculate_observation_likelihood(std::size_t sample_idx, std::size_t locus_idx);
-    void calculate_transmission_likelihood(std::size_t sample_idx, std::size_t population_idx, std::size_t locus_idx);
+    void calculate_transmission_likelihood(std::size_t population_idx, std::size_t sample_idx, std::size_t locus_idx);
     void calculate_eps_neg_likelihood(std::size_t sample_idx);
     void calculate_eps_pos_likelihood(std::size_t sample_idx);
     void calculate_coi_likelihood(std::size_t sample_idx);
@@ -62,7 +62,7 @@ class Chain
     void calculate_population_responsibility_vector_likelihood();
 
     void save_observation_likelihood(std::size_t sample_idx, std::size_t locus_idx);
-    void save_transmission_likelihood(std::size_t sample_idx, std::size_t population_idx, std::size_t locus_idx);
+    void save_transmission_likelihood(std::size_t population_idx, std::size_t sample_idx, std::size_t locus_idx);
     void save_eps_neg_likelihood(std::size_t sample_idx);
     void save_eps_pos_likelihood(std::size_t sample_idx);
     void save_coi_likelihood(std::size_t sample_idx);

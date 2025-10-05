@@ -51,6 +51,10 @@ class Parameters
     // number of populations
     std::size_t num_populations;
     std::vector<float> population_responsibility_vector_alpha;
+    
+    // Initial allele frequencies from R (optional)
+    bool use_initial_allele_frequencies;
+    Rcpp::List initial_allele_frequencies;
 
     // constructors
     Parameters(const Rcpp::List &args);

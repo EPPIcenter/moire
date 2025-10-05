@@ -759,3 +759,214 @@ summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_q
     return(relatedness_data)
   }
 }
+
+#' Summarize population assignments
+#'
+#' @details Summarize population assignment probabilities from MCMC. Returns
+#'  two dataframes: one with the distribution of most likely population assignments
+#'  (probability that each population is the most likely) and another with entropy
+#'  summaries (quantifying uncertainty around population assignment).
+#'
+#' @importFrom stats quantile
+#' @export
+#'
+#' @param mcmc_results Result of calling run_mcmc()
+#' @param lower_quantile The lower quantile of the posterior
+#'  distribution to return
+#' @param upper_quantile The upper quantile of the posterior
+#'  distribution to return
+#' @param merge_chains boolean indicating that all chain results should be merged
+#' @return A list with two dataframes:
+#'   - `most_likely_population`: For each sample, the probability that each population
+#'     is the most likely assignment
+#'   - `entropy_summary`: For each sample, summary statistics of the entropy
+#'     distribution (quantifying uncertainty)
+summarize_population_assignments <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
+  
+  # Helper function to calculate entropy
+  calculate_entropy <- function(probs) {
+    # Add small epsilon to avoid log(0)
+    probs <- probs + 1e-10
+    probs <- probs / sum(probs)  # Renormalize
+    
+    # Calculate entropy, handling edge cases
+    log_probs <- log(probs)
+    # Replace -Inf with 0 (since x * log(x) -> 0 as x -> 0)
+    log_probs[is.infinite(log_probs)] <- 0
+    entropy <- -sum(probs * log_probs)
+    
+    # Return 0 if entropy is -Inf or NaN
+    if (is.infinite(entropy) || is.nan(entropy)) {
+      return(0)
+    }
+    
+    return(entropy)
+  }
+  
+  if (merge_chains) {
+    # Get number of populations from the first chain
+    num_populations <- length(mcmc_results$chains[[1]]$population_assignment[[1]][[1]])
+    
+    # Initialize storage for each sample
+    most_likely_counts <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(sample_idx) {
+      rep(0, num_populations)
+    })
+    entropy_values <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(sample_idx) {
+      c()
+    })
+    
+    # Collect data across all chains
+    for (chain in mcmc_results$chains) {
+      for (sample_idx in seq_along(chain$population_assignment)) {
+        for (step_idx in seq_along(chain$population_assignment[[sample_idx]])) {
+          step_probs <- chain$population_assignment[[sample_idx]][[step_idx]]
+          
+          # Find most likely population for this step
+          most_likely_pop <- which.max(step_probs)
+          most_likely_counts[[sample_idx]][most_likely_pop] <- most_likely_counts[[sample_idx]][most_likely_pop] + 1
+          
+          # Calculate entropy for this step
+          entropy_val <- calculate_entropy(step_probs)
+          entropy_values[[sample_idx]] <- c(entropy_values[[sample_idx]], entropy_val)
+        }
+      }
+    }
+    
+    # Calculate most likely population probabilities
+    most_likely_list <- list()
+    for (sample_idx in seq_along(mcmc_results$args$data$sample_ids)) {
+      sample_id <- mcmc_results$args$data$sample_ids[sample_idx]
+      total_steps <- sum(most_likely_counts[[sample_idx]])
+      
+      for (pop_idx in seq_len(num_populations)) {
+        prob_most_likely <- most_likely_counts[[sample_idx]][pop_idx] / total_steps
+        
+        most_likely_list[[length(most_likely_list) + 1]] <- data.frame(
+          sample_id = sample_id,
+          population = pop_idx,
+          prob_most_likely = prob_most_likely
+        )
+      }
+    }
+    
+    # Calculate entropy summaries
+    entropy_list <- list()
+    for (sample_idx in seq_along(mcmc_results$args$data$sample_ids)) {
+      sample_id <- mcmc_results$args$data$sample_ids[sample_idx]
+      entropy_vals <- entropy_values[[sample_idx]]
+      
+      # Filter out any remaining -Inf, Inf, or NaN values
+      valid_entropy <- entropy_vals[is.finite(entropy_vals)]
+      
+      if (length(valid_entropy) == 0) {
+        # If no valid entropy values, set all to 0
+        entropy_lower <- entropy_med <- entropy_upper <- entropy_mean <- 0
+      } else {
+        entropy_lower <- quantile(valid_entropy, lower_quantile)
+        entropy_med <- quantile(valid_entropy, .5)
+        entropy_upper <- quantile(valid_entropy, upper_quantile)
+        entropy_mean <- mean(valid_entropy)
+      }
+      
+      entropy_list[[length(entropy_list) + 1]] <- data.frame(
+        sample_id = sample_id,
+        entropy_lower = entropy_lower,
+        entropy_med = entropy_med,
+        entropy_upper = entropy_upper,
+        entropy_mean = entropy_mean
+      )
+    }
+    
+    return(list(
+      most_likely_population = do.call(rbind, most_likely_list),
+      entropy_summary = do.call(rbind, entropy_list)
+    ))
+    
+  } else {
+    # Handle separate chains
+    chain_results_most_likely <- list()
+    chain_results_entropy <- list()
+    
+    for (chain_idx in seq_along(mcmc_results$chains)) {
+      chain <- mcmc_results$chains[[chain_idx]]
+      num_populations <- length(chain$population_assignment[[1]][[1]])
+      
+      # Initialize storage for this chain
+      most_likely_counts <- lapply(seq_along(chain$population_assignment), function(sample_idx) {
+        rep(0, num_populations)
+      })
+      entropy_values <- lapply(seq_along(chain$population_assignment), function(sample_idx) {
+        c()
+      })
+      
+      # Process this chain
+      for (sample_idx in seq_along(chain$population_assignment)) {
+        for (step_idx in seq_along(chain$population_assignment[[sample_idx]])) {
+          step_probs <- chain$population_assignment[[sample_idx]][[step_idx]]
+          
+          # Find most likely population for this step
+          most_likely_pop <- which.max(step_probs)
+          most_likely_counts[[sample_idx]][most_likely_pop] <- most_likely_counts[[sample_idx]][most_likely_pop] + 1
+          
+          # Calculate entropy for this step
+          entropy_val <- calculate_entropy(step_probs)
+          entropy_values[[sample_idx]] <- c(entropy_values[[sample_idx]], entropy_val)
+        }
+      }
+      
+      # Calculate results for this chain
+      most_likely_list <- list()
+      entropy_list <- list()
+      
+      for (sample_idx in seq_along(chain$population_assignment)) {
+        sample_id <- mcmc_results$args$data$sample_ids[sample_idx]
+        total_steps <- sum(most_likely_counts[[sample_idx]])
+        
+        # Most likely population probabilities
+        for (pop_idx in seq_len(num_populations)) {
+          prob_most_likely <- most_likely_counts[[sample_idx]][pop_idx] / total_steps
+          
+          most_likely_list[[length(most_likely_list) + 1]] <- data.frame(
+            sample_id = sample_id,
+            population = pop_idx,
+            prob_most_likely = prob_most_likely,
+            chain = chain_idx
+          )
+        }
+        
+        # Entropy summaries
+        entropy_vals <- entropy_values[[sample_idx]]
+        
+        # Filter out any remaining -Inf, Inf, or NaN values
+        valid_entropy <- entropy_vals[is.finite(entropy_vals)]
+        
+        if (length(valid_entropy) == 0) {
+          # If no valid entropy values, set all to 0
+          entropy_lower <- entropy_med <- entropy_upper <- entropy_mean <- 0
+        } else {
+          entropy_lower <- quantile(valid_entropy, lower_quantile)
+          entropy_med <- quantile(valid_entropy, .5)
+          entropy_upper <- quantile(valid_entropy, upper_quantile)
+          entropy_mean <- mean(valid_entropy)
+        }
+        
+        entropy_list[[length(entropy_list) + 1]] <- data.frame(
+          sample_id = sample_id,
+          entropy_lower = entropy_lower,
+          entropy_med = entropy_med,
+          entropy_upper = entropy_upper,
+          entropy_mean = entropy_mean,
+          chain = chain_idx
+        )
+      }
+      
+      chain_results_most_likely[[chain_idx]] <- do.call(rbind, most_likely_list)
+      chain_results_entropy[[chain_idx]] <- do.call(rbind, entropy_list)
+    }
+    
+    return(list(
+      most_likely_population = do.call(rbind, chain_results_most_likely),
+      entropy_summary = do.call(rbind, chain_results_entropy)
+    ))
+  }
+}
