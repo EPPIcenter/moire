@@ -211,7 +211,15 @@ simulate_data <- function(mean_coi = NULL,
   )
 }
 
-
+#' Combine simulated data from two populations
+#'
+#' @details Combine simulated data from two populations
+#'
+#' @export
+#'
+#' @param simulated_data simulated data from the first population
+#' @param simulated_data2 simulated data from the second population
+#' @return Combined simulated data
 combine_simulated_data <- function(simulated_data, simulated_data2) {
   data1 <- simulated_data$data
   data2 <- simulated_data2$data

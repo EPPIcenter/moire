@@ -10,7 +10,7 @@ NULL
 
 ## usethis namespace: start
 #' @import RcppProgress
-## usethis namepace: end
+## usethis namespace: end
 NULL
 
 ## usethis namespace: start

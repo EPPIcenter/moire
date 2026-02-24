@@ -116,6 +116,42 @@ calculate_naive_allele_frequencies <- function(data) {
   return(allele_freqs)
 }
 
+# Internal helper: merge chains (or not), then apply quantile/mean to list of vectors per entity.
+# chains: list of chain objects; get_vectors: function(chain) -> list of numeric vectors;
+# ids: vector for id column; id_name, value_prefix: column naming; na.rm: for quantile/mean.
+summarize_posterior_vectors <- function(chains, get_vectors, ids, id_name = "sample_id",
+                                        value_prefix = "post_", lower_quantile = .025,
+                                        upper_quantile = .975, merge_chains = TRUE, na.rm = FALSE) {
+  if (merge_chains) {
+    vectors <- lapply(seq_along(ids), function(x) c())
+    for (chain in chains) {
+      vecs <- get_vectors(chain)
+      for (i in seq_along(vecs)) {
+        vectors[[i]] <- c(vectors[[i]], vecs[[i]])
+      }
+    }
+    lower_vec <- sapply(vectors, function(x) quantile(x, lower_quantile, na.rm = na.rm))
+    med_vec <- sapply(vectors, function(x) quantile(x, .5, na.rm = na.rm))
+    upper_vec <- sapply(vectors, function(x) quantile(x, upper_quantile, na.rm = na.rm))
+    mean_vec <- sapply(vectors, function(x) mean(x, na.rm = na.rm))
+    out <- data.frame(ids, lower_vec, med_vec, upper_vec, mean_vec, stringsAsFactors = FALSE)
+    names(out) <- c(id_name, paste0(value_prefix, c("_lower", "_med", "_upper", "_mean")))
+    return(out)
+  } else {
+    res <- lapply(seq_along(chains), function(idx) {
+      vecs <- get_vectors(chains[[idx]])
+      lower_vec <- sapply(vecs, function(x) quantile(x, lower_quantile, na.rm = na.rm))
+      med_vec <- sapply(vecs, function(x) quantile(x, .5, na.rm = na.rm))
+      upper_vec <- sapply(vecs, function(x) quantile(x, upper_quantile, na.rm = na.rm))
+      mean_vec <- sapply(vecs, function(x) mean(x, na.rm = na.rm))
+      out <- data.frame(ids, lower_vec, med_vec, upper_vec, mean_vec, chain = idx, stringsAsFactors = FALSE)
+      names(out) <- c(id_name, paste0(value_prefix, c("_lower", "_med", "_upper", "_mean")), "chain")
+      return(out)
+    })
+    return(do.call(rbind, res))
+  }
+}
+
 #' Calculate the expected heterozygosity from allele frequencies
 #'
 #' @export
@@ -162,59 +198,51 @@ summarize_coi <- function(mcmc_results, lower_quantile = .025,
                           upper_quantile = .975, naive_offset = 2, merge_chains = TRUE) {
   naive_coi <- calculate_naive_coi(mcmc_results$args$data$data)
   offset_naive_coi <- calculate_naive_coi_offset(mcmc_results$args$data$data, 2)
-
+  base <- summarize_posterior_vectors(
+    mcmc_results$chains,
+    function(chain) chain$coi,
+    mcmc_results$args$data$sample_ids,
+    id_name = "sample_id",
+    value_prefix = "post_coi",
+    lower_quantile = lower_quantile,
+    upper_quantile = upper_quantile,
+    merge_chains = merge_chains
+  )
   if (merge_chains) {
     cois <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(x) c())
-    for (idx in seq_along(mcmc_results$chains)) {
-      chain <- mcmc_results$chains[[idx]]
+    for (chain in mcmc_results$chains) {
       for (s in seq_along(chain$coi)) {
         cois[[s]] <- c(cois[[s]], chain$coi[[s]])
       }
-      post_coi_lower <- sapply(cois, function(x) {
-        quantile(x, lower_quantile)
-      })
-      post_coi_med <- sapply(cois, function(x) {
-        quantile(x, .5)
-      })
-      post_coi_upper <- sapply(cois, function(x) {
-        quantile(x, upper_quantile)
-      })
-      post_coi_mean <- sapply(cois, mean)
-      prob_polyclonal <- sapply(cois, function(x) {
-        mean(x > 1)
-      })
-      return(data.frame(
-        sample_id = mcmc_results$args$data$sample_ids,
-        post_coi_lower, post_coi_med, post_coi_upper, post_coi_mean,
-        naive_coi, offset_naive_coi, prob_polyclonal
-      ))
     }
+    prob_polyclonal <- sapply(cois, function(x) mean(x > 1))
+    return(cbind(base, naive_coi, offset_naive_coi, prob_polyclonal))
   } else {
-    chain_cois <- lapply(seq_along(mcmc_results$chains), function(idx) {
-      chain <- mcmc_results$chains[[idx]]
-      cois <- chain$coi
-      post_coi_lower <- sapply(cois, function(x) {
-        quantile(x, lower_quantile)
-      })
-      post_coi_med <- sapply(cois, function(x) {
-        quantile(x, .5)
-      })
-      post_coi_upper <- sapply(cois, function(x) {
-        quantile(x, upper_quantile)
-      })
-      post_coi_mean <- sapply(cois, mean)
-      prob_polyclonal <- sapply(cois, function(x) {
-        mean(x > 1)
-      })
-      return(data.frame(
-        sample_id = mcmc_results$args$data$sample_ids,
-        post_coi_lower, post_coi_med, post_coi_upper, post_coi_mean, chain = idx,
-        naive_coi, offset_naive_coi, prob_polyclonal
-      ))
-    })
-    coi_data <- do.call(rbind, chain_cois)
-    return(coi_data)
+    prob_polyclonal <- unlist(lapply(mcmc_results$chains, function(chain) {
+      sapply(chain$coi, function(x) mean(x > 1))
+    }))
+    return(cbind(
+      base,
+      naive_coi = rep(naive_coi, length(mcmc_results$chains)),
+      offset_naive_coi = rep(offset_naive_coi, length(mcmc_results$chains)),
+      prob_polyclonal
+    ))
   }
+}
+
+# Internal: unified epsilon summary parameterized by field name and column prefix.
+summarize_epsilon_impl <- function(mcmc_results, field, value_prefix, lower_quantile = .025,
+                                   upper_quantile = .975, merge_chains = TRUE) {
+  summarize_posterior_vectors(
+    mcmc_results$chains,
+    function(chain) chain[[field]],
+    mcmc_results$args$data$sample_ids,
+    id_name = "sample_id",
+    value_prefix = value_prefix,
+    lower_quantile = lower_quantile,
+    upper_quantile = upper_quantile,
+    merge_chains = merge_chains
+  )
 }
 
 #' Summarize epsilon_neg
@@ -234,52 +262,7 @@ summarize_coi <- function(mcmc_results, lower_quantile = .025,
 #'  distribution to return
 #' @param merge_chains boolean indicating that all chain results should be merged
 summarize_epsilon_neg <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
-  if (merge_chains) {
-    epsilon_neg <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(x) c())
-    for (idx in seq_along(mcmc_results$chains)) {
-      chain <- mcmc_results$chains[[idx]]
-      for (s in seq_along(chain$eps_neg)) {
-        epsilon_neg[[s]] <- c(epsilon_neg[[s]], chain$eps_neg[[s]])
-      }
-    }
-    post_eps_neg_lower <- sapply(epsilon_neg, function(x) {
-      quantile(x, lower_quantile)
-    })
-    post_eps_neg_med <- sapply(epsilon_neg, function(x) {
-      quantile(x, .5)
-    })
-    post_eps_neg_upper <- sapply(epsilon_neg, function(x) {
-      quantile(x, upper_quantile)
-    })
-    post_eps_neg_mean <- sapply(epsilon_neg, mean)
-
-    return(data.frame(
-      sample_id = mcmc_results$args$data$sample_ids,
-      post_eps_neg_lower, post_eps_neg_med, post_eps_neg_upper, post_eps_neg_mean
-    ))
-  } else {
-    chain_eps_neg <- lapply(seq_along(mcmc_results$chains), function(idx) {
-      epsilon_neg <- mcmc_results$chains[[idx]]$eps_neg
-      post_eps_neg_lower <- sapply(epsilon_neg, function(x) {
-        quantile(x, lower_quantile)
-      })
-      post_eps_neg_med <- sapply(epsilon_neg, function(x) {
-        quantile(x, .5)
-      })
-      post_eps_neg_upper <- sapply(epsilon_neg, function(x) {
-        quantile(x, upper_quantile)
-      })
-      post_eps_neg_mean <- sapply(epsilon_neg, mean)
-
-      return(data.frame(
-        sample_id = mcmc_results$args$data$sample_ids,
-        post_eps_neg_lower, post_eps_neg_med, post_eps_neg_upper, post_eps_neg_mean,
-        chain = idx
-      ))
-    })
-    eps_neg_data <- do.call(rbind, chain_eps_neg)
-    return(eps_neg_data)
-  }
+  summarize_epsilon_impl(mcmc_results, "eps_neg", "post_eps_neg", lower_quantile, upper_quantile, merge_chains)
 }
 
 #' Summarize epsilon_pos
@@ -298,51 +281,7 @@ summarize_epsilon_neg <- function(mcmc_results, lower_quantile = .025, upper_qua
 #'  distribution to return
 #' @param merge_chains boolean indicating that all chain results should be merged
 summarize_epsilon_pos <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
-  if (merge_chains) {
-    epsilon_pos <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(x) c())
-    for (chain in mcmc_results$chains) {
-      for (s in seq_along(chain$eps_pos)) {
-        epsilon_pos[[s]] <- c(epsilon_pos[[s]], chain$eps_pos[[s]])
-      }
-    }
-    post_eps_pos_lower <- sapply(epsilon_pos, function(x) {
-      quantile(x, lower_quantile)
-    })
-    post_eps_pos_med <- sapply(epsilon_pos, function(x) {
-      quantile(x, .5)
-    })
-    post_eps_pos_upper <- sapply(epsilon_pos, function(x) {
-      quantile(x, upper_quantile)
-    })
-    post_eps_pos_mean <- sapply(epsilon_pos, mean)
-
-    return(data.frame(
-      sample_id = mcmc_results$args$data$sample_ids,
-      post_eps_pos_lower, post_eps_pos_med, post_eps_pos_upper, post_eps_pos_mean
-    ))
-  } else {
-    chain_eps_pos <- lapply(seq_along(mcmc_results$chains), function(idx) {
-      epsilon_pos <- mcmc_results$chains[[idx]]$eps_pos
-      post_eps_pos_lower <- sapply(epsilon_pos, function(x) {
-        quantile(x, lower_quantile)
-      })
-      post_eps_pos_med <- sapply(epsilon_pos, function(x) {
-        quantile(x, .5)
-      })
-      post_eps_pos_upper <- sapply(epsilon_pos, function(x) {
-        quantile(x, upper_quantile)
-      })
-      post_eps_pos_mean <- sapply(epsilon_pos, mean)
-
-      return(data.frame(
-        sample_id = mcmc_results$args$data$sample_ids,
-        post_eps_pos_lower, post_eps_pos_med, post_eps_pos_upper, post_eps_pos_mean,
-        chain = idx
-      ))
-    })
-    eps_pos_data <- do.call(rbind, chain_eps_pos)
-    return(eps_pos_data)
-  }
+  summarize_epsilon_impl(mcmc_results, "eps_pos", "post_eps_pos", lower_quantile, upper_quantile, merge_chains)
 }
 
 #' Summarize Function of Allele Frequencies
@@ -634,59 +573,27 @@ summarize_allele_freqs <- function(mcmc_results,
 #' @param upper_quantile The upper quantile of the posterior
 #'  distribution to return
 #' @param merge_chains boolean indicating that all chain results should be merged
+get_relatedness_vectors <- function(chain) {
+  lapply(seq_along(chain$relatedness), function(s) {
+    rel <- chain$relatedness[[s]]
+    mask <- chain$coi[[s]] > 1
+    rel[!mask] <- NA
+    rel
+  })
+}
+
 summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
-  if (merge_chains) {
-    relatedness <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(x) c())
-    for (chain in mcmc_results$chains) {
-      for (s in seq_along(chain$relatedness)) {
-        # Only include relatedness values for samples with COI > 1
-        mask <- chain$coi[[s]] > 1
-        rel <- chain$relatedness[[s]]
-        rel[!mask] <- NA
-        relatedness[[s]] <- c(relatedness[[s]], rel)
-      }
-    }
-
-    post_relatedness_lower <- sapply(relatedness, function(x) {
-      quantile(x, lower_quantile, na.rm = TRUE)
-    })
-    post_relatedness_med <- sapply(relatedness, function(x) {
-      quantile(x, .5, na.rm = TRUE)
-    })
-    post_relatedness_upper <- sapply(relatedness, function(x) {
-      quantile(x, upper_quantile, na.rm = TRUE)
-    })
-    post_relatedness_mean <- sapply(relatedness, function(x) mean(x, na.rm = TRUE))
-
-    return(data.frame(
-      sample_id = mcmc_results$args$data$sample_ids,
-      post_relatedness_lower, post_relatedness_med, post_relatedness_upper, post_relatedness_mean
-    ))
-  } else {
-    chain_relatedness <- lapply(seq_along(mcmc_results$chains), function(idx) {
-      coi <- mcmc_results$chains[[idx]]$coi
-      relatedness <- mcmc_results$chains[[idx]]$relatedness * (coi > 1)
-      relatedness[coi <= 1] <- NA
-      post_relatedness_lower <- sapply(relatedness, function(x) {
-        quantile(x, lower_quantile, na.rm = TRUE)
-      })
-      post_relatedness_med <- sapply(relatedness, function(x) {
-        quantile(x, .5, na.rm = TRUE)
-      })
-      post_relatedness_upper <- sapply(relatedness, function(x) {
-        quantile(x, upper_quantile, na.rm = TRUE)
-      })
-      post_relatedness_mean <- sapply(relatedness, mean)
-
-      return(data.frame(
-        sample_id = mcmc_results$args$data$sample_ids,
-        post_relatedness_lower, post_relatedness_med, post_relatedness_upper, post_relatedness_mean,
-        chain = idx
-      ))
-    })
-    relatedness_data <- do.call(rbind, chain_relatedness)
-    return(relatedness_data)
-  }
+  summarize_posterior_vectors(
+    mcmc_results$chains,
+    get_relatedness_vectors,
+    mcmc_results$args$data$sample_ids,
+    id_name = "sample_id",
+    value_prefix = "post_relatedness",
+    lower_quantile = lower_quantile,
+    upper_quantile = upper_quantile,
+    merge_chains = merge_chains,
+    na.rm = TRUE
+  )
 }
 
 
@@ -707,57 +614,21 @@ summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_qua
 #' @param upper_quantile The upper quantile of the posterior
 #'  distribution to return
 #' @param merge_chains boolean indicating that all chain results should be merged
+get_effective_coi_vectors <- function(chain) {
+  purrr::map2(chain$relatedness, chain$coi, ~ (1 - .x) * (.y - 1) + 1)
+}
+
 summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
-  if (merge_chains) {
-    effective_coi <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(x) c())
-    for (chain in mcmc_results$chains) {
-      for (s in seq_along(chain$relatedness)) {
-        effective_coi[[s]] <- c(effective_coi[[s]], (1 - chain$relatedness[[s]]) * (chain$coi[[s]] - 1) + 1)
-      }
-    }
-    post_effective_coi_lower <- sapply(effective_coi, function(x) {
-      quantile(x, lower_quantile)
-    })
-    post_effective_coi_med <- sapply(effective_coi, function(x) {
-      quantile(x, .5)
-    })
-    post_effective_coi_upper <- sapply(effective_coi, function(x) {
-      quantile(x, upper_quantile)
-    })
-    post_effective_coi_mean <- sapply(effective_coi, mean)
-
-    return(data.frame(
-      sample_id = mcmc_results$args$data$sample_ids,
-      post_effective_coi_lower, post_effective_coi_med, post_effective_coi_upper, post_effective_coi_mean
-    ))
-  } else {
-    chain_effective_coi <- lapply(seq_along(mcmc_results$chains), function(idx) {
-      chain <- mcmc_results$chains[[idx]]
-      r <- chain$relatedness
-      coi <- chain$coi
-
-      effective_coi <- purrr::map2(r, coi, ~ (1 - .x) * (.y - 1) + 1)
-
-      post_effective_coi_lower <- sapply(effective_coi, function(x) {
-        quantile(x, lower_quantile)
-      })
-      post_effective_coi_med <- sapply(effective_coi, function(x) {
-        quantile(x, .5)
-      })
-      post_effective_coi_upper <- sapply(effective_coi, function(x) {
-        quantile(x, upper_quantile)
-      })
-      post_effective_coi_mean <- sapply(effective_coi, mean)
-
-      return(data.frame(
-        sample_id = mcmc_results$args$data$sample_ids,
-        post_effective_coi_lower, post_effective_coi_med, post_effective_coi_upper, post_effective_coi_mean,
-        chain = idx
-      ))
-    })
-    relatedness_data <- do.call(rbind, chain_effective_coi)
-    return(relatedness_data)
-  }
+  summarize_posterior_vectors(
+    mcmc_results$chains,
+    get_effective_coi_vectors,
+    mcmc_results$args$data$sample_ids,
+    id_name = "sample_id",
+    value_prefix = "post_effective_coi",
+    lower_quantile = lower_quantile,
+    upper_quantile = upper_quantile,
+    merge_chains = merge_chains
+  )
 }
 
 #' Summarize population assignments
@@ -776,31 +647,54 @@ summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_q
 #' @param upper_quantile The upper quantile of the posterior
 #'  distribution to return
 #' @param merge_chains boolean indicating that all chain results should be merged
+#' @param correct_label_switching boolean indicating whether to correct for label switching.
+#'   If TRUE, population labels are aligned across MCMC steps using correlation-based matching.
+#' @param label_switching_method Method for label switching correction: "iterative" (align each
+#'   step to previous) or "reference" (align all steps to first step). Only used if
+#'   correct_label_switching is TRUE.
 #' @return A list with two dataframes:
 #'   - `most_likely_population`: For each sample, the probability that each population
 #'     is the most likely assignment
 #'   - `entropy_summary`: For each sample, summary statistics of the entropy
 #'     distribution (quantifying uncertainty)
-summarize_population_assignments <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
+summarize_population_assignments <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE, correct_label_switching = TRUE, label_switching_method = "iterative") {
   
   # Helper function to calculate entropy
-  calculate_entropy <- function(probs) {
-    # Add small epsilon to avoid log(0)
-    probs <- probs + 1e-10
-    probs <- probs / sum(probs)  # Renormalize
-    
-    # Calculate entropy, handling edge cases
-    log_probs <- log(probs)
-    # Replace -Inf with 0 (since x * log(x) -> 0 as x -> 0)
-    log_probs[is.infinite(log_probs)] <- 0
-    entropy <- -sum(probs * log_probs)
-    
-    # Return 0 if entropy is -Inf or NaN
-    if (is.infinite(entropy) || is.nan(entropy)) {
-      return(0)
-    }
-    
+  calculate_entropy <- function(log_probs) {
+    entropy <- -sum(exp(log_probs) * log_probs)
     return(entropy)
+  }
+  
+  # Helper function to transpose population assignments from sample-first to step-first format
+  transpose_assignments <- function(chain_assignments) {
+    num_samples <- length(chain_assignments)
+    if (num_samples == 0) return(list())
+    num_steps <- length(chain_assignments[[1]])
+    if (num_steps == 0) return(list())
+    
+    # Transpose: from sample-first to step-first
+    step_first <- lapply(seq_len(num_steps), function(step_idx) {
+      lapply(seq_len(num_samples), function(sample_idx) {
+        chain_assignments[[sample_idx]][[step_idx]]
+      })
+    })
+    return(step_first)
+  }
+  
+  # Helper function to transpose back from step-first to sample-first format
+  transpose_assignments_back <- function(step_first_assignments) {
+    num_steps <- length(step_first_assignments)
+    if (num_steps == 0) return(list())
+    num_samples <- length(step_first_assignments[[1]])
+    if (num_samples == 0) return(list())
+    
+    # Transpose: from step-first to sample-first
+    sample_first <- lapply(seq_len(num_samples), function(sample_idx) {
+      lapply(seq_len(num_steps), function(step_idx) {
+        step_first_assignments[[step_idx]][[sample_idx]]
+      })
+    })
+    return(sample_first)
   }
   
   if (merge_chains) {
@@ -814,19 +708,30 @@ summarize_population_assignments <- function(mcmc_results, lower_quantile = .025
     entropy_values <- lapply(seq_along(mcmc_results$args$data$sample_ids), function(sample_idx) {
       c()
     })
+    total_steps <- length(mcmc_results$chains[[1]]$population_assignment[[1]])
     
     # Collect data across all chains
     for (chain in mcmc_results$chains) {
-      for (sample_idx in seq_along(chain$population_assignment)) {
-        for (step_idx in seq_along(chain$population_assignment[[sample_idx]])) {
-          step_probs <- chain$population_assignment[[sample_idx]][[step_idx]]
+      # Apply label switching correction if requested
+      chain_assignments <- chain$population_assignment
+      if (correct_label_switching) {
+        # Transpose to step-first format for correction
+        step_first <- transpose_assignments(chain_assignments)
+        # Apply correction
+        corrected_step_first <- correct_label_switching(step_first, method = label_switching_method)
+        # Transpose back to sample-first format
+        chain_assignments <- transpose_assignments_back(corrected_step_first)
+      }
+      
+      for (sample_idx in seq_along(chain_assignments)) {
+        for (step_idx in seq_along(chain_assignments[[sample_idx]])) {
+          step_log_probs <- chain_assignments[[sample_idx]][[step_idx]]
           
-          # Find most likely population for this step
-          most_likely_pop <- which.max(step_probs)
-          most_likely_counts[[sample_idx]][most_likely_pop] <- most_likely_counts[[sample_idx]][most_likely_pop] + 1
+          # Aggregate probabilities across steps
+          most_likely_counts[[sample_idx]] <- most_likely_counts[[sample_idx]] + (exp(step_log_probs) / total_steps)
           
           # Calculate entropy for this step
-          entropy_val <- calculate_entropy(step_probs)
+          entropy_val <- calculate_entropy(step_log_probs)
           entropy_values[[sample_idx]] <- c(entropy_values[[sample_idx]], entropy_val)
         }
       }
@@ -891,25 +796,36 @@ summarize_population_assignments <- function(mcmc_results, lower_quantile = .025
       chain <- mcmc_results$chains[[chain_idx]]
       num_populations <- length(chain$population_assignment[[1]][[1]])
       
+      # Apply label switching correction if requested
+      chain_assignments <- chain$population_assignment
+      if (correct_label_switching) {
+        # Transpose to step-first format for correction
+        step_first <- transpose_assignments(chain_assignments)
+        # Apply correction
+        corrected_step_first <- correct_label_switching(step_first, method = label_switching_method)
+        # Transpose back to sample-first format
+        chain_assignments <- transpose_assignments_back(corrected_step_first)
+      }
+      
       # Initialize storage for this chain
-      most_likely_counts <- lapply(seq_along(chain$population_assignment), function(sample_idx) {
+      most_likely_counts <- lapply(seq_along(chain_assignments), function(sample_idx) {
         rep(0, num_populations)
       })
-      entropy_values <- lapply(seq_along(chain$population_assignment), function(sample_idx) {
+      entropy_values <- lapply(seq_along(chain_assignments), function(sample_idx) {
         c()
       })
       
       # Process this chain
-      for (sample_idx in seq_along(chain$population_assignment)) {
-        for (step_idx in seq_along(chain$population_assignment[[sample_idx]])) {
-          step_probs <- chain$population_assignment[[sample_idx]][[step_idx]]
+      total_steps <- length(chain_assignments[[1]])
+      for (sample_idx in seq_along(chain_assignments)) {
+        for (step_idx in seq_along(chain_assignments[[sample_idx]])) {
+          step_log_probs <- chain_assignments[[sample_idx]][[step_idx]]
           
-          # Find most likely population for this step
-          most_likely_pop <- which.max(step_probs)
-          most_likely_counts[[sample_idx]][most_likely_pop] <- most_likely_counts[[sample_idx]][most_likely_pop] + 1
+          # Aggregate probabilities across steps
+          most_likely_counts[[sample_idx]] <- most_likely_counts[[sample_idx]] + (exp(step_log_probs) / total_steps)
           
           # Calculate entropy for this step
-          entropy_val <- calculate_entropy(step_probs)
+          entropy_val <- calculate_entropy(step_log_probs)
           entropy_values[[sample_idx]] <- c(entropy_values[[sample_idx]], entropy_val)
         }
       }

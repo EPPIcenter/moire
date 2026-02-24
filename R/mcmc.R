@@ -29,8 +29,14 @@
 #' distribution for relatedness prior
 #' @param r_beta Positive Numeric. Beta parameter in Beta
 #' distribution for relatedness prior
-#' @param mean_coi_shape shape parameter for gamma hyperprior on mean COI
-#' @param mean_coi_scale scale parameter for gamma hyperprior on mean COI
+#' @param population_coi_p_alpha Alpha for Beta prior on negative-binomial p (COI)
+#' @param population_coi_p_beta Beta for Beta prior on negative-binomial p (COI)
+#' @param population_coi_r_shape Shape for gamma prior on negative-binomial r (COI)
+#' @param population_coi_r_rate Rate for gamma prior on negative-binomial r (COI)
+#' @param population_coi_lam_shape Shape for gamma prior on Poisson rate (COI)
+#' @param population_coi_lam_rate Rate for gamma prior on Poisson rate (COI)
+#' @param num_populations Number of populations
+#' @param populations_prior Prior probability for each population (length \code{num_populations} or 1)
 #' @param max_eps_pos Numeric. Maximum allowed value for eps_pos
 #' @param max_eps_neg Numeric. Maximum allowed value for eps_neg
 #' @param max_coi Positive Numeric. Maximum allowed complexity of infection
@@ -146,7 +152,7 @@ run_mcmc <-
     
     # Log information about initial allele frequencies
     if (!is.null(mcmc_args$initial_allele_frequencies)) {
-      cat("=== MCMC Initialization with Custom Allele Frequencies ===\n")
+      cat_progress_header("MCMC Initialization with Custom Allele Frequencies", data)
       cat("Using provided initial allele frequencies\n")
       cat("Number of populations:", length(mcmc_args$initial_allele_frequencies), "\n")
       for (i in seq_along(mcmc_args$initial_allele_frequencies)) {
@@ -154,7 +160,7 @@ run_mcmc <-
       }
       cat("========================================================\n")
     } else {
-      cat("=== MCMC Initialization with Clustering-Based Approach ===\n")
+      cat_progress_header("MCMC Initialization with Clustering-Based Approach", data)
       cat("No initial allele frequencies provided, using clustering-based initialization\n")
       cat("============================================================\n")
     }
