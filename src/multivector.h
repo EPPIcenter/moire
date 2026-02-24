@@ -7,67 +7,31 @@
 #include <array>
 #include <span>
 #include <cmath>
-#include <execution>
 #include <ranges>
+#include <utility>
 
-// Check if TBB is available at compile time
-#if defined(__has_include) && __has_include(<tbb/parallel_for.h>) && __has_include(<tbb/blocked_range2d.h>)
-#include <tbb/parallel_for.h>
-#include <tbb/blocked_range2d.h>
-#define TBB_AVAILABLE 1
-#endif
-
-// Check if RcppParallel is available at compile time, which includes TBB
-#ifndef TBB_AVAILABLE
-#if defined(__has_include) && __has_include(<RcppParallel.h>)
-#include <RcppParallel.h>
-#define RCPP_PARALLEL_AVAILABLE 1
-// If RcppParallel is available, check if it uses TBB
-#if RCPP_PARALLEL_USE_TBB
-#define TBB_AVAILABLE 1
-#endif
-#endif
-#endif
-
-#if defined(_OPENMP)
-#define OMP_AVAILABLE 1
-#include <omp.h>
-#else
-#define omp_get_num_threads() 1
-#define omp_get_thread_num() 0
-#define omp_get_max_threads() 1
-#define omp_get_thread_limit() 1
-#define omp_get_num_procs() 1
-#define omp_set_nested(a)
-#define omp_set_num_threads(a)
-#define omp_get_wtime() 0
-#endif
-
-#if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
-#include <execution>
-#define HAS_EXECUTION 1
-#endif
-
+#include "multivector_ops.h"
+#include "multivector_dispatch.h"
+#include "multivector_algorithms.h"
+#include "profiler.h"
 
 /// MultiVector class template
 /// This class represents a multi-dimensional vector with fixed dimensions.
 /// It provides methods to access elements, get sizes, and iterate over dimensions.
+///
+/// Invariants (always maintained after construction/resize):
+/// - dimensions_.size() == N; all dimensions_[i] >= 0.
+/// - total_size() == product of dimensions_[i] (0 if any dimension is 0).
+/// - data_.size() == total_size().
+/// - strides_[i] = product of dimensions_[i+1..N-1] (strides_[N-1] == 1).
+/// - For valid indices, data_[calculate_index(indices)] is the element at that position.
 template <typename T, size_t N>
 class MultiVector {
+    static_assert(N >= 1, "MultiVector requires N >= 1");
 public:
     /// Constructor that takes dimensions
     /// @param dimensions The dimensions of the MultiVector.
-    /// @throws std::invalid_argument if dimensions are empty or do not match N.
     MultiVector(const std::array<size_t, N>& dimensions) : dimensions_(dimensions) {
-#ifndef NDEBUG
-        if (dimensions.empty()) {
-            throw std::invalid_argument("Dimensions cannot be empty");
-        }
-
-        if (N != dimensions.size()) {
-            throw std::invalid_argument("Dimensions size does not match N");
-        }
-#endif
         // Calculate total size and strides
         size_t total_size = 1;
         for (size_t i = N; i-- > 0;) {
@@ -80,17 +44,8 @@ public:
     /// Constructor that takes a vector of data and dimensions
     /// @param data The data to be stored in the MultiVector.
     /// @param dimensions The dimensions of the MultiVector.
-    /// @throws std::invalid_argument if dimensions are empty or do not match N.
+    /// @throws std::invalid_argument if data size does not match product of dimensions.
     MultiVector(const std::vector<T>& data, const std::array<size_t, N>& dimensions) : dimensions_(dimensions) {
-#ifndef NDEBUG
-        if (dimensions.empty()) {
-            throw std::invalid_argument("Dimensions cannot be empty");
-        }
-        if (N != dimensions.size()) {
-            throw std::invalid_argument("Dimensions size does not match N");
-        }
-#endif
-
         size_t total_size = 1;
         for (size_t i = N; i-- > 0;) {
             strides_[i] = total_size;
@@ -102,22 +57,19 @@ public:
         data_ = data;
     }
 
+    /// Default constructor: creates an empty (valid) MultiVector with total_size() == 0.
+    /// Invariants: dimensions_ zero-initialized, strides_ and data_ consistent.
     MultiVector() {
-        dimensions_ = {0};
-        data_ = {};
-        strides_ = {};
-
+        dimensions_ = {};
+        size_t total_size = 1;
+        for (size_t i = N; i-- > 0;) {
+            strides_[i] = total_size;
+            total_size *= dimensions_[i];
+        }
+        data_.resize(total_size, T{});
     }
 
     void resize(const std::array<size_t, N>& dimensions) {
-#ifndef NDEBUG
-        if (dimensions.empty()) {
-            throw std::invalid_argument("Dimensions cannot be empty");
-        }
-        if (N != dimensions.size()) {
-            throw std::invalid_argument("Dimensions size does not match N");
-        }
-#endif
         dimensions_ = dimensions;
         size_t total_size = 1;
         for (size_t i = N; i-- > 0;) {
@@ -138,47 +90,43 @@ public:
     /// @param indices The indices of the outer dimensions.
     /// @param values The values to fill the innermost dimension with.
     void inner_fill(const std::array<size_t, N - 1>& indices, const std::span<T const> values) {
-#ifndef NDEBUG
-        if (values.size() > dimensions_.at(indices.back())) {
-            throw std::invalid_argument("(" + std::to_string(N) + "D) Incorrect number of values, expected " + std::to_string(dimensions_.at(indices.back())) + " but got " + std::to_string(values.size()));
+        if (values.size() > dimensions_.back()) {
+            throw std::invalid_argument("(" + std::to_string(N) + "D) Incorrect number of values, expected " + std::to_string(dimensions_.back()) + " but got " + std::to_string(values.size()));
         }
-#endif
         auto [begin, end] = inner_iterators(indices);
         std::copy(values.begin(), values.end(), begin);
     }
 
-    /// Access element at a given multi-dimensional index
+    /// Access element at a given multi-dimensional index (always bounds-checked).
     /// @param indices The indices of the element to access.
     /// @return A reference to the element at the specified indices.
-    /// @throws std::invalid_argument if the number of indices is incorrect.
+    /// @throws std::out_of_range if any index is out of bounds.
     T& at(const std::array<size_t, N>& indices) {
-#ifndef NDEBUG
-        if (indices.size() != dimensions_.size()) {
-            throw std::invalid_argument("Incorrect number of indices");
+        for (size_t i = 0; i < N; ++i) {
+            if (indices[i] >= dimensions_[i]) {
+                throw std::out_of_range("MultiVector::at index out of bounds");
+            }
         }
-#endif
         return data_.at(calculate_index(indices));
     }
 
     const T& at(const std::array<size_t, N>& indices) const {
-#ifndef NDEBUG
-        if (indices.size() != dimensions_.size()) {
-            throw std::invalid_argument("Incorrect number of indices");
+        for (size_t i = 0; i < N; ++i) {
+            if (indices[i] >= dimensions_[i]) {
+                throw std::out_of_range("MultiVector::at index out of bounds");
+            }
         }
-#endif
         return data_.at(calculate_index(indices));
     }
 
     /// Get the size of a specific dimension
-    /// @param dimension The dimension to query.
+    /// @param dimension The dimension to query (must be < N).
     /// @return The size of the specified dimension.
-    /// @throws std::out_of_range if the dimension is out of range.
+    /// @throws std::out_of_range if dimension >= N.
     size_t size(size_t dimension) const {
-#ifndef NDEBUG
-        if (dimension >= dimensions_.size()) {
+        if (dimension >= N) {
             throw std::out_of_range("Dimension out of range");
         }
-#endif
         return dimensions_[dimension];
     }
 
@@ -191,13 +139,7 @@ public:
     /// Iterator for the innermost dimension
     /// @param outer_indices The indices of the outer dimensions.
     /// @return An iterator to the beginning of the innermost dimension.
-    /// @throws std::invalid_argument if the number of outer indices is incorrect.
     typename std::vector<T>::iterator inner_begin(const std::array<size_t, N-1>& outer_indices) {
-#ifndef NDEBUG
-        if (outer_indices.size() != dimensions_.size() - 1) {
-            throw std::invalid_argument("Incorrect number of outer indices");
-        }
-#endif
         std::array<size_t, N> full_indices{0};
         std::copy(outer_indices.begin(), outer_indices.end(), full_indices.begin());
         size_t start_index = calculate_index(full_indices);
@@ -205,11 +147,6 @@ public:
     }
 
     typename std::vector<T>::iterator inner_end(const std::array<size_t, N-1>& outer_indices) {
-#ifndef NDEBUG
-        if (outer_indices.size() != dimensions_.size() - 1) {
-            throw std::invalid_argument("Incorrect number of outer indices");
-        }
-#endif
         std::array<size_t, N> full_indices{0};
         std::copy(outer_indices.begin(), outer_indices.end(), full_indices.begin());
         size_t start_index = calculate_index(full_indices);
@@ -219,13 +156,7 @@ public:
     /// Const iterator for the innermost dimension
     /// @param outer_indices The indices of the outer dimensions.
     /// @return A const iterator to the beginning of the innermost dimension.
-    /// @throws std::invalid_argument if the number of outer indices is incorrect.
     typename std::vector<T>::const_iterator inner_begin(const std::array<size_t, N-1>& outer_indices) const {
-#ifndef NDEBUG
-        if (outer_indices.size() != dimensions_.size() - 1) {
-            throw std::invalid_argument("Incorrect number of outer indices");
-        }
-#endif
         std::array<size_t, N> full_indices{0};
         std::copy(outer_indices.begin(), outer_indices.end(), full_indices.begin());
         size_t start_index = calculate_index(full_indices);
@@ -233,11 +164,6 @@ public:
     }
 
     typename std::vector<T>::const_iterator inner_end(const std::array<size_t, N-1>& outer_indices) const {
-#ifndef NDEBUG
-        if (outer_indices.size() != dimensions_.size() - 1) {
-            throw std::invalid_argument("Incorrect number of outer indices");
-        }
-#endif
         std::array<size_t, N> full_indices{0};
         std::copy(outer_indices.begin(), outer_indices.end(), full_indices.begin());
         size_t start_index = calculate_index(full_indices);
@@ -285,6 +211,9 @@ public:
     /// @return A MultiVector<T, N-1> containing the reduced values
     template<typename BinaryOp, typename ExecutionPolicy = std::execution::sequenced_policy>
     auto reduce(BinaryOp binary_op, const auto& init, ExecutionPolicy policy = std::execution::seq) const {
+#ifdef MOIRE_ENABLE_PROFILER_REGISTRY
+        ProfileScope _prof("MultiVector::reduce");
+#endif
         using ResultType = decltype(binary_op(init, std::declval<T>()));
         // Create output MultiVector with dimensions excluding the last dimension
         std::array<size_t, N-1> reduced_dims;
@@ -301,40 +230,24 @@ public:
             const size_t stride0 = strides_[0];
             const size_t stride1 = strides_[1];
             
-            // Use a more direct approach for 3D case
             for (size_t i = 0; i < dim0; ++i) {
                 for (size_t j = 0; j < dim1; ++j) {
-                    // Calculate the start index for this 2D slice
                     const size_t start_idx = i * stride0 + j * stride1;
-                    
-                    // Get iterators for the innermost dimension
                     auto begin = data_.begin() + start_idx;
                     auto end = begin + dim2;
-                    
-                    // Perform reduction
-                    result.at({i, j}) = std::reduce(policy, begin, end, init, binary_op);
+                    result.unchecked_at({i, j}) = moire_kernels::reduce_slice(begin, end, init, binary_op, policy);
                 }
             }
         }
-        // Optimized implementation for 2D case
         else if constexpr (N == 2) {
             const size_t dim0 = dimensions_[0];
             const size_t dim1 = dimensions_[1];
-            
-            // Pre-calculate stride for faster access
             const size_t stride0 = strides_[0];
-            
-            // Use a direct approach for 2D case
             for (size_t i = 0; i < dim0; ++i) {
-                // Calculate the start index for this row
                 const size_t start_idx = i * stride0;
-                
-                // Get iterators for the innermost dimension
                 auto begin = data_.begin() + start_idx;
                 auto end = begin + dim1;
-                
-                // Perform reduction
-                result.at({i}) = std::reduce(policy, begin, end, init, binary_op);
+                result.unchecked_at({i}) = moire_kernels::reduce_slice(begin, end, init, binary_op, policy);
             }
         }
         else {
@@ -344,7 +257,7 @@ public:
                 if (dim == N-1) {
                     // Perform reduction for these outer indices
                     const auto [begin, end] = inner_iterators(indices);
-                    result.at(indices) = std::reduce(policy, begin, end, init, binary_op);
+                    result.unchecked_at(indices) = moire_kernels::reduce_slice(begin, end, init, binary_op, policy);
                     return;
                 }
                 
@@ -361,15 +274,17 @@ public:
         return result;
     }
 
-    /// Optimized parallel reduce using TBB for better performance if available, otherwise falls back to standard library
+    /// Optimized parallel reduce using parallel execution when enabled and workload exceeds threshold
     /// @param binary_op The binary operation to use for reduction
     /// @param init The initial value for the reduction
     /// @return A MultiVector<T, N-1> containing the reduced values
+    /// @note Requires MOIRE_ENABLE_PARALLEL to be defined for parallel execution.
+    ///       Falls back gracefully to sequential execution if parallel libraries unavailable.
     template<typename BinaryOp>
-#if !defined(TBB_AVAILABLE) && !defined(HAS_EXECUTION) && !defined(OMP_AVAILABLE)
-    [[deprecated("Consider enabling TBB, C++17 execution policies, or OpenMP for better performance.")]]
-#endif
     auto parallel_reduce(BinaryOp binary_op, const auto& init) const {
+#ifdef MOIRE_ENABLE_PROFILER_REGISTRY
+        ProfileScope _prof("MultiVector::parallel_reduce");
+#endif
         using ResultType = decltype(binary_op(init, std::declval<T>()));
         // Create output MultiVector with dimensions excluding the last dimension
         std::array<size_t, N-1> reduced_dims;
@@ -386,161 +301,31 @@ public:
             const size_t stride0 = strides_[0];
             const size_t stride1 = strides_[1];
             
-#if defined(TBB_AVAILABLE)
-            // Use TBB's parallel_for with a 2D blocked range for better load balancing
-            tbb::parallel_for(
-                tbb::blocked_range2d<size_t>(0, dim0, 0, dim1),
-                [&](const tbb::blocked_range2d<size_t>& range) {
-                    for (size_t i = range.rows().begin(); i != range.rows().end(); ++i) {
-                        for (size_t j = range.cols().begin(); j != range.cols().end(); ++j) {
-                            // Calculate the start index for this 2D slice
-                            const size_t start_idx = i * stride0 + j * stride1;
-                            
-                            // Get iterators for the innermost dimension
-                            auto begin = data_.begin() + start_idx;
-                            auto end = begin + dim2;
-                            
-                            // Perform reduction
-                            result.at({i, j}) = std::reduce(std::execution::seq, begin, end, init, binary_op);
-                        }
-                    }
-                }
-            );
-#elif defined(HAS_EXECUTION)
-            // Fallback to standard library parallel execution
-            std::vector<size_t> indices(dim0 * dim1);
-            std::iota(indices.begin(), indices.end(), 0);
-            std::for_each(std::execution::par_unseq, 
-                indices.begin(), 
-                indices.end(),
-                [&](size_t idx) {
-                    const size_t i = idx / dim1;
-                    const size_t j = idx % dim1;
-                    
-                    // Calculate the start index for this 2D slice
-                    const size_t start_idx = i * stride0 + j * stride1;
-                    
-                    // Get iterators for the innermost dimension
-                    auto begin = data_.begin() + start_idx;
-                    auto end = begin + dim2;
-                    
-                    // Perform reduction
-                    result.at({i, j}) = std::reduce(std::execution::seq, begin, end, init, binary_op);
-                }
-            );
-#elif defined(OMP_AVAILABLE)
-            #pragma omp parallel for collapse(2)
-            for (size_t i = 0; i < dim0; ++i) {
-                for (size_t j = 0; j < dim1; ++j) {
-                    // Calculate the start index for this 2D slice
-                    const size_t start_idx = i * stride0 + j * stride1;
-                    
-                    // Get iterators for the innermost dimension
-                    auto begin = data_.begin() + start_idx;
-                    auto end = begin + dim2;
-                    
-                    // Perform reduction
-                    result.at({i, j}) = std::reduce(std::execution::seq, begin, end, init, binary_op);
-                }
-            }
-#else
-            // Sequential fallback
-            for (size_t i = 0; i < dim0; ++i) {
-                for (size_t j = 0; j < dim1; ++j) {
-                    // Calculate the start index for this 2D slice
-                    const size_t start_idx = i * stride0 + j * stride1;
-                    
-                    // Get iterators for the innermost dimension
-                    auto begin = data_.begin() + start_idx;
-                    auto end = begin + dim2;
-                    
-                    // Perform reduction
-                    result.at({i, j}) = std::reduce(std::execution::seq, begin, end, init, binary_op);
-                }
-            }
-#endif
+            moire_dispatch::for_each_slice_2d(dim0, dim1, MOIRE_PARALLEL_SLICE_THRESHOLD, [&](size_t i, size_t j) {
+                const size_t start_idx = i * stride0 + j * stride1;
+                auto begin = data_.begin() + start_idx;
+                auto end = begin + dim2;
+                result.unchecked_at({i, j}) = moire_kernels::reduce_slice(begin, end, init, binary_op, std::execution::seq);
+            });
         }
-        // Specialized implementation for 2D case
         else if constexpr (N == 2) {
             const size_t dim0 = dimensions_[0];
             const size_t dim1 = dimensions_[1];
-            
-            // Pre-calculate stride for faster access
             const size_t stride0 = strides_[0];
-            
-#if defined(TBB_AVAILABLE)
-            // Use TBB's parallel_for for 1D case
-            tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, dim0),
-                [&](const tbb::blocked_range<size_t>& range) {
-                    for (size_t i = range.begin(); i != range.end(); ++i) {
-                        // Calculate the start index for this row
-                        const size_t start_idx = i * stride0;
-                        
-                        // Get iterators for the innermost dimension
-                        auto begin = data_.begin() + start_idx;
-                        auto end = begin + dim1;
-                        
-                        // Perform reduction
-                        result.at({i}) = std::reduce(std::execution::seq, begin, end, init, binary_op);
-                    }
-                }
-            );
-#elif defined(HAS_EXECUTION)
-            // Fallback to standard library parallel execution
-            std::vector<size_t> indices(dim0);
-            std::iota(indices.begin(), indices.end(), 0);
-            std::for_each(std::execution::par_unseq, 
-                indices.begin(), 
-                indices.end(),
-                [&](size_t i) {
-                    // Calculate the start index for this row
-                    const size_t start_idx = i * stride0;
-                    
-                    // Get iterators for the innermost dimension
-                    auto begin = data_.begin() + start_idx;
-                    auto end = begin + dim1;
-                    
-                    // Perform reduction
-                    result.at({i}) = std::reduce(std::execution::seq, begin, end, init, binary_op);
-                }
-            );
-#elif defined(OMP_AVAILABLE)
-            #pragma omp parallel for
-            for (size_t i = 0; i < dim0; ++i) {
-                // Calculate the start index for this row
+            moire_dispatch::for_each_slice_1d(dim0, MOIRE_PARALLEL_SLICE_THRESHOLD, [&](size_t i) {
                 const size_t start_idx = i * stride0;
-                
-                // Get iterators for the innermost dimension
                 auto begin = data_.begin() + start_idx;
                 auto end = begin + dim1;
-                
-                // Perform reduction
-                result.at({i}) = std::reduce(std::execution::seq, begin, end, init, binary_op);
-            }
-#else
-            // Sequential fallback
-            for (size_t i = 0; i < dim0; ++i) {
-                // Calculate the start index for this row
-                const size_t start_idx = i * stride0;
-                
-                // Get iterators for the innermost dimension
-                auto begin = data_.begin() + start_idx;
-                auto end = begin + dim1;
-                
-                // Perform reduction
-                result.at({i}) = std::reduce(std::execution::seq, begin, end, init, binary_op);
-            }
-#endif
+                result.unchecked_at({i}) = moire_kernels::reduce_slice(begin, end, init, binary_op, std::execution::seq);
+            });
         }
         else {
             // Fallback to recursive approach for other dimensions
             // Helper to generate all possible outer indices
             auto reduce_recursive = [&](auto& self, std::array<size_t, N-1>& indices, size_t dim) -> void {
                 if (dim == N-1) {
-                    // Perform reduction for these outer indices
                     const auto [begin, end] = inner_iterators(indices);
-                    result.at(indices) = std::reduce(std::execution::seq, begin, end, init, binary_op);
+                    result.unchecked_at(indices) = moire_kernels::reduce_slice(begin, end, init, binary_op, std::execution::seq);
                     return;
                 }
                 
@@ -576,39 +361,46 @@ public:
     }
 
     /**
-     * @brief Fully reduces the multivector down to a scalar value in parallel
+     * @brief Fully reduces the multivector down to a scalar value with parallel execution when enabled
      * 
      * This function applies a binary operation to all elements in the multivector,
-     * reducing them to a single scalar value using parallel processing when TBB is available.
+     * reducing them to a single scalar value using parallel processing when enabled.
      * 
      * @tparam BinaryOp The type of the binary operation to apply
      * @param binary_op The binary operation to apply (e.g., std::plus, std::multiplies)
      * @return A scalar value containing the fully reduced result
+     * @note Requires MOIRE_ENABLE_PARALLEL to be defined for parallel execution.
+     *       Falls back gracefully to sequential execution if parallel libraries unavailable.
      */
     template<typename BinaryOp>
     T parallel_full_reduce(BinaryOp binary_op) const {
-        #if TBB_AVAILABLE
-        return tbb::parallel_reduce(
-            tbb::blocked_range<typename std::vector<T>::const_iterator>(data_.begin(), data_.end()),
-            T{},
-            [&binary_op](const tbb::blocked_range<typename std::vector<T>::const_iterator>& range, T init) {
-                return std::reduce(std::execution::seq, range.begin(), range.end(), init, binary_op);
-            }
-        );
-        #else
-        return std::reduce(std::execution::seq, data_.begin(), data_.end(), init, binary_op);
-        #endif
+        const size_t total_elements = data_.size();
+        return moire_dispatch::reduce_range(data_.begin(), data_.end(), T{}, binary_op, total_elements, MOIRE_PARALLEL_ELEMENT_THRESHOLD);
+    }
+
+    /**
+     * @brief Computes the sum of all elements in the multivector
+     * Automatically chooses parallel vs sequential based on workload size
+     * @return The sum of all elements
+     */
+    T full_sum() const {
+        const size_t total_elements = total_size();
+        if (should_parallelize(total_elements, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+            return parallel_full_sum();
+        }
+        // Use sequential for small workloads or when parallelization disabled
+        return full_sum(std::execution::seq);
     }
 
     /**
      * @brief Computes the sum of all elements in the multivector
      * 
      * @tparam ExecutionPolicy The execution policy for parallelization
-     * @param policy The execution policy (default: sequential)
+     * @param policy The execution policy
      * @return The sum of all elements
      */
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    T full_sum(ExecutionPolicy policy = std::execution::seq) const {
+    template<typename ExecutionPolicy>
+    T full_sum(ExecutionPolicy policy) const {
         return full_reduce(std::plus<T>(), policy);
     }
 
@@ -690,7 +482,23 @@ public:
         return reduce(std::plus<T>(), T{}, policy);
     }
 
-    // Optimized parallel sum method
+    // Smart sum method that automatically chooses parallel vs sequential based on workload size
+    MultiVector<T, N-1> sum() const {
+        if constexpr (N == 3) {
+            const size_t num_slices = dimensions_[0] * dimensions_[1];
+            if (should_parallelize(num_slices, MOIRE_PARALLEL_SLICE_THRESHOLD)) {
+                return parallel_sum();
+            }
+        } else if constexpr (N == 2) {
+            if (should_parallelize(dimensions_[0], MOIRE_PARALLEL_SLICE_THRESHOLD)) {
+                return parallel_sum();
+            }
+        }
+        // Use sequential for small workloads or when parallelization disabled
+        return sum(std::execution::seq);
+    }
+
+    // Optimized parallel sum method (explicit parallelization)
     MultiVector<T, N-1> parallel_sum() const {
         return parallel_reduce(std::plus<T>(), T{});
     }
@@ -727,10 +535,34 @@ public:
     }
 
     /// Compute the log-sum-exp reduction over the innermost dimension
+    /// Automatically chooses parallel vs sequential based on workload size
+    /// @return A MultiVector<T, N-1> containing the log-sum-exp values
+    MultiVector<T, N-1> logsumexp() const {
+#ifdef MOIRE_ENABLE_PROFILER_REGISTRY
+        ProfileScope _prof("MultiVector::logsumexp");
+#endif
+        if constexpr (N == 3) {
+            const size_t num_slices = dimensions_[0] * dimensions_[1];
+            if (should_parallelize(num_slices, MOIRE_PARALLEL_SLICE_THRESHOLD)) {
+                return parallel_logsumexp();
+            }
+        } else if constexpr (N == 2) {
+            if (should_parallelize(dimensions_[0], MOIRE_PARALLEL_SLICE_THRESHOLD)) {
+                return parallel_logsumexp();
+            }
+        }
+        // Use sequential for small workloads or when parallelization disabled
+        return logsumexp(std::execution::seq);
+    }
+
+    /// Compute the log-sum-exp reduction over the innermost dimension
     /// @param execution_policy Optional execution policy for parallel execution
     /// @return A MultiVector<T, N-1> containing the log-sum-exp values
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, N-1> logsumexp(ExecutionPolicy policy = std::execution::seq) const {
+    template<typename ExecutionPolicy>
+    MultiVector<T, N-1> logsumexp(ExecutionPolicy policy) const {
+#ifdef MOIRE_ENABLE_PROFILER_REGISTRY
+        ProfileScope _prof("MultiVector::logsumexp(policy)");
+#endif
         // Create output MultiVector with dimensions excluding the last dimension
         std::array<size_t, N-1> reduced_dims;
         std::copy(dimensions_.begin(), dimensions_.end() - 1, reduced_dims.begin());
@@ -759,14 +591,24 @@ public:
                     // Find the maximum value for numerical stability
                     T max_val = *std::max_element(policy, begin, end);
                     
-                    // Compute exp(x - max) and sum
+                    // Compute exp(x - max) and sum with SIMD vectorization hints
                     T sum = T{};
-                    for (auto it = begin; it != end; ++it) {
-                        sum += std::exp(*it - max_val);
+                    // Use raw pointers with restrict to help compiler optimize
+                    const T* __restrict data_ptr = &*begin;
+                    const size_t len = static_cast<size_t>(end - begin);
+                    
+                    // Compiler-specific SIMD vectorization hints
+                    #if defined(__GNUC__) || defined(__clang__)
+                    #pragma GCC ivdep
+                    #elif defined(_MSC_VER)
+                    #pragma loop(ivdep)
+                    #endif
+                    for (size_t k = 0; k < len; ++k) {
+                        sum += std::exp(data_ptr[k] - max_val);
                     }
                     
                     // Compute log(sum) + max
-                    result.at({i, j}) = std::log(sum) + max_val;
+                    result.unchecked_at({i, j}) = std::log(sum) + max_val;
                 }
             }
         }
@@ -790,14 +632,24 @@ public:
                 // Find the maximum value for numerical stability
                 T max_val = *std::max_element(policy, begin, end);
                 
-                // Compute exp(x - max) and sum
+                // Compute exp(x - max) and sum with SIMD vectorization hints
                 T sum = T{};
-                for (auto it = begin; it != end; ++it) {
-                    sum += std::exp(*it - max_val);
+                // Use raw pointers with restrict to help compiler optimize
+                const T* __restrict data_ptr = &*begin;
+                const size_t len = static_cast<size_t>(end - begin);
+                
+                // Compiler-specific SIMD vectorization hints
+                #if defined(__GNUC__) || defined(__clang__)
+                #pragma GCC ivdep
+                #elif defined(_MSC_VER)
+                #pragma loop(ivdep)
+                #endif
+                for (size_t k = 0; k < len; ++k) {
+                    sum += std::exp(data_ptr[k] - max_val);
                 }
                 
                 // Compute log(sum) + max
-                result.at({i}) = std::log(sum) + max_val;
+                result.unchecked_at({i}) = std::log(sum) + max_val;
             }
         }
         else {
@@ -811,14 +663,24 @@ public:
                     // Find the maximum value for numerical stability
                     T max_val = *std::max_element(policy, begin, end);
                     
-                    // Compute exp(x - max) and sum
+                    // Compute exp(x - max) and sum with SIMD vectorization hints
                     T sum = T{};
-                    for (auto it = begin; it != end; ++it) {
-                        sum += std::exp(*it - max_val);
+                    // Use raw pointers with restrict to help compiler optimize
+                    const T* __restrict data_ptr = &*begin;
+                    const size_t len = static_cast<size_t>(end - begin);
+                    
+                    // Compiler-specific SIMD vectorization hints
+                    #if defined(__GNUC__) || defined(__clang__)
+                    #pragma GCC ivdep
+                    #elif defined(_MSC_VER)
+                    #pragma loop(ivdep)
+                    #endif
+                    for (size_t k = 0; k < len; ++k) {
+                        sum += std::exp(data_ptr[k] - max_val);
                     }
                     
                     // Compute log(sum) + max
-                    result.at(indices) = std::log(sum) + max_val;
+                    result.unchecked_at(indices) = std::log(sum) + max_val;
                     return;
                 }
                 
@@ -835,9 +697,14 @@ public:
         return result;
     }
 
-    /// Compute the log-sum-exp reduction over the innermost dimension in parallel
+    /// Compute the log-sum-exp reduction over the innermost dimension with parallel execution when enabled
     /// @return A MultiVector<T, N-1> containing the log-sum-exp values
+    /// @note Requires MOIRE_ENABLE_PARALLEL to be defined for parallel execution.
+    ///       Falls back gracefully to sequential execution if parallel libraries unavailable.
     MultiVector<T, N-1> parallel_logsumexp() const {
+#ifdef MOIRE_ENABLE_PROFILER_REGISTRY
+        ProfileScope _prof("MultiVector::parallel_logsumexp");
+#endif
         // Create output MultiVector with dimensions excluding the last dimension
         std::array<size_t, N-1> reduced_dims;
         std::copy(dimensions_.begin(), dimensions_.end() - 1, reduced_dims.begin());
@@ -853,132 +720,25 @@ public:
             const size_t stride0 = strides_[0];
             const size_t stride1 = strides_[1];
             
-#if TBB_AVAILABLE
-            // Use TBB's parallel_for with a 2D blocked range for better load balancing
-            tbb::parallel_for(
-                tbb::blocked_range2d<size_t>(0, dim0, 0, dim1),
-                [&](const tbb::blocked_range2d<size_t>& range) {
-                    for (size_t i = range.rows().begin(); i != range.rows().end(); ++i) {
-                        for (size_t j = range.cols().begin(); j != range.cols().end(); ++j) {
-                            // Calculate the start index for this 2D slice
-                            const size_t start_idx = i * stride0 + j * stride1;
-                            
-                            // Get iterators for the innermost dimension
-                            auto begin = data_.begin() + start_idx;
-                            auto end = begin + dim2;
-                            
-                            // Find the maximum value for numerical stability
-                            T max_val = *std::max_element(std::execution::seq, begin, end);
-                            
-                            // Compute exp(x - max) and sum
-                            T sum = T{};
-                            for (auto it = begin; it != end; ++it) {
-                                sum += std::exp(*it - max_val);
-                            }
-                            
-                            // Compute log(sum) + max
-                            result.at({i, j}) = std::log(sum) + max_val;
-                        }
-                    }
-                }
-            );
-#else
-            // Fallback to standard library parallel execution
-            std::vector<size_t> indices(dim0 * dim1);
-            std::iota(indices.begin(), indices.end(), 0);
-            std::for_each(std::execution::seq, 
-                indices.begin(), 
-                indices.end(),
-                [&](size_t idx) {
-                    const size_t i = idx / dim1;
-                    const size_t j = idx % dim1;
-                    
-                    // Calculate the start index for this 2D slice
-                    const size_t start_idx = i * stride0 + j * stride1;
-                    
-                    // Get iterators for the innermost dimension
-                    auto begin = data_.begin() + start_idx;
-                    auto end = begin + dim2;
-                    
-                    // Find the maximum value for numerical stability
-                    T max_val = *std::max_element(std::execution::seq, begin, end);
-                    
-                    // Compute exp(x - max) and sum
-                    T sum = T{};
-                    for (auto it = begin; it != end; ++it) {
-                        sum += std::exp(*it - max_val);
-                    }
-                    
-                    // Compute log(sum) + max
-                    result.at({i, j}) = std::log(sum) + max_val;
-                }
-            );
-#endif
+            auto logsumexp_slice_fn = [&](size_t i, size_t j) {
+                const size_t start_idx = i * stride0 + j * stride1;
+                auto begin = data_.begin() + start_idx;
+                auto end = begin + dim2;
+                result.unchecked_at({i, j}) = moire_kernels::logsumexp_slice(begin, end);
+            };
+            moire_dispatch::for_each_slice_2d(dim0, dim1, MOIRE_PARALLEL_SLICE_THRESHOLD, logsumexp_slice_fn);
         }
-        // Specialized implementation for 2D case
         else if constexpr (N == 2) {
             const size_t dim0 = dimensions_[0];
             const size_t dim1 = dimensions_[1];
-            
-            // Pre-calculate stride for faster access
             const size_t stride0 = strides_[0];
-            
-#if TBB_AVAILABLE
-            // Use TBB's parallel_for for 1D case
-            tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, dim0),
-                [&](const tbb::blocked_range<size_t>& range) {
-                    for (size_t i = range.begin(); i != range.end(); ++i) {
-                        // Calculate the start index for this row
-                        const size_t start_idx = i * stride0;
-                        
-                        // Get iterators for the innermost dimension
-                        auto begin = data_.begin() + start_idx;
-                        auto end = begin + dim1;
-                        
-                        // Find the maximum value for numerical stability
-                        T max_val = *std::max_element(std::execution::seq, begin, end);
-                        
-                        // Compute exp(x - max) and sum
-                        T sum = T{};
-                        for (auto it = begin; it != end; ++it) {
-                            sum += std::exp(*it - max_val);
-                        }
-                        
-                        // Compute log(sum) + max
-                        result.at({i}) = std::log(sum) + max_val;
-                    }
-                }
-            );
-#else
-            // Fallback to standard library parallel execution
-            std::vector<size_t> indices(dim0);
-            std::iota(indices.begin(), indices.end(), 0);
-            std::for_each(std::execution::seq, 
-                indices.begin(), 
-                indices.end(),
-                [&](size_t i) {
-                    // Calculate the start index for this row
-                    const size_t start_idx = i * stride0;
-                    
-                    // Get iterators for the innermost dimension
-                    auto begin = data_.begin() + start_idx;
-                    auto end = begin + dim1;
-                    
-                    // Find the maximum value for numerical stability
-                    T max_val = *std::max_element(std::execution::seq, begin, end);
-                    
-                    // Compute exp(x - max) and sum
-                    T sum = T{};
-                    for (auto it = begin; it != end; ++it) {
-                        sum += std::exp(*it - max_val);
-                    }
-                    
-                    // Compute log(sum) + max
-                    result.at({i}) = std::log(sum) + max_val;
-                }
-            );
-#endif
+            auto logsumexp_slice_fn = [&](size_t i) {
+                const size_t start_idx = i * stride0;
+                auto begin = data_.begin() + start_idx;
+                auto end = begin + dim1;
+                result.unchecked_at({i}) = moire_kernels::logsumexp_slice(begin, end);
+            };
+            moire_dispatch::for_each_slice_1d(dim0, MOIRE_PARALLEL_SLICE_THRESHOLD, logsumexp_slice_fn);
         }
         else {
             // Fallback to recursive approach for other dimensions
@@ -998,7 +758,7 @@ public:
                     }
                     
                     // Compute log(sum) + max
-                    result.at(indices) = std::log(sum) + max_val;
+                    result.unchecked_at(indices) = std::log(sum) + max_val;
                     return;
                 }
                 
@@ -1110,10 +870,12 @@ public:
         return result;
     }
 
-    /// Apply a transformation to each inner slice of the MultiVector in parallel
+    /// Apply a transformation to each inner slice of the MultiVector with parallel execution when enabled
     /// @param op The binary operation to apply to each element in the inner slice
     /// @param values A span of values to apply to each inner slice
     /// @return A new MultiVector with the transformed values
+    /// @note Requires MOIRE_ENABLE_PARALLEL to be defined for parallel execution.
+    ///       Falls back gracefully to sequential execution if parallel libraries unavailable.
     template<typename BinaryOp>
     MultiVector<T, N> parallel_transform(BinaryOp op, const std::span<T const> values) const {
         MultiVector<T, N> result(dimensions_);
@@ -1139,123 +901,43 @@ public:
             const size_t stride0 = strides_[0];
             const size_t stride1 = strides_[1];
             
-#if TBB_AVAILABLE
-            // Use TBB's parallel_for with a 2D blocked range for better load balancing
-            tbb::parallel_for(
-                tbb::blocked_range2d<size_t>(0, dim0, 0, dim1),
-                [&](const tbb::blocked_range2d<size_t>& range) {
-                    for (size_t i = range.rows().begin(); i != range.rows().end(); ++i) {
-                        for (size_t j = range.cols().begin(); j != range.cols().end(); ++j) {
-                            // Calculate the start index for this 2D slice
-                            const size_t start_idx = i * stride0 + j * stride1;
-                            const size_t slice_idx = i * dim1 + j;
-                            
-                            // Get iterators for the innermost dimension
-                            auto begin = data_.begin() + start_idx;
-                            auto end = begin + dim2;
-                            auto result_begin = result.data_.begin() + start_idx;
-                            
-                            // Apply transformation to each element in the inner slice
-                            std::transform(std::execution::seq, begin, end, result_begin, 
-                                          [&](const T& x) { return op(x, values[slice_idx]); });
-                        }
-                    }
-                }
-            );
-#else
-            // Fallback to standard library parallel execution
-            std::vector<size_t> indices(dim0 * dim1);
-            std::iota(indices.begin(), indices.end(), 0);
-            std::for_each(std::execution::seq, 
-                indices.begin(), 
-                indices.end(),
-                [&](size_t idx) {
-                    const size_t i = idx / dim1;
-                    const size_t j = idx % dim1;
-                    
-                    // Calculate the start index for this 2D slice
-                    const size_t start_idx = i * stride0 + j * stride1;
-                    const size_t slice_idx = i * dim1 + j;
-                    
-                    // Get iterators for the innermost dimension
-                    auto begin = data_.begin() + start_idx;
-                    auto end = begin + dim2;
-                    auto result_begin = result.data_.begin() + start_idx;
-                    
-                    // Apply transformation to each element in the inner slice
-                    std::transform(std::execution::seq, begin, end, result_begin, 
-                                  [&](const T& x) { return op(x, values[slice_idx]); });
-                }
-            );
-#endif
+            auto transform_slice_2d = [&](size_t i, size_t j) {
+                const size_t start_idx = i * stride0 + j * stride1;
+                const size_t slice_idx = i * dim1 + j;
+                auto begin = data_.begin() + start_idx;
+                auto end = begin + dim2;
+                auto result_begin = result.data_.begin() + start_idx;
+                moire_kernels::transform_slice_binary(begin, end, result_begin, values[slice_idx], op);
+            };
+            moire_dispatch::for_each_slice_2d(dim0, dim1, MOIRE_PARALLEL_SLICE_THRESHOLD, transform_slice_2d);
         }
         else if constexpr (N == 2) {
             const size_t dim0 = dimensions_[0];
             const size_t dim1 = dimensions_[1];
-            
-            // Pre-calculate stride for faster access
             const size_t stride0 = strides_[0];
-            
-#if TBB_AVAILABLE
-            // Use TBB's parallel_for for 1D case
-            tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, dim0),
-                [&](const tbb::blocked_range<size_t>& range) {
-                    for (size_t i = range.begin(); i != range.end(); ++i) {
-                        // Calculate the start index for this row
-                        const size_t start_idx = i * stride0;
-                        
-                        // Get iterators for the innermost dimension
-                        auto begin = data_.begin() + start_idx;
-                        auto end = begin + dim1;
-                        auto result_begin = result.data_.begin() + start_idx;
-                        
-                        // Apply transformation to each element in the inner slice
-                        std::transform(std::execution::seq, begin, end, result_begin, 
-                                      [&](const T& x) { return op(x, values[i]); });
-                    }
-                }
-            );
-#else
-            // Fallback to standard library parallel execution
-            std::vector<size_t> indices(dim0);
-            std::iota(indices.begin(), indices.end(), 0);
-            std::for_each(std::execution::seq, 
-                indices.begin(), 
-                indices.end(),
-                [&](size_t i) {
-                    // Calculate the start index for this row
-                    const size_t start_idx = i * stride0;
-                    
-                    // Get iterators for the innermost dimension
-                    auto begin = data_.begin() + start_idx;
-                    auto end = begin + dim1;
-                    
-                    // Apply transformation to each element in the inner slice
-                    std::transform(std::execution::seq, begin, end, begin, 
-                                  [&](const T& x) { return op(x, values[i]); });
-                }
-            );
-#endif
+            auto transform_slice_1d = [&](size_t i) {
+                const size_t start_idx = i * stride0;
+                auto begin = data_.begin() + start_idx;
+                auto end = begin + dim1;
+                auto result_begin = result.data_.begin() + start_idx;
+                moire_kernels::transform_slice_binary(begin, end, result_begin, values[i], op);
+            };
+            moire_dispatch::for_each_slice_1d(dim0, MOIRE_PARALLEL_SLICE_THRESHOLD, transform_slice_1d);
         }
         else {
             // Fallback to recursive approach for other dimensions
-            // Helper to generate all possible outer indices
             auto transform_recursive = [&](auto& self, std::array<size_t, N-1>& indices, size_t dim, size_t& slice_idx) -> void {
                 if (dim == N-1) {
-                    // Apply transformation for these outer indices
                     const auto [begin, end] = inner_iterators(indices);
-                    std::transform(std::execution::seq, begin, end, begin, 
-                                  [&](const T& x) { return op(x, values[slice_idx]); });
+                    const auto [result_begin, _] = result.inner_iterators(indices);
+                    std::transform(std::execution::seq, begin, end, result_begin, [&](const T& x) { return op(x, values[slice_idx]); });
                     return;
                 }
-                
                 for (size_t i = 0; i < dimensions_[dim]; ++i) {
                     indices[dim] = i;
                     self(self, indices, dim + 1, slice_idx);
                 }
             };
-
             std::array<size_t, N-1> indices{};
             size_t slice_idx = 0;
             transform_recursive(transform_recursive, indices, 0, slice_idx);
@@ -1400,10 +1082,12 @@ public:
         return result;
     }
 
-    /// Apply a transformation to each element within each inner slice of the MultiVector in parallel
+    /// Apply a transformation to each element within each inner slice with parallel execution when enabled
     /// @param op The binary operation to apply to each element
     /// @param values A span of values to apply to each element position across all inner slices
     /// @return A new MultiVector with the transformed values
+    /// @note Requires MOIRE_ENABLE_PARALLEL to be defined for parallel execution.
+    ///       Falls back gracefully to sequential execution if parallel libraries unavailable.
     template<typename BinaryOp>
     MultiVector<T, N> parallel_element_transform(BinaryOp op, const std::span<T const> values) const {
 #ifndef NDEBUG
@@ -1423,45 +1107,26 @@ public:
             const size_t stride0 = strides_[0];
             const size_t stride1 = strides_[1];
             
-#if TBB_AVAILABLE
-            // Use TBB's parallel_for with a 2D blocked range for better load balancing
-            tbb::parallel_for(
-                tbb::blocked_range2d<size_t>(0, dim0, 0, dim1),
-                [&](const tbb::blocked_range2d<size_t>& range) {
-                    for (size_t i = range.rows().begin(); i != range.rows().end(); ++i) {
-                        for (size_t j = range.cols().begin(); j != range.cols().end(); ++j) {
-                            // Calculate the start index for this 2D slice
-                            const size_t start_idx = i * stride0 + j * stride1;
-                            
-                            // Apply transformation to each element position
-                            for (size_t k = 0; k < dim2; ++k) {
-                                result.data_[start_idx + k] = op(data_[start_idx + k], values[k]);
-                            }
-                        }
-                    }
-                }
-            );
-#else
-            // Fallback to standard library parallel execution
-            std::vector<size_t> indices(dim0 * dim1);
-            std::iota(indices.begin(), indices.end(), 0);
-            std::for_each(std::execution::seq, 
-                indices.begin(), 
-                indices.end(),
-                [&](size_t idx) {
-                    const size_t i = idx / dim1;
-                    const size_t j = idx % dim1;
-                    
-                    // Calculate the start index for this 2D slice
+            // Check if we should parallelize (opt-in flag + threshold)
+            const size_t total_elements = dim0 * dim1 * dim2;
+            if (should_parallelize(total_elements, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+                moire_parallel::parallel_for_2d(0, dim0, 0, dim1, [&](size_t i, size_t j) {
                     const size_t start_idx = i * stride0 + j * stride1;
-                    
-                    // Apply transformation to each element position
                     for (size_t k = 0; k < dim2; ++k) {
                         result.data_[start_idx + k] = op(data_[start_idx + k], values[k]);
                     }
+                });
+            } else {
+                // Sequential execution when threshold not met or parallelization disabled
+                for (size_t i = 0; i < dim0; ++i) {
+                    for (size_t j = 0; j < dim1; ++j) {
+                        const size_t start_idx = i * stride0 + j * stride1;
+                        for (size_t k = 0; k < dim2; ++k) {
+                            result.data_[start_idx + k] = op(data_[start_idx + k], values[k]);
+                        }
+                    }
                 }
-            );
-#endif
+            }
         }
         else if constexpr (N == 2) {
             const size_t dim0 = dimensions_[0];
@@ -1470,40 +1135,24 @@ public:
             // Pre-calculate stride for faster access
             const size_t stride0 = strides_[0];
             
-#if TBB_AVAILABLE
-            // Use TBB's parallel_for for 1D case
-            tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, dim0),
-                [&](const tbb::blocked_range<size_t>& range) {
-                    for (size_t i = range.begin(); i != range.end(); ++i) {
-                        // Calculate the start index for this row
-                        const size_t start_idx = i * stride0;
-                        
-                        // Apply transformation to each element position
-                        for (size_t j = 0; j < dim1; ++j) {
-                            result.data_[start_idx + j] = op(data_[start_idx + j], values[j]);
-                        }
-                    }
-                }
-            );
-#else
-            // Fallback to standard library parallel execution
-            std::vector<size_t> indices(dim0);
-            std::iota(indices.begin(), indices.end(), 0);
-            std::for_each(std::execution::seq, 
-                indices.begin(), 
-                indices.end(),
-                [&](size_t i) {
-                    // Calculate the start index for this row
+            // Check if we should parallelize (opt-in flag + threshold)
+            const size_t total_elements = dim0 * dim1;
+            if (should_parallelize(total_elements, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+                moire_parallel::parallel_for(0, dim0, [&](size_t i) {
                     const size_t start_idx = i * stride0;
-                    
-                    // Apply transformation to each element position
+                    for (size_t j = 0; j < dim1; ++j) {
+                        result.data_[start_idx + j] = op(data_[start_idx + j], values[j]);
+                    }
+                });
+            } else {
+                // Sequential execution when threshold not met or parallelization disabled
+                for (size_t i = 0; i < dim0; ++i) {
+                    const size_t start_idx = i * stride0;
                     for (size_t j = 0; j < dim1; ++j) {
                         result.data_[start_idx + j] = op(data_[start_idx + j], values[j]);
                     }
                 }
-            );
-#endif
+            }
         }
         else {
             // Fallback to recursive approach for other dimensions
@@ -1533,8 +1182,18 @@ public:
     }
 
     // Convenience methods for element-level operations
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, N> element_add(const std::span<T const> values, ExecutionPolicy policy = std::execution::seq) const {
+    /// Add values element-wise, automatically choosing parallel vs sequential based on workload size
+    MultiVector<T, N> element_add(const std::span<T const> values) const {
+        const size_t total_elements = total_size();
+        if (should_parallelize(total_elements, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+            return parallel_element_add(values);
+        }
+        // Use sequential for small workloads or when parallelization disabled
+        return element_add(values, std::execution::seq);
+    }
+
+    template<typename ExecutionPolicy>
+    MultiVector<T, N> element_add(const std::span<T const> values, ExecutionPolicy policy) const {
         return element_transform(std::plus<T>(), values, policy);
     }
 
@@ -1586,22 +1245,10 @@ public:
         }
         
         MultiVector<T, N> result(dimensions_);
-        
-#if TBB_AVAILABLE
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, data_.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    result.data_[i] = data_[i] + other.data_[i];
-                }
-            });
-#elif HAS_EXECUTION
-        std::transform(std::execution::par, data_.begin(), data_.end(), other.data_.begin(), 
+        // Operators are sequential by default to avoid overhead
+        // Use parallel_add() if parallelization is needed
+        std::transform(data_.begin(), data_.end(), other.data_.begin(), 
                       result.data_.begin(), std::plus<T>());
-#else
-        for (size_t i = 0; i < data_.size(); ++i) {
-            result.data_[i] = data_[i] + other.data_[i];
-        }
-#endif
         return result;
     }
 
@@ -1615,22 +1262,10 @@ public:
         }
         
         MultiVector<T, N> result(dimensions_);
-        
-#if TBB_AVAILABLE
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, data_.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    result.data_[i] = data_[i] - other.data_[i];
-                }
-            });
-#elif HAS_EXECUTION
-        std::transform(std::execution::par, data_.begin(), data_.end(), other.data_.begin(), 
+        // Operators are sequential by default to avoid overhead
+        // Use parallel_subtract() if parallelization is needed
+        std::transform(data_.begin(), data_.end(), other.data_.begin(), 
                       result.data_.begin(), std::minus<T>());
-#else
-        for (size_t i = 0; i < data_.size(); ++i) {
-            result.data_[i] = data_[i] - other.data_[i];
-        }
-#endif
         return result;
     }
 
@@ -1644,22 +1279,10 @@ public:
         }
         
         MultiVector<T, N> result(dimensions_);
-        
-#if TBB_AVAILABLE
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, data_.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    result.data_[i] = data_[i] * other.data_[i];
-                }
-            });
-#elif HAS_EXECUTION
-        std::transform(std::execution::par, data_.begin(), data_.end(), other.data_.begin(), 
+        // Operators are sequential by default to avoid overhead
+        // Use parallel_multiply() if parallelization is needed
+        std::transform(data_.begin(), data_.end(), other.data_.begin(), 
                       result.data_.begin(), std::multiplies<T>());
-#else
-        for (size_t i = 0; i < data_.size(); ++i) {
-            result.data_[i] = data_[i] * other.data_[i];
-        }
-#endif
         return result;
     }
 
@@ -1673,22 +1296,10 @@ public:
         }
         
         MultiVector<T, N> result(dimensions_);
-        
-#if TBB_AVAILABLE
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, data_.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    result.data_[i] = data_[i] / other.data_[i];
-                }
-            });
-#elif HAS_EXECUTION
-        std::transform(std::execution::par, data_.begin(), data_.end(), other.data_.begin(), 
+        // Operators are sequential by default to avoid overhead
+        // Use parallel_divide() if parallelization is needed
+        std::transform(data_.begin(), data_.end(), other.data_.begin(), 
                       result.data_.begin(), std::divides<T>());
-#else
-        for (size_t i = 0; i < data_.size(); ++i) {
-            result.data_[i] = data_[i] / other.data_[i];
-        }
-#endif
         return result;
     }
 
@@ -1700,22 +1311,9 @@ public:
         if (!has_same_dimensions(other)) {
             throw std::invalid_argument("Multivectors must have the same dimensions for elementwise operations");
         }
-        
-#if TBB_AVAILABLE
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, data_.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    data_[i] += other.data_[i];
-                }
-            });
-#elif HAS_EXECUTION
-        std::transform(std::execution::par, data_.begin(), data_.end(), other.data_.begin(), 
+        // Operators are sequential by default to avoid overhead
+        std::transform(data_.begin(), data_.end(), other.data_.begin(), 
                       data_.begin(), std::plus<T>());
-#else
-        for (size_t i = 0; i < data_.size(); ++i) {
-            data_[i] += other.data_[i];
-        }
-#endif
         return *this;
     }
 
@@ -1727,22 +1325,9 @@ public:
         if (!has_same_dimensions(other)) {
             throw std::invalid_argument("Multivectors must have the same dimensions for elementwise operations");
         }
-        
-#if TBB_AVAILABLE
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, data_.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    data_[i] -= other.data_[i];
-                }
-            });
-#elif HAS_EXECUTION
-        std::transform(std::execution::par, data_.begin(), data_.end(), other.data_.begin(), 
+        // Operators are sequential by default to avoid overhead
+        std::transform(data_.begin(), data_.end(), other.data_.begin(), 
                       data_.begin(), std::minus<T>());
-#else
-        for (size_t i = 0; i < data_.size(); ++i) {
-            data_[i] -= other.data_[i];
-        }
-#endif
         return *this;
     }
 
@@ -1754,22 +1339,9 @@ public:
         if (!has_same_dimensions(other)) {
             throw std::invalid_argument("Multivectors must have the same dimensions for elementwise operations");
         }
-        
-#if TBB_AVAILABLE
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, data_.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    data_[i] *= other.data_[i];
-                }
-            });
-#elif HAS_EXECUTION
-        std::transform(std::execution::par, data_.begin(), data_.end(), other.data_.begin(), 
+        // Operators are sequential by default to avoid overhead
+        std::transform(data_.begin(), data_.end(), other.data_.begin(), 
                       data_.begin(), std::multiplies<T>());
-#else
-        for (size_t i = 0; i < data_.size(); ++i) {
-            data_[i] *= other.data_[i];
-        }
-#endif
         return *this;
     }
 
@@ -1781,171 +1353,134 @@ public:
         if (!has_same_dimensions(other)) {
             throw std::invalid_argument("Multivectors must have the same dimensions for elementwise operations");
         }
-        
-#if TBB_AVAILABLE
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, data_.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    data_[i] /= other.data_[i];
-                }
-            });
-#elif HAS_EXECUTION
-        std::transform(std::execution::par, data_.begin(), data_.end(), other.data_.begin(), 
+        // Operators are sequential by default to avoid overhead
+        std::transform(data_.begin(), data_.end(), other.data_.begin(), 
                       data_.begin(), std::divides<T>());
-#else
-        for (size_t i = 0; i < data_.size(); ++i) {
-            data_[i] /= other.data_[i];
-        }
-#endif
         return *this;
     }
 
-    /// Parallel elementwise addition of two multivectors
+    /// Parallel elementwise addition of two multivectors with parallel execution when enabled
     /// @param other The other multivector to add
     /// @return A new multivector with the result
     /// @throws std::invalid_argument if dimensions don't match
-#if !defined(TBB_AVAILABLE) && !defined(HAS_EXECUTION) && !defined(OMP_AVAILABLE)
-    [[deprecated("Consider enabling TBB, C++17 execution policies, or OpenMP for better performance.")]]
-#endif
+    /// @note Requires MOIRE_ENABLE_PARALLEL to be defined for parallel execution.
+    ///       Falls back gracefully to sequential execution if parallel libraries unavailable.
     MultiVector<T, N> parallel_add(const MultiVector<T, N>& other) const {
         if (!has_same_dimensions(other)) {
             throw std::invalid_argument("Multivectors must have the same dimensions for elementwise operations");
         }
         
         MultiVector<T, N> result(dimensions_);
-#if defined(TBB_AVAILABLE)
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, data_.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    result.data_[i] = data_[i] + other.data_[i];
-                }
-            });
-#elif defined(HAS_EXECUTION)
-        std::transform(std::execution::par, data_.begin(), data_.end(), other.data_.begin(), 
-                      result.data_.begin(), std::plus<T>());
-#elif defined(OMP_AVAILABLE)
-        #pragma omp parallel for
-        for (size_t i = 0; i < data_.size(); ++i) {
-            result.data_[i] = data_[i] + other.data_[i];
+        const size_t total_elements = data_.size();
+        
+        if (should_parallelize(total_elements, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+            moire_parallel::transform(data_.begin(), data_.end(), other.data_.begin(),
+                result.data_.begin(), std::plus<T>());
+        } else {
+            // Sequential execution when threshold not met or parallelization disabled
+            std::transform(data_.begin(), data_.end(), other.data_.begin(), 
+                          result.data_.begin(), std::plus<T>());
         }
-#else
-        std::transform(data_.begin(), data_.end(), other.data_.begin(), 
-                      result.data_.begin(), std::plus<T>());
-#endif
         return result;
     }
 
-    /// Parallel elementwise subtraction of two multivectors
+    /// Parallel elementwise subtraction of two multivectors with parallel execution when enabled
     /// @param other The other multivector to subtract
     /// @return A new multivector with the result
     /// @throws std::invalid_argument if dimensions don't match
-#if !defined(TBB_AVAILABLE) && !defined(HAS_EXECUTION) && !defined(OMP_AVAILABLE)
-    [[deprecated("Consider enabling TBB, C++17 execution policies, or OpenMP for better performance.")]]
-#endif
+    /// @note Requires MOIRE_ENABLE_PARALLEL to be defined for parallel execution.
+    ///       Falls back gracefully to sequential execution if parallel libraries unavailable.
     MultiVector<T, N> parallel_subtract(const MultiVector<T, N>& other) const {
         if (!has_same_dimensions(other)) {
             throw std::invalid_argument("Multivectors must have the same dimensions for elementwise operations");
         }
         
         MultiVector<T, N> result(dimensions_);
-#if defined(TBB_AVAILABLE)
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, data_.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    result.data_[i] = data_[i] - other.data_[i];
-                }
-            });
-#elif defined(HAS_EXECUTION)
-        std::transform(std::execution::par, data_.begin(), data_.end(), other.data_.begin(), 
-                      result.data_.begin(), std::minus<T>());
-#elif defined(OMP_AVAILABLE)
-        #pragma omp parallel for
-        for (size_t i = 0; i < data_.size(); ++i) {
-            result.data_[i] = data_[i] - other.data_[i];
+        const size_t total_elements = data_.size();
+        
+        if (should_parallelize(total_elements, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+            moire_parallel::transform(data_.begin(), data_.end(), other.data_.begin(),
+                result.data_.begin(), std::minus<T>());
+        } else {
+            std::transform(data_.begin(), data_.end(), other.data_.begin(), 
+                          result.data_.begin(), std::minus<T>());
         }
-#else
-        std::transform(data_.begin(), data_.end(), other.data_.begin(), 
-                      result.data_.begin(), std::minus<T>());
-#endif
         return result;
     }
 
-    /// Parallel elementwise multiplication of two multivectors
+    /// Parallel elementwise multiplication of two multivectors with parallel execution when enabled
     /// @param other The other multivector to multiply with
     /// @return A new multivector with the result
     /// @throws std::invalid_argument if dimensions don't match
-#if !defined(TBB_AVAILABLE) && !defined(HAS_EXECUTION) && !defined(OMP_AVAILABLE)
-    [[deprecated("Consider enabling TBB, C++17 execution policies, or OpenMP for better performance.")]]
-#endif
+    /// @note Requires MOIRE_ENABLE_PARALLEL to be defined for parallel execution.
+    ///       Falls back gracefully to sequential execution if parallel libraries unavailable.
     MultiVector<T, N> parallel_multiply(const MultiVector<T, N>& other) const {
         if (!has_same_dimensions(other)) {
             throw std::invalid_argument("Multivectors must have the same dimensions for elementwise operations");
         }
         
         MultiVector<T, N> result(dimensions_);
-#if defined(TBB_AVAILABLE)
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, data_.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    result.data_[i] = data_[i] * other.data_[i];
-                }
-            });
-#elif defined(HAS_EXECUTION)
-        std::transform(std::execution::par, data_.begin(), data_.end(), other.data_.begin(), 
-                      result.data_.begin(), std::multiplies<T>());
-#elif defined(OMP_AVAILABLE)
-        #pragma omp parallel for
-        for (size_t i = 0; i < data_.size(); ++i) {
-            result.data_[i] = data_[i] * other.data_[i];
+        const size_t total_elements = data_.size();
+        
+        if (should_parallelize(total_elements, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+            moire_parallel::transform(data_.begin(), data_.end(), other.data_.begin(),
+                result.data_.begin(), std::multiplies<T>());
+        } else {
+            std::transform(data_.begin(), data_.end(), other.data_.begin(), 
+                          result.data_.begin(), std::multiplies<T>());
         }
-#else
-        std::transform(data_.begin(), data_.end(), other.data_.begin(), 
-                      result.data_.begin(), std::multiplies<T>());
-#endif
         return result;
     }
 
-    /// Parallel elementwise division of two multivectors
+    /// Parallel elementwise division of two multivectors with parallel execution when enabled
     /// @param other The other multivector to divide by
     /// @return A new multivector with the result
     /// @throws std::invalid_argument if dimensions don't match
-#if !defined(TBB_AVAILABLE) && !defined(HAS_EXECUTION) && !defined(OMP_AVAILABLE)
-    [[deprecated("Consider enabling TBB, C++17 execution policies, or OpenMP for better performance.")]]
-#endif
+    /// @note Requires MOIRE_ENABLE_PARALLEL to be defined for parallel execution.
+    ///       Falls back gracefully to sequential execution if parallel libraries unavailable.
     MultiVector<T, N> parallel_divide(const MultiVector<T, N>& other) const {
         if (!has_same_dimensions(other)) {
             throw std::invalid_argument("Multivectors must have the same dimensions for elementwise operations");
         }
         
         MultiVector<T, N> result(dimensions_);
-#if defined(TBB_AVAILABLE)
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, data_.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    result.data_[i] = data_[i] / other.data_[i];
-                }
-            });
-#elif defined(HAS_EXECUTION)
-        std::transform(std::execution::par, data_.begin(), data_.end(), other.data_.begin(), 
-                      result.data_.begin(), std::divides<T>());
-#elif defined(OMP_AVAILABLE)
-        #pragma omp parallel for
-        for (size_t i = 0; i < data_.size(); ++i) {
-            result.data_[i] = data_[i] / other.data_[i];
+        const size_t total_elements = data_.size();
+        
+        if (should_parallelize(total_elements, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+            moire_parallel::transform(data_.begin(), data_.end(), other.data_.begin(),
+                result.data_.begin(), std::divides<T>());
+        } else {
+            std::transform(data_.begin(), data_.end(), other.data_.begin(), 
+                          result.data_.begin(), std::divides<T>());
         }
-#else
-        std::transform(data_.begin(), data_.end(), other.data_.begin(), 
-                      result.data_.begin(), std::divides<T>());
-#endif
         return result;
+    }
+
+    /// Apply softmax transformation to each inner slice of the MultiVector
+    /// Automatically chooses parallel vs sequential based on workload size
+    /// @param is_log_values Whether the input values are in log space
+    /// @return A new MultiVector containing the softmax transformed values
+    MultiVector<T, N> softmax(bool is_log_values = true) const {
+        if constexpr (N == 3) {
+            const size_t num_slices = dimensions_[0] * dimensions_[1];
+            if (should_parallelize(num_slices, MOIRE_PARALLEL_SLICE_THRESHOLD)) {
+                return parallel_softmax(is_log_values);
+            }
+        } else if constexpr (N == 2) {
+            if (should_parallelize(dimensions_[0], MOIRE_PARALLEL_SLICE_THRESHOLD)) {
+                return parallel_softmax(is_log_values);
+            }
+        }
+        // Use sequential for small workloads or when parallelization disabled
+        return softmax(is_log_values, std::execution::seq);
     }
 
     /// Apply softmax transformation to each inner slice of the MultiVector
     /// @param is_log_values Whether the input values are in log space
     /// @param execution_policy Optional execution policy for parallel execution
     /// @return A new MultiVector containing the softmax transformed values
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, N> softmax(bool is_log_values = true, ExecutionPolicy policy = std::execution::seq) const {
+    template<typename ExecutionPolicy>
+    MultiVector<T, N> softmax(bool is_log_values, ExecutionPolicy policy) const {
         MultiVector<T, N> result(dimensions_);
         
         // Optimized implementation for 3D case (most common)
@@ -2093,9 +1628,11 @@ public:
         return result;
     }
 
-    /// Apply softmax transformation to each inner slice of the MultiVector in parallel
+    /// Apply softmax transformation to each inner slice with parallel execution when enabled
     /// @param is_log_values Whether the input values are in log space
     /// @return A new MultiVector containing the softmax transformed values
+    /// @note Requires MOIRE_ENABLE_PARALLEL to be defined for parallel execution.
+    ///       Falls back gracefully to sequential execution if parallel libraries unavailable.
     MultiVector<T, N> parallel_softmax(bool is_log_values = true) const {
         MultiVector<T, N> result(dimensions_);
         
@@ -2109,102 +1646,67 @@ public:
             const size_t stride0 = strides_[0];
             const size_t stride1 = strides_[1];
             
-#if TBB_AVAILABLE
-            // Use TBB's parallel_for with a 2D blocked range for better load balancing
-            tbb::parallel_for(
-                tbb::blocked_range2d<size_t>(0, dim0, 0, dim1),
-                [&](const tbb::blocked_range2d<size_t>& range) {
-                    for (size_t i = range.rows().begin(); i != range.rows().end(); ++i) {
-                        for (size_t j = range.cols().begin(); j != range.cols().end(); ++j) {
-                            // Calculate the start index for this 2D slice
-                            const size_t start_idx = i * stride0 + j * stride1;
-                            
-                            // Get iterators for the innermost dimension
-                            auto begin = data_.begin() + start_idx;
-                            auto end = begin + dim2;
-                            auto result_begin = result.data_.begin() + start_idx;
-                            
-                            if (is_log_values) {
-                                // For log values, we need to compute logsumexp first
-                                T max_val = *std::max_element(std::execution::seq, begin, end);
-                                T sum = T{};
-                                for (auto it = begin; it != end; ++it) {
-                                    sum += std::exp(*it - max_val);
-                                }
-                                T log_sum = std::log(sum) + max_val;
-                                
-                                // Subtract log_sum from each element
-                                for (auto it = begin, rit = result_begin; it != end; ++it, ++rit) {
-                                    *rit = *it - log_sum;
-                                }
-                            } else {
-                                // For regular values, compute softmax directly
-                                T max_val = *std::max_element(std::execution::seq, begin, end);
-                                T sum = T{};
-                                for (auto it = begin; it != end; ++it) {
-                                    sum += std::exp(*it - max_val);
-                                }
-                                
-                                // Normalize by sum
-                                for (auto it = begin, rit = result_begin; it != end; ++it, ++rit) {
-                                    *rit = std::exp(*it - max_val) / sum;
-                                }
-                            }
-                        }
-                    }
-                }
-            );
-#else
-            // Fallback to standard library parallel execution
-            std::vector<std::pair<size_t, size_t>> indices;
-            for (size_t i = 0; i < dim0; ++i) {
-                for (size_t j = 0; j < dim1; ++j) {
-                    indices.emplace_back(i, j);
-                }
-            }
-            
-            std::for_each(std::execution::par, indices.begin(), indices.end(),
-                [&](const auto& idx_pair) {
-                    const size_t i = idx_pair.first;
-                    const size_t j = idx_pair.second;
-                    
-                    // Calculate the start index for this 2D slice
+            // Check if we should parallelize (opt-in flag + threshold)
+            const size_t num_slices = dim0 * dim1;
+            if (should_parallelize(num_slices, MOIRE_PARALLEL_SLICE_THRESHOLD)) {
+                moire_parallel::parallel_for_2d(0, dim0, 0, dim1, [&](size_t i, size_t j) {
                     const size_t start_idx = i * stride0 + j * stride1;
-                    
-                    // Get iterators for the innermost dimension
                     auto begin = data_.begin() + start_idx;
                     auto end = begin + dim2;
                     auto result_begin = result.data_.begin() + start_idx;
-                    
                     if (is_log_values) {
-                        // For log values, we need to compute logsumexp first
                         T max_val = *std::max_element(std::execution::seq, begin, end);
                         T sum = T{};
                         for (auto it = begin; it != end; ++it) {
                             sum += std::exp(*it - max_val);
                         }
                         T log_sum = std::log(sum) + max_val;
-                        
-                        // Subtract log_sum from each element
                         for (auto it = begin, rit = result_begin; it != end; ++it, ++rit) {
                             *rit = *it - log_sum;
                         }
                     } else {
-                        // For regular values, compute softmax directly
                         T max_val = *std::max_element(std::execution::seq, begin, end);
                         T sum = T{};
                         for (auto it = begin; it != end; ++it) {
                             sum += std::exp(*it - max_val);
                         }
-                        
-                        // Normalize by sum
                         for (auto it = begin, rit = result_begin; it != end; ++it, ++rit) {
                             *rit = std::exp(*it - max_val) / sum;
                         }
                     }
+                });
+            } else {
+                // Sequential execution when threshold not met or parallelization disabled
+                for (size_t i = 0; i < dim0; ++i) {
+                    for (size_t j = 0; j < dim1; ++j) {
+                        const size_t start_idx = i * stride0 + j * stride1;
+                        auto begin = data_.begin() + start_idx;
+                        auto end = begin + dim2;
+                        auto result_begin = result.data_.begin() + start_idx;
+                        
+                        if (is_log_values) {
+                            T max_val = *std::max_element(std::execution::seq, begin, end);
+                            T sum = T{};
+                            for (auto it = begin; it != end; ++it) {
+                                sum += std::exp(*it - max_val);
+                            }
+                            T log_sum = std::log(sum) + max_val;
+                            for (auto it = begin, rit = result_begin; it != end; ++it, ++rit) {
+                                *rit = *it - log_sum;
+                            }
+                        } else {
+                            T max_val = *std::max_element(std::execution::seq, begin, end);
+                            T sum = T{};
+                            for (auto it = begin; it != end; ++it) {
+                                sum += std::exp(*it - max_val);
+                            }
+                            for (auto it = begin, rit = result_begin; it != end; ++it, ++rit) {
+                                *rit = std::exp(*it - max_val) / sum;
+                            }
+                        }
+                    }
                 }
-            );
-#endif
+            }
         }
         // Optimized implementation for 2D case
         else if constexpr (N == 2) {
@@ -2214,92 +1716,64 @@ public:
             // Pre-calculate stride for faster access
             const size_t stride0 = strides_[0];
             
-#if TBB_AVAILABLE
-            // Use TBB's parallel_for for 1D case
-            tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, dim0),
-                [&](const tbb::blocked_range<size_t>& range) {
-                    for (size_t i = range.begin(); i != range.end(); ++i) {
-                        // Calculate the start index for this row
-                        const size_t start_idx = i * stride0;
-                        
-                        // Get iterators for the innermost dimension
-                        auto begin = data_.begin() + start_idx;
-                        auto end = begin + dim1;
-                        auto result_begin = result.data_.begin() + start_idx;
-                        
-                        if (is_log_values) {
-                            // For log values, we need to compute logsumexp first
-                            T max_val = *std::max_element(std::execution::seq, begin, end);
-                            T sum = T{};
-                            for (auto it = begin; it != end; ++it) {
-                                sum += std::exp(*it - max_val);
-                            }
-                            T log_sum = std::log(sum) + max_val;
-                            
-                            // Subtract log_sum from each element
-                            for (auto it = begin, rit = result_begin; it != end; ++it, ++rit) {
-                                *rit = *it - log_sum;
-                            }
-                        } else {
-                            // For regular values, compute softmax directly
-                            T max_val = *std::max_element(std::execution::seq, begin, end);
-                            T sum = T{};
-                            for (auto it = begin; it != end; ++it) {
-                                sum += std::exp(*it - max_val);
-                            }
-                            
-                            // Normalize by sum
-                            for (auto it = begin, rit = result_begin; it != end; ++it, ++rit) {
-                                *rit = std::exp(*it - max_val) / sum;
-                            }
-                        }
-                    }
-                }
-            );
-#else
-            // Fallback to standard library parallel execution
-            std::vector<size_t> indices(dim0);
-            std::iota(indices.begin(), indices.end(), 0);
-            std::for_each(std::execution::par, indices.begin(), indices.end(),
-                [&](size_t i) {
-                    // Calculate the start index for this row
+            // Check if we should parallelize (opt-in flag + threshold)
+            if (should_parallelize(dim0, MOIRE_PARALLEL_SLICE_THRESHOLD)) {
+                moire_parallel::parallel_for(0, dim0, [&](size_t i) {
                     const size_t start_idx = i * stride0;
-                    
-                    // Get iterators for the innermost dimension
                     auto begin = data_.begin() + start_idx;
                     auto end = begin + dim1;
                     auto result_begin = result.data_.begin() + start_idx;
-                    
                     if (is_log_values) {
-                        // For log values, we need to compute logsumexp first
                         T max_val = *std::max_element(std::execution::seq, begin, end);
                         T sum = T{};
                         for (auto it = begin; it != end; ++it) {
                             sum += std::exp(*it - max_val);
                         }
                         T log_sum = std::log(sum) + max_val;
-                        
-                        // Subtract log_sum from each element
                         for (auto it = begin, rit = result_begin; it != end; ++it, ++rit) {
                             *rit = *it - log_sum;
                         }
                     } else {
-                        // For regular values, compute softmax directly
                         T max_val = *std::max_element(std::execution::seq, begin, end);
                         T sum = T{};
                         for (auto it = begin; it != end; ++it) {
                             sum += std::exp(*it - max_val);
                         }
-                        
-                        // Normalize by sum
+                        for (auto it = begin, rit = result_begin; it != end; ++it, ++rit) {
+                            *rit = std::exp(*it - max_val) / sum;
+                        }
+                    }
+                });
+            } else {
+                // Sequential execution when threshold not met or parallelization disabled
+                for (size_t i = 0; i < dim0; ++i) {
+                    const size_t start_idx = i * stride0;
+                    auto begin = data_.begin() + start_idx;
+                    auto end = begin + dim1;
+                    auto result_begin = result.data_.begin() + start_idx;
+                    
+                    if (is_log_values) {
+                        T max_val = *std::max_element(std::execution::seq, begin, end);
+                        T sum = T{};
+                        for (auto it = begin; it != end; ++it) {
+                            sum += std::exp(*it - max_val);
+                        }
+                        T log_sum = std::log(sum) + max_val;
+                        for (auto it = begin, rit = result_begin; it != end; ++it, ++rit) {
+                            *rit = *it - log_sum;
+                        }
+                    } else {
+                        T max_val = *std::max_element(std::execution::seq, begin, end);
+                        T sum = T{};
+                        for (auto it = begin; it != end; ++it) {
+                            sum += std::exp(*it - max_val);
+                        }
                         for (auto it = begin, rit = result_begin; it != end; ++it, ++rit) {
                             *rit = std::exp(*it - max_val) / sum;
                         }
                     }
                 }
-            );
-#endif
+            }
         }
         else {
             // Fallback to recursive approach for other dimensions
@@ -2358,6 +1832,9 @@ public:
     /// @return A new MultiVector with the transformed values
     template<typename UnaryOp, typename ExecutionPolicy = std::execution::sequenced_policy>
     MultiVector<T, N> transform(UnaryOp op, ExecutionPolicy policy = std::execution::seq) const {
+#ifdef MOIRE_ENABLE_PROFILER_REGISTRY
+        ProfileScope _prof("MultiVector::transform");
+#endif
         MultiVector<T, N> result(dimensions_);
         // Optimized implementation for 3D case (most common)
         if constexpr (N == 3) {
@@ -2428,11 +1905,16 @@ public:
         return result;
     }
 
-    /// Apply a unary transformation to each element of the MultiVector in parallel
+    /// Apply a unary transformation to each element with parallel execution when enabled
     /// @param op The unary operation to apply to each element
     /// @return A new MultiVector with the transformed values
+    /// @note Requires MOIRE_ENABLE_PARALLEL to be defined for parallel execution.
+    ///       Falls back gracefully to sequential execution if parallel libraries unavailable.
     template<typename UnaryOp>
     MultiVector<T, N> parallel_transform(UnaryOp op) const {
+#ifdef MOIRE_ENABLE_PROFILER_REGISTRY
+        ProfileScope _prof("MultiVector::parallel_transform");
+#endif
         MultiVector<T, N> result(dimensions_);
         // Optimized implementation for 3D case (most common)
         if constexpr (N == 3) {
@@ -2444,51 +1926,20 @@ public:
             const size_t stride0 = strides_[0];
             const size_t stride1 = strides_[1];
             
-#if TBB_AVAILABLE
-            // Use TBB's parallel_for with a 2D blocked range for better load balancing
-            tbb::parallel_for(
-                tbb::blocked_range2d<size_t>(0, dim0, 0, dim1),
-                [&](const tbb::blocked_range2d<size_t>& range) {
-                    for (size_t i = range.rows().begin(); i != range.rows().end(); ++i) {
-                        for (size_t j = range.cols().begin(); j != range.cols().end(); ++j) {
-                            // Calculate the start index for this 2D slice
-                            const size_t start_idx = i * stride0 + j * stride1;
-                            
-                            // Get iterators for the innermost dimension
-                            auto begin = data_.begin() + start_idx;
-                            auto end = begin + dim2;
-                            auto result_begin = result.data_.begin() + start_idx;
-                            
-                            // Apply transformation to each element
-                            std::transform(std::execution::seq, begin, end, result_begin, op);
-                        }
-                    }
-                }
-            );
-#else
-            // Fallback to standard library parallel execution
-            std::vector<size_t> indices(dim0 * dim1);
-            std::iota(indices.begin(), indices.end(), 0);
-            std::for_each(std::execution::seq, 
-                indices.begin(), 
-                indices.end(),
-                [&](size_t idx) {
-                    const size_t i = idx / dim1;
-                    const size_t j = idx % dim1;
-                    
-                    // Calculate the start index for this 2D slice
+            // Check if we should parallelize (opt-in flag + threshold)
+            const size_t total_elements = dim0 * dim1 * dim2;
+            if (should_parallelize(total_elements, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+                moire_parallel::parallel_for_2d(0, dim0, 0, dim1, [&](size_t i, size_t j) {
                     const size_t start_idx = i * stride0 + j * stride1;
-                    
-                    // Get iterators for the innermost dimension
                     auto begin = data_.begin() + start_idx;
                     auto end = begin + dim2;
                     auto result_begin = result.data_.begin() + start_idx;
-                    
-                    // Apply transformation to each element
                     std::transform(std::execution::seq, begin, end, result_begin, op);
-                }
-            );
-#endif
+                });
+            } else {
+                // Sequential execution when threshold not met or parallelization disabled
+                std::transform(data_.begin(), data_.end(), result.data_.begin(), op);
+            }
         }
         else if constexpr (N == 2) {
             const size_t dim0 = dimensions_[0];
@@ -2497,46 +1948,14 @@ public:
             // Pre-calculate stride for faster access
             const size_t stride0 = strides_[0];
             
-#if TBB_AVAILABLE
-            // Use TBB's parallel_for for 1D case
-            tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, dim0),
-                [&](const tbb::blocked_range<size_t>& range) {
-                    for (size_t i = range.begin(); i != range.end(); ++i) {
-                        // Calculate the start index for this row
-                        const size_t start_idx = i * stride0;
-                        
-                        // Get iterators for the innermost dimension
-                        auto begin = data_.begin() + start_idx;
-                        auto end = begin + dim1;
-                        auto result_begin = result.data_.begin() + start_idx;
-                        
-                        // Apply transformation to each element
-                        std::transform(std::execution::seq, begin, end, result_begin, op);
-                    }
-                }
-            );
-#else
-            // Fallback to standard library parallel execution
-            std::vector<size_t> indices(dim0);
-            std::iota(indices.begin(), indices.end(), 0);
-            std::for_each(std::execution::seq, 
-                indices.begin(), 
-                indices.end(),
-                [&](size_t i) {
-                    // Calculate the start index for this row
-                    const size_t start_idx = i * stride0;
-                    
-                    // Get iterators for the innermost dimension
-                    auto begin = data_.begin() + start_idx;
-                    auto end = begin + dim1;
-                    auto result_begin = result.data_.begin() + start_idx;
-                    
-                    // Apply transformation to each element
-                    std::transform(std::execution::seq, begin, end, result_begin, op);
-                }
-            );
-#endif
+            // Check if we should parallelize (opt-in flag + threshold)
+            const size_t total_elements = dim0 * dim1;
+            if (should_parallelize(total_elements, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+                moire_parallel::transform(data_.begin(), data_.end(), result.data_.begin(), op);
+            } else {
+                // Sequential execution when threshold not met or parallelization disabled
+                std::transform(data_.begin(), data_.end(), result.data_.begin(), op);
+            }
         }
         else {
             // Fallback to recursive approach for other dimensions
@@ -2590,8 +2009,20 @@ public:
         return parallel_transform([](const T& x) { return std::exp(x); });
     }
 
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, N> log(ExecutionPolicy policy = std::execution::seq) const {
+    /// Compute natural logarithm of each element
+    /// Automatically chooses parallel vs sequential based on workload size
+    /// @return A MultiVector with log-transformed values
+    MultiVector<T, N> log() const {
+        const size_t total_elements = total_size();
+        if (should_parallelize(total_elements, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+            return parallel_log();
+        }
+        // Use sequential for small workloads or when parallelization disabled
+        return log(std::execution::seq);
+    }
+
+    template<typename ExecutionPolicy>
+    MultiVector<T, N> log(ExecutionPolicy policy) const {
         return transform([](const T& x) { return std::log(x); }, policy);
     }
 
@@ -2608,10 +2039,17 @@ public:
         return parallel_transform([](const T& x) { return std::sqrt(x); });
     }
 
-private:
     std::vector<T> data_;
     std::array<size_t, N> dimensions_;
     std::array<size_t, N> strides_;
+
+    /// Unchecked element access for internal hot paths. Caller must ensure indices are valid.
+    inline T& unchecked_at(const std::array<size_t, N>& indices) {
+        return data_[calculate_index(indices)];
+    }
+    inline const T& unchecked_at(const std::array<size_t, N>& indices) const {
+        return data_[calculate_index(indices)];
+    }
 
     // Helper function to calculate the 1D index from multi-dimensional indices
     /// @param indices The multi-dimensional indices.
@@ -2619,7 +2057,7 @@ private:
     /// @throws std::out_of_range if any index is out of bounds.
     inline size_t calculate_index(const std::array<size_t, N>& indices) const {
 #ifndef NDEBUG
-        for (size_t i = 0; i < indices.size(); ++i) {
+        for (size_t i = 0; i < N; ++i) {
             if (indices[i] >= dimensions_[i]) {
                 throw std::out_of_range("Index out of bounds");
             }
@@ -2666,818 +2104,6 @@ private:
     }
 };
 
-/// Specialization of MultiVector for N=1 that returns a scalar from reduce functions
-template <typename T>
-class MultiVector<T, 1> {
-public:
-    /// Constructor that takes dimensions
-    /// @param dimensions The dimensions of the MultiVector.
-    /// @throws std::invalid_argument if dimensions are empty.
-    MultiVector(const std::array<size_t, 1>& dimensions) : dimensions_(dimensions) {
-#ifndef NDEBUG
-        if (dimensions.empty()) {
-            throw std::invalid_argument("Dimensions cannot be empty");
-        }
-#endif
-        // Calculate total size and strides
-        strides_[0] = 1;
-        data_.resize(dimensions_[0], T{});
-    }
-
-    MultiVector() {
-        dimensions_ = {0};
-        data_ = {};
-        strides_ = {1};
-    }
-
-    void resize(const std::array<size_t, 1>& dimensions) {
-#ifndef NDEBUG
-        if (dimensions.empty()) {
-            throw std::invalid_argument("Dimensions cannot be empty");
-        }
-#endif
-        dimensions_ = dimensions;
-        strides_[0] = 1;
-        data_.resize(dimensions_[0], T{});
-    }
-
-    void resize(const std::array<size_t, 1>& dimensions, const T& value) {
-#ifndef NDEBUG
-        if (dimensions.empty()) {
-            throw std::invalid_argument("Dimensions cannot be empty");
-        }
-#endif
-        dimensions_ = dimensions;
-        strides_[0] = 1;
-        data_.resize(dimensions_[0], value);
-    }
-
-    /// Get a span view of the data
-    /// @return A span view of the data
-    std::span<T> as_span() {
-        return std::span<T>(data_);
-    }
-
-    /// Get a const span view of the data
-    /// @return A const span view of the data
-    std::span<const T> as_span() const {
-        return std::span<const T>(data_);
-    }
-
-    /// Implicit conversion to a span
-    /// @return A span view of the data
-    operator std::span<T>() {
-        return as_span();
-    }
-
-    /// Implicit conversion to a const span
-    /// @return A const span view of the data
-    operator std::span<const T>() const {
-        return as_span();
-    }
-    
-    /// Fill the vector with a single value
-    /// @param value The value to fill the vector with.
-    void inner_fill(const T& value) {
-        std::fill(data_.begin(), data_.end(), value);
-    }
-
-    /// Fill the vector with a range of values
-    /// @param values The values to fill the vector with.
-    void inner_fill(const std::span<T const> values) {
-#ifndef NDEBUG
-        if (values.size() > dimensions_[0]) {
-            throw std::invalid_argument("(" + std::to_string(1) + "D) Incorrect number of values, expected " + std::to_string(dimensions_[0]) + " but got " + std::to_string(values.size()));
-        }
-#endif
-        std::copy(values.begin(), values.end(), data_.begin());
-    }
-
-    /// Access element at a given index
-    /// @param indices The index of the element to access.
-    /// @return A reference to the element at the specified index.
-    /// @throws std::invalid_argument if the number of indices is incorrect.
-    T& at(const std::array<size_t, 1>& indices) {
-#ifndef NDEBUG
-        if (indices.size() != dimensions_.size()) {
-            throw std::invalid_argument("Incorrect number of indices");
-        }
-#endif
-        return data_.at(calculate_index(indices));
-    }
-
-    const T& at(const std::array<size_t, 1>& indices) const {
-#ifndef NDEBUG
-        if (indices.size() != dimensions_.size()) {
-            throw std::invalid_argument("Incorrect number of indices");
-        }
-#endif
-        return data_.at(calculate_index(indices));
-    }
-
-    /// Get the size of the dimension
-    /// @return The size of the dimension.
-    size_t size(size_t dimension) const {
-#ifndef NDEBUG
-        if (dimension >= dimensions_.size()) {
-            throw std::out_of_range("Dimension out of range");
-        }
-#endif
-        return dimensions_[dimension];
-    }
-
-    /// Get the total number of elements
-    /// @return The total number of elements in the MultiVector.
-    size_t total_size() const {
-        return data_.size();
-    }
-
-    /// Iterator for the vector
-    /// @return An iterator to the beginning of the vector.
-    typename std::vector<T>::iterator inner_begin() {
-        return data_.begin();
-    }
-
-    typename std::vector<T>::iterator inner_end() {
-        return data_.end();
-    }
-
-    /// Const iterator for the vector
-    /// @return A const iterator to the beginning of the vector.
-    typename std::vector<T>::const_iterator inner_begin() const {
-        return data_.cbegin();
-    }
-
-    typename std::vector<T>::const_iterator inner_end() const {
-        return data_.cend();
-    }
-
-    std::pair<typename std::vector<T>::const_iterator, typename std::vector<T>::const_iterator> inner_iterators() const {
-        return {data_.cbegin(), data_.cend()};
-    }
-
-    /// Clear the MultiVector
-    /// @note This will clear the data contained in the MultiVector.
-    void clear() {
-        data_.clear();
-    }
-
-    std::array<size_t, 1> dimensions() const {
-        return dimensions_;
-    }
-
-    const std::array<size_t, 1>& strides() const {
-        return strides_;
-    }
-
-    const std::vector<T>& data() const {
-        return data_;
-    }
-
-    /// Reduce the vector using a binary operation, returning a scalar
-    /// @param binary_op The binary operation to use for reduction
-    /// @param init The initial value for the reduction
-    /// @param execution_policy Optional execution policy for parallel execution
-    /// @return A scalar value containing the reduced value
-    template<typename BinaryOp, typename ExecutionPolicy = std::execution::sequenced_policy>
-    auto reduce(BinaryOp binary_op, const auto& init, ExecutionPolicy policy = std::execution::seq) const {
-        if constexpr (std::is_same_v<ExecutionPolicy, std::execution::sequenced_policy>) {
-            return std::accumulate(data_.begin(), data_.end(), init, binary_op);
-        } else {
-            return std::reduce(policy, data_.begin(), data_.end(), init, binary_op);
-        }
-    }
-
-    /// Optimized parallel reduce using TBB for better performance if available, otherwise falls back to standard library
-    /// @param binary_op The binary operation to use for reduction
-    /// @param init The initial value for the reduction
-    /// @return A scalar value containing the reduced value
-    template<typename BinaryOp>
-    auto parallel_reduce(BinaryOp binary_op, const auto& init) const {
-        using ResultType = decltype(binary_op(init, std::declval<T>()));
-#if TBB_AVAILABLE
-        // Use TBB's parallel_reduce for better performance
-        return tbb::parallel_reduce(
-            tbb::blocked_range<typename std::vector<T>::const_iterator>(data_.begin(), data_.end()),
-            init,
-            [&binary_op](const tbb::blocked_range<typename std::vector<T>::const_iterator>& range, ResultType init) {
-                return std::reduce(std::execution::seq, range.begin(), range.end(), init, binary_op);
-            },
-            binary_op
-        );
-#else
-        // Fallback to standard library execution
-        return std::reduce(std::execution::seq, data_.begin(), data_.end(), init, binary_op);
-#endif
-    }
-
-    // Convenience methods for common reductions with optional execution policy
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    T sum(ExecutionPolicy policy = std::execution::seq) const {
-        return reduce(std::plus<T>(), T{}, policy);
-    }
-
-    // Optimized parallel sum method
-    T parallel_sum() const {
-        return parallel_reduce(std::plus<T>(), T{});
-    }
-
-    T full_sum() const {
-        return sum();
-    }
-
-    T parallel_full_sum() const {
-        return parallel_sum();
-    }
-
-    T full_product() const {
-        return product();
-    }
-
-    T parallel_full_product() const {
-        return parallel_product();
-    }
-
-    T full_min() const {
-        return min();
-    }
-
-    T parallel_full_min() const {
-        return parallel_min();
-    }
-
-    T full_max() const {
-        return max();
-    }
-
-    T parallel_full_max() const {
-        return parallel_max();
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    T product(ExecutionPolicy policy = std::execution::seq) const {
-        return reduce(std::multiplies<T>(), T{1}, policy);
-    }
-
-    // Optimized parallel product method
-    T parallel_product() const {
-        return parallel_reduce(std::multiplies<T>(), T{1});
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    T max(ExecutionPolicy policy = std::execution::seq) const {
-        return reduce([](const T& a, const T& b) { return std::max(a, b); },
-                     std::numeric_limits<T>::lowest(), policy);
-    }
-
-    // Optimized parallel max method
-    T parallel_max() const {
-        return parallel_reduce([](const T& a, const T& b) { return std::max(a, b); },
-                              std::numeric_limits<T>::lowest());
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    T min(ExecutionPolicy policy = std::execution::seq) const {
-        return reduce([](const T& a, const T& b) { return std::min(a, b); },
-                     std::numeric_limits<T>::max(), policy);
-    }
-
-    // Optimized parallel min method
-    T parallel_min() const {
-        return parallel_reduce([](const T& a, const T& b) { return std::min(a, b); },
-                              std::numeric_limits<T>::max());
-    }
-
-    /// Compute the log-sum-exp reduction over the vector
-    /// @param execution_policy Optional execution policy for parallel execution
-    /// @return A scalar value containing the log-sum-exp value
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    T logsumexp(ExecutionPolicy policy = std::execution::seq) const {
-        T max_val = *std::max_element(policy, data_.begin(), data_.end());
-        T sum = std::transform_reduce(
-            policy,
-            data_.begin(), data_.end(),
-            T{},
-            std::plus<T>(),
-            [max_val](const T& x) { return std::exp(x - max_val); }
-        );
-        return std::log(sum) + max_val;
-    }
-
-    /// Compute the log-sum-exp reduction over the vector in parallel
-    /// @return A scalar value containing the log-sum-exp value
-    T parallel_logsumexp() const {
-        #if TBB_AVAILABLE
-        auto policy = std::execution::par;
-        #else
-        auto policy = std::execution::seq;
-        #endif
-
-        T max_val = *std::max_element(policy, data_.begin(), data_.end());
-        T sum = std::transform_reduce(
-            policy,
-            data_.begin(), data_.end(),
-            T{},
-            std::plus<T>(),
-            [max_val](const T& x) { return std::exp(x - max_val); }
-        );
-        return std::log(sum) + max_val;
-    }
-
-    /// Apply a transformation to each element of the vector
-    /// @param op The binary operation to apply to each element
-    /// @param values A span of values to apply to each element
-    /// @param execution_policy Optional execution policy for parallel execution
-    template<typename BinaryOp, typename ExecutionPolicy = std::execution::sequenced_policy>
-    void element_transform(BinaryOp op, const std::span<T const> values, ExecutionPolicy policy = std::execution::seq) {
-#ifndef NDEBUG
-        if (values.size() != dimensions_[0]) {
-            throw std::invalid_argument("Values span size does not match the vector size");
-        }
-#endif
-        std::transform(policy, data_.begin(), data_.end(), values.begin(), data_.begin(), op);
-    }
-
-    /// Apply a transformation to each element of the vector in parallel
-    /// @param op The binary operation to apply to each element
-    /// @param values A span of values to apply to each element
-    template<typename BinaryOp>
-    void parallel_element_transform(BinaryOp op, const std::span<T const> values) {
-#ifndef NDEBUG
-        if (values.size() != dimensions_[0]) {
-            throw std::invalid_argument("Values span size does not match the vector size");
-        }
-#endif
-#if TBB_AVAILABLE
-        tbb::parallel_for(
-            tbb::blocked_range<size_t>(0, dimensions_[0]),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    data_[i] = op(data_[i], values[i]);
-                }
-            }
-        );
-#else
-        std::transform(std::execution::seq, data_.begin(), data_.end(), values.begin(), data_.begin(), op);
-#endif
-    }
-
-    // Convenience methods for element-level operations
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> element_add(const std::span<T const> values, ExecutionPolicy policy = std::execution::seq) const {
-        return transform(std::plus<T>(), values, policy);
-    }
-
-    MultiVector<T, 1> parallel_element_add(const std::span<T const> values) const {
-        return parallel_transform(std::plus<T>(), values);
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> element_subtract(const std::span<T const> values, ExecutionPolicy policy = std::execution::seq) const {
-        return transform(std::minus<T>(), values, policy);
-    }
-
-    MultiVector<T, 1> parallel_element_subtract(const std::span<T const> values) const {
-        return parallel_transform(std::minus<T>(), values);
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> element_multiply(const std::span<T const> values, ExecutionPolicy policy = std::execution::seq) const {
-        return transform(std::multiplies<T>(), values, policy);
-    }
-
-    MultiVector<T, 1> parallel_element_multiply(const std::span<T const> values) const {
-        return parallel_transform(std::multiplies<T>(), values);
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> element_divide(const std::span<T const> values, ExecutionPolicy policy = std::execution::seq) const {
-        return transform(std::divides<T>(), values, policy);
-    }
-
-    MultiVector<T, 1> parallel_element_divide(const std::span<T const> values) const {
-        return parallel_transform(std::divides<T>(), values);
-    }
-
-    std::vector<T> data_;
-    std::array<size_t, 1> dimensions_;
-    std::array<size_t, 1> strides_;
-
-    // Helper function to calculate the 1D index from multi-dimensional indices
-    /// @param indices The multi-dimensional indices.
-    /// @return The calculated 1D index.
-    /// @throws std::out_of_range if any index is out of bounds.
-    inline size_t calculate_index(const std::array<size_t, 1>& indices) const {
-#ifndef NDEBUG
-        if (indices[0] >= dimensions_[0]) {
-            throw std::out_of_range("Index out of bounds");
-        }
-#endif
-        return indices[0];
-    }
-
-    /// Helper function to calculate start and end indices for iterators
-    /// @param outer_indices The indices of the outer dimensions.
-    /// @return A pair of start and end indices for the iterators.
-    std::pair<size_t, size_t> calculate_start_end_indices(const std::array<size_t, 0>& outer_indices) const {
-        return {0, dimensions_[0]};
-    }
-
-    /// Apply a unary transformation to each element of the vector
-    /// @param op The unary operation to apply to each element
-    /// @param execution_policy Optional execution policy for parallel execution
-    /// @return A new MultiVector with the transformed values
-    template<typename UnaryOp, typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> transform(UnaryOp op, ExecutionPolicy policy = std::execution::seq) const {
-        MultiVector<T, 1> result(dimensions_);
-        std::transform(policy, data_.begin(), data_.end(), result.data_.begin(), op);
-        return result;
-    }
-
-    /// Apply a unary transformation to each element of the vector in parallel
-    /// @param op The unary operation to apply to each element
-    /// @return A new MultiVector with the transformed values
-    template<typename UnaryOp>
-    MultiVector<T, 1> parallel_transform(UnaryOp op) const {
-        MultiVector<T, 1> result(dimensions_);
-#if TBB_AVAILABLE
-        tbb::parallel_for(
-            tbb::blocked_range<size_t>(0, dimensions_[0]),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    result.data_[i] = op(data_[i]);
-                }
-            }
-        );
-#else
-        std::transform(std::execution::seq, data_.begin(), data_.end(), result.data_.begin(), op);
-#endif
-        return result;
-    }
-
-    // Convenience methods for common unary operations
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> negate(ExecutionPolicy policy = std::execution::seq) const {
-        return transform([](const T& x) { return -x; }, policy);
-    }
-
-    MultiVector<T, 1> parallel_negate() const {
-        return parallel_transform([](const T& x) { return -x; });
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> abs(ExecutionPolicy policy = std::execution::seq) const {
-        return transform([](const T& x) { return std::abs(x); }, policy);
-    }
-
-    MultiVector<T, 1> parallel_abs() const {
-        return parallel_transform([](const T& x) { return std::abs(x); });
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> exp(ExecutionPolicy policy = std::execution::seq) const {
-        return transform([](const T& x) { return std::exp(x); }, policy);
-    }
-
-    MultiVector<T, 1> parallel_exp() const {
-        return parallel_transform([](const T& x) { return std::exp(x); });
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> log(ExecutionPolicy policy = std::execution::seq) const {
-        return transform([](const T& x) { return std::log(x); }, policy);
-    }
-
-    MultiVector<T, 1> parallel_log() const {
-        return parallel_transform([](const T& x) { return std::log(x); });
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> sqrt(ExecutionPolicy policy = std::execution::seq) const {
-        return transform([](const T& x) { return std::sqrt(x); }, policy);
-    }
-
-    MultiVector<T, 1> parallel_sqrt() const {
-        return parallel_transform([](const T& x) { return std::sqrt(x); });
-    }
-
-    /// Apply a transformation to each element of the vector
-    /// @param op The binary operation to apply to each element
-    /// @param values A span of values to apply to each element
-    /// @param execution_policy Optional execution policy for parallel execution
-    /// @return A new MultiVector with the transformed values
-    template<typename BinaryOp, typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> transform(BinaryOp op, const std::span<T const> values, ExecutionPolicy policy = std::execution::seq) const {
-#ifndef NDEBUG
-        if (values.size() != dimensions_[0]) {
-            throw std::invalid_argument("Values span size does not match the vector size");
-        }
-#endif
-        MultiVector<T, 1> result(dimensions_);
-        std::transform(policy, data_.begin(), data_.end(), values.begin(), result.data_.begin(), op);
-        return result;
-    }
-
-    /// Apply a transformation to each element of the vector in parallel
-    /// @param op The binary operation to apply to each element
-    /// @param values A span of values to apply to each element
-    /// @return A new MultiVector with the transformed values
-    template<typename BinaryOp>
-    MultiVector<T, 1> parallel_transform(BinaryOp op, const std::span<T const> values) const {
-#ifndef NDEBUG
-        if (values.size() != dimensions_[0]) {
-            throw std::invalid_argument("Values span size does not match the vector size");
-        }
-#endif
-        MultiVector<T, 1> result(dimensions_);
-#if TBB_AVAILABLE
-        tbb::parallel_for(
-            tbb::blocked_range<size_t>(0, dimensions_[0]),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t i = range.begin(); i != range.end(); ++i) {
-                    result.data_[i] = op(data_[i], values[i]);
-                }
-            }
-        );
-#else
-        std::transform(std::execution::seq, data_.begin(), data_.end(), values.begin(), result.data_.begin(), op);
-#endif
-        return result;
-    }
-
-    // Convenience methods for element-level operations
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> add(const std::span<T const> values, ExecutionPolicy policy = std::execution::seq) const {
-        return transform(std::plus<T>(), values, policy);
-    }
-
-    MultiVector<T, 1> parallel_add(const std::span<T const> values) const {
-        return parallel_transform(std::plus<T>(), values);
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> subtract(const std::span<T const> values, ExecutionPolicy policy = std::execution::seq) const {
-        return transform(std::minus<T>(), values, policy);
-    }
-
-    MultiVector<T, 1> parallel_subtract(const std::span<T const> values) const {
-        return parallel_transform(std::minus<T>(), values);
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> multiply(const std::span<T const> values, ExecutionPolicy policy = std::execution::seq) const {
-        return transform(std::multiplies<T>(), values, policy);
-    }
-
-    MultiVector<T, 1> parallel_multiply(const std::span<T const> values) const {
-        return parallel_transform(std::multiplies<T>(), values);
-    }
-
-    template<typename ExecutionPolicy = std::execution::sequenced_policy>
-    MultiVector<T, 1> divide(const std::span<T const> values, ExecutionPolicy policy = std::execution::seq) const {
-        return transform(std::divides<T>(), values, policy);
-    }
-
-    MultiVector<T, 1> parallel_divide(const std::span<T const> values) const {
-        return parallel_transform(std::divides<T>(), values);
-    }
-
-};
-
-
-template <typename T, size_t N>
-/// RaggedMultiVector class template
-/// This class represents a multi-dimensional vector with a ragged internal dimension.
-/// It provides methods to access elements, get sizes, and iterate over dimensions.
-class RaggedMultiVector {
-public:
-    /// Constructor that takes dimensions and ragged dimensions
-    /// @param dimensions The dimensions of the MultiVector.
-    /// @param ragged_dimensions The ragged dimensions of the MultiVector.
-    /// @param default_value The default value for elements.
-    RaggedMultiVector(const std::array<size_t, N - 1>& dimensions, const std::span<size_t const> ragged_dimensions, const T& default_value = T{}) : dimensions_(dimensions), ragged_dimensions_(ragged_dimensions.begin(), ragged_dimensions.end()) {
-        // Calculate total size and strides
-        if constexpr (N == 1) {
-            throw std::invalid_argument("RaggedMultiVector does not support 1D vectors");
-        } else {
-            size_t total_size = 0;
-            size_t data_size = 0;
-            size_t total_entries = 1;
-
-            std::vector<size_t> entry_dimensions(dimensions_.begin(), dimensions_.end() - 1);
-
-            // Calculate the product of the first N - 1 dimensions corresponding to the total number of entries
-            total_entries = std::reduce(std::execution::seq, entry_dimensions.begin(), entry_dimensions.end(), 1, std::multiplies<size_t>());
-
-            data_size = std::reduce(std::execution::seq, ragged_dimensions_.begin(), ragged_dimensions_.end());
-
-            total_size = total_entries * data_size;
-
-            // Calculate the strides for the N - 2 dimensions
-            strides_[N - 3] = data_size;
-            for (size_t i = N - 3; i > 0; i--) {
-                strides_[i - 1] = strides_[i] * entry_dimensions[i];
-            }
-
-            // ragged strides are the cumulative sum of the ragged dimensions and provide the offset necessary to access the ragged dimension.
-            ragged_offsets_.resize(ragged_dimensions_.size(), 0);
-            for (size_t i = 1; i < ragged_dimensions_.size(); ++i) {
-                ragged_offsets_[i] = ragged_offsets_[i - 1] + ragged_dimensions_[i - 1];
-            }
-
-            data_.resize(total_size, default_value);
-        }
-    }
-
-
-    RaggedMultiVector() {
-        dimensions_ = {0};
-        ragged_dimensions_ = {0};
-        ragged_offsets_ = {0};
-        data_ = {0};
-    }
-
-    void resize(const std::array<size_t, N - 1>& dimensions, const std::span<size_t const> ragged_dimensions, const T& default_value = T{}) {
-        dimensions_ = dimensions;
-        ragged_dimensions_ = std::vector<size_t>(ragged_dimensions.begin(), ragged_dimensions.end());
-
-        size_t total_size = 0;
-        size_t data_size = 0;
-        size_t total_entries = 1;
-
-        std::vector<size_t> entry_dimensions(dimensions_.begin(), dimensions_.end() - 1);
-
-        total_entries = std::reduce(std::execution::seq, entry_dimensions.begin(), entry_dimensions.end(), 1, std::multiplies<size_t>());
-
-        data_size = std::reduce(std::execution::seq, ragged_dimensions_.begin(), ragged_dimensions_.end());
-
-        total_size = total_entries * data_size;
-
-        // Calculate the strides for the N - 2 dimensions
-        strides_[N - 3] = data_size;
-        for (size_t i = N - 3; i > 0; i--) {
-            strides_[i - 1] = strides_[i] * entry_dimensions[i];
-        }
-
-        ragged_offsets_.resize(ragged_dimensions_.size(), 0);
-        for (size_t i = 1; i < ragged_dimensions_.size(); ++i) {
-            ragged_offsets_[i] = ragged_offsets_[i - 1] + ragged_dimensions_[i - 1];
-        }
-
-        data_.resize(total_size, default_value);
-    }
-
-
-    void inner_fill(const std::array<size_t, N - 1>& indices, const T& value) {
-        const auto [begin, end] = inner_iterators(indices);
-        std::fill(begin, end, value);
-    }
-
-    void inner_fill(const std::array<size_t, N - 1>& indices, const std::span<T const> values) {
-#ifndef NDEBUG
-        if (values.size() > ragged_dimensions_.at(indices.back())) {
-            throw std::invalid_argument("(" + std::to_string(N) + "D) Incorrect number of values, expected " + std::to_string(ragged_dimensions_.at(indices.back())) + " but got " + std::to_string(values.size()));
-        }
-#endif
-        std::copy(values.begin(), values.end(), inner_begin(indices));
-    }
-
-    size_t total_size() const {
-        return data_.size();
-    }
-
-    /// Access element at a given multi-dimensional index
-    /// @param indices The indices of the element to access.
-    /// @return A reference to the element at the specified indices.
-    T& at(const std::array<size_t, N>& indices) {
-#ifndef NDEBUG
-        if (indices.size() != N) {
-            throw std::invalid_argument("Incorrect number of indices");
-        }
-#endif
-        return data_.at(calculate_index(indices));
-    }
-
-    const T& at(const std::array<size_t, N>& indices) const {
-#ifndef NDEBUG
-        if (indices.size() != N) {
-            throw std::invalid_argument("Incorrect number of indices");
-        }
-#endif
-        return data_.at(calculate_index(indices));
-    }
-
-    /// Iterator for the innermost dimension
-    /// @param outer_indices The indices of the outer dimensions.
-    /// @return An iterator to the beginning of the innermost dimension.
-    typename std::vector<T>::iterator inner_begin(const std::array<size_t, N - 1>& outer_indices) {
-        auto [start_index, _] = calculate_start_end_indices(outer_indices);
-        return data_.begin() + start_index;
-    }
-
-    typename std::vector<T>::iterator inner_end(const std::array<size_t, N - 1>& outer_indices) {
-        auto [_, end_index] = calculate_start_end_indices(outer_indices);
-        return data_.begin() + end_index;
-    }
-
-    std::pair<typename std::vector<T>::iterator, typename std::vector<T>::iterator> inner_iterators(const std::array<size_t, N - 1>& outer_indices) {
-        auto [start_index, end_index] = calculate_start_end_indices(outer_indices);
-        return {data_.begin() + start_index, data_.begin() + end_index};
-    }
-
-    /// Const iterator for the innermost dimension
-    /// @param outer_indices The indices of the outer dimensions.
-    /// @return A const iterator to the beginning of the innermost dimension.
-    /// @throws std::invalid_argument if the number of outer indices is incorrect.
-    typename std::vector<T>::const_iterator inner_begin(const std::array<size_t, N - 1>& outer_indices) const {
-        auto [start_index, _] = calculate_start_end_indices(outer_indices);
-        return data_.cbegin() + start_index;
-    }
-
-    typename std::vector<T>::const_iterator inner_end(const std::array<size_t, N - 1>& outer_indices) const {
-        auto [_, end_index] = calculate_start_end_indices(outer_indices);
-        return data_.cbegin() + end_index;
-    }
-
-    std::pair<typename std::vector<T>::const_iterator, typename std::vector<T>::const_iterator> inner_iterators(const std::array<size_t, N - 1>& outer_indices) const {
-        auto [start_index, end_index] = calculate_start_end_indices(outer_indices);
-        return {data_.cbegin() + start_index, data_.cbegin() + end_index};
-    }
-
-    void clear() {
-        data_.clear();
-    }
-
-    std::array<size_t, N> dimensions() const {
-        std::array<size_t, N> dimensions;
-        std::copy(dimensions_.begin(), dimensions_.end(), dimensions.begin());
-        dimensions.back() = ragged_dimensions_.size();
-        return dimensions;
-    }
-
-    std::vector<size_t> ragged_dimensions() const {
-        return ragged_dimensions_;
-    }
-
-    size_t ragged_dimensions(size_t index) const {
-        return ragged_dimensions_.at(index);
-    }
-
-    const std::vector<T>& data() const {
-        return data_;
-    }
-
-// private:
-    std::vector<T> data_;
-    std::array<size_t, N - 1> dimensions_;
-    std::vector<size_t> ragged_dimensions_;
-    std::vector<size_t> ragged_offsets_;
-    std::array<size_t, N - 2> strides_;
-
-
-    /// Helper function to calculate the 1D index from multi-dimensional indices
-    /// @param indices The multi-dimensional indices.
-    /// @return The calculated 1D index.
-    /// @throws std::out_of_range if any index is out of bounds.
-    inline size_t calculate_index(const std::array<size_t, N>& indices) const {
-#ifndef NDEBUG
-        if constexpr (N == 1) {
-            if (indices[0] >= ragged_dimensions_.size()) {
-                throw std::out_of_range("Index out of bounds");
-            }
-        } else {
-            for (size_t i = 0; i < N - 1; ++i) {
-                if (indices[i] >= dimensions_[i]) {
-                    throw std::out_of_range("Index out of bounds");
-                }
-            }
-            if (indices.back() >= ragged_dimensions_.at(indices[N - 2])) {
-                throw std::out_of_range("Index out of bounds");
-            }
-        }
-#endif
-
-        size_t index = 0;
-        for (size_t i = 0; i < N - 2; ++i) {
-            index += indices[i] * strides_[i];
-        }
-        index += ragged_offsets_[indices[N - 2]] + indices.back();
-        return index;
-    }
-
-    /// Helper function to calculate start and end indices for iterators
-    /// @param outer_indices The indices of the outer dimensions.
-    /// @return A pair of start and end indices for the iterators.
-    std::pair<size_t, size_t> calculate_start_end_indices(const std::array<size_t, N - 1>& outer_indices) const {
-        if constexpr (N == 1) {
-            return {0, ragged_dimensions_.size()};
-        } else {
-            std::array<size_t, N> full_indices{};
-            std::copy(outer_indices.begin(), outer_indices.end(), full_indices.begin());
-            const size_t start_index = calculate_index(full_indices);
-            const size_t end_index = start_index + ragged_dimensions_.at(outer_indices[N - 2]);
-            return {start_index, end_index};
-        }
-    }
-};
+#include "multivector_1d.h"
+#include "ragged_multivector.h"
 

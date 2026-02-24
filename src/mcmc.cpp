@@ -2,21 +2,10 @@
 
 #include "include/spline/src/spline.h"
 #include "mcmc_utils.h"
+#include "multivector.h"
 
 #include <Rcpp.h>
-
-#ifdef _OPENMP
-#include <omp.h>
-#else
-#define omp_get_num_threads() 1
-#define omp_get_thread_num() 0
-#define omp_get_max_threads() 1
-#define omp_get_thread_limit() 1
-#define omp_get_num_procs() 1
-#define omp_set_nested(a)
-#define omp_set_num_threads(a)
-#define omp_get_wtime() 0
-#endif
+#include "profiler.h"
 
 MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     : genotyping_data(genotyping_data), params(params)
@@ -40,23 +29,29 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     swap_acceptances.resize(params.pt_chains.size() - 1, 0);
     swap_barriers.resize(params.pt_chains.size() - 1, 0.0);
     swap_indices.resize(params.pt_chains.size(), 0);
-
-    omp_set_num_threads(params.pt_num_threads);
     
-    chains.resize(params.pt_chains.size());
+    // Reserve space for chains first, but don't construct default objects
+    chains.clear();
+    chains.reserve(params.pt_chains.size());
     std::vector<bool> any_ill_conditioned(params.pt_chains.size(), false);
     temp_gradient = params.pt_chains;
-    #pragma omp parallel for
-    for (size_t i = 0; i < params.pt_chains.size(); i++)
+    
+    // Construct chains sequentially first to avoid thread-safety issues during construction
+    // (Construction involves shared resources like the static mutex)
+    for (size_t i = 0; i < params.pt_chains.size(); ++i) {
+        float temp = params.pt_chains[i];
+        chains.emplace_back(genotyping_data, params, temp);
+    }
+    
+    // Then initialize/retry in parallel if needed
+    moire_parallel::parallel_for_always(0, chains.size(), [&](size_t i)
     {
         if (std::any_of(any_ill_conditioned.begin(), any_ill_conditioned.end(), [](bool v) { return v; }))
         {
-            continue;
+            return;
         }
-        float temp = params.pt_chains[i];
-        chains[i] = Chain(genotyping_data, params, temp);
 
-        bool ill_conditioned = std::isnan(chains[i].get_llik());
+        bool ill_conditioned = !std::isfinite(chains[i].get_llik());
         int max_tries = params.max_initialization_tries;
 
         while (ill_conditioned and max_tries > 0)
@@ -64,11 +59,11 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
             Rcpp::checkUserInterrupt();
             chains[i].initialize_parameters();
             max_tries--;
-            ill_conditioned = std::isnan(chains[i].get_llik());
+            ill_conditioned = !std::isfinite(chains[i].get_llik());
         }
 
         any_ill_conditioned[i] = ill_conditioned;
-    }
+    });
 
     if (std::any_of(any_ill_conditioned.begin(), any_ill_conditioned.end(), [](bool v) { return v; }))
     {
@@ -80,9 +75,42 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
 
 void MCMC::burnin(int step)
 {
-#pragma omp parallel for
-    for (auto &chain : chains)
-    {
+    ProfileScope scope("MCMC::burnin");
+    // Strategic parallelism to avoid C stack overflow:
+    // - If multiple chains: parallelize across chains, inner operations run sequentially (no nested parallelism)
+    // - If single chain: sequential at top level, inner operations parallelize
+    // NOTE: Nested parallelism causes C stack overflow in R, so we disable inner parallelism
+    //       when multiple chains are active
+    if (chains.size() > 1) {
+        // Parallel tempering: parallelize across chains
+        // Disable inner parallelism to avoid nested parallelism and C stack overflow
+        // Set thread-local flag inside lambda so each worker thread has its own copy
+        moire_parallel::parallel_for_always(0, chains.size(), [&](size_t i)
+        {
+            // Disable nested parallelism for this thread to prevent C stack overflow
+            moire_parallel::disable_nested_parallelism = true;
+            auto &chain = chains[i];
+            ProfileScope s_update("Chain::updates (burnin)");
+            chain.update_eps_neg(step);
+            chain.update_eps_pos(step);
+            chain.update_p(step);
+            chain.update_m(step);
+            if (params.allow_relatedness)
+            {
+                chain.update_r(step);
+                chain.update_eff_coi(step);
+            }
+            chain.update_samples(step);
+            chain.update_population_coi_p(step);
+            chain.update_population_coi_r(step);
+            chain.update_population_responsibility_vector(step);
+            // Reset flag for this thread (though not strictly necessary since lambda ends)
+            moire_parallel::disable_nested_parallelism = false;
+        });
+    } else {
+        // Single chain: sequential at top level, inner operations parallelize
+        auto &chain = chains[0];
+        ProfileScope s_update("Chain::updates (burnin)");
         chain.update_eps_neg(step);
         chain.update_eps_pos(step);
         chain.update_p(step);
@@ -137,7 +165,7 @@ void MCMC::swap_chains(int step, bool burnin)
         float u = log(R::runif(0, 1));
 
         if ((acceptanceRatio > 0 || u < acceptanceRatio) and
-            !std::isnan(acceptanceRatio))
+            std::isfinite(acceptanceRatio))
         {
             std::swap(swap_indices[i], swap_indices[i + 1]);
             chain_a.set_temp(temp_b);
@@ -209,7 +237,7 @@ void MCMC::adapt_temp()
     // check if any new temperatures are NAN, bail on the update if so and keep updating the swap barriers
     for (size_t i = 0; i < new_temp_gradient.size(); i++)
     {
-        if (std::isnan(new_temp_gradient[i]))
+        if (!std::isfinite(new_temp_gradient[i]))
         {
             return;
         }
@@ -230,27 +258,41 @@ void MCMC::adapt_temp()
 
 void MCMC::sample(int step)
 {
-#pragma omp parallel for
-    for (auto &chain : chains)
-    {
-        chain.update_eps_neg(params.burnin + step);
-        chain.update_eps_pos(params.burnin + step);
-        chain.update_p(params.burnin + step);
-        chain.update_m(params.burnin + step);
-
-        if (params.allow_relatedness)
+    ProfileScope scope("MCMC::sample");
+    // Strategic parallelism to avoid C stack overflow:
+    // - If multiple chains: parallelize across chains, inner operations run sequentially (no nested parallelism)
+    // - If single chain: sequential at top level, inner operations parallelize
+    // NOTE: Nested parallelism causes C stack overflow in R, so we disable inner parallelism
+    //       when multiple chains are active
+    if (chains.size() > 1) {
+        // Parallel tempering: parallelize across chains
+        // Disable inner parallelism to avoid nested parallelism and C stack overflow
+        // Set thread-local flag inside lambda so each worker thread has its own copy
+        moire_parallel::parallel_for_always(0, chains.size(), [&](size_t i)
         {
-            chain.update_r(params.burnin + step);
-            chain.update_eff_coi(params.burnin + step);
-        }
-        chain.update_samples(params.burnin + step);
-        chain.update_population_coi_p(params.burnin + step);
-        chain.update_population_coi_r(params.burnin + step);
-        chain.update_population_responsibility_vector(params.burnin + step);
+            // Disable nested parallelism for this thread to prevent C stack overflow
+            moire_parallel::disable_nested_parallelism = true;
+            auto &chain = chains[i];
+            ProfileScope s_update("Chain::updates (sample)");
+            chain.update_eps_neg(params.burnin + step);
+            chain.update_eps_pos(params.burnin + step);
+            chain.update_p(params.burnin + step);
+            chain.update_m(params.burnin + step);
+
+            if (params.allow_relatedness)
+            {
+                chain.update_r(params.burnin + step);
+                chain.update_eff_coi(params.burnin + step);
+            }
+            chain.update_samples(params.burnin + step);
+            chain.update_population_coi_p(params.burnin + step);
+            chain.update_population_coi_r(params.burnin + step);
+            chain.update_population_responsibility_vector(params.burnin + step);
 
         if ((params.thin == 0 or step % params.thin == 0) and
             (chain.is_hot() or chains.size() == 1))
         {
+            ProfileScope s_store("MCMC::store_samples");
             for (size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
                 for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
                 {
@@ -276,9 +318,69 @@ void MCMC::sample(int step)
                 }
 
             }
-            const auto population_assignment_vec = (chain.transmission_llik_new.parallel_sum() + chain.coi_prior_new)
-                    .parallel_element_add(chain.population_responsibility_vector.parallel_log())
-                    .parallel_softmax(true);
+            // MultiVector methods now automatically choose parallel vs sequential based on workload size
+            const auto population_assignment_vec = (chain.transmission_llik_new.sum() + chain.coi_prior_new)
+                    .element_add(chain.population_responsibility_vector.log().as_span())
+                    .softmax(true);
+            for (size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx) {
+                const auto [begin, end] = population_assignment_vec.inner_iterators({sample_idx});
+                population_assignment_store[sample_idx].push_back(std::vector(begin, end));
+            }
+            population_coi_p_store.push_back(chain.population_coi_p);
+            population_coi_r_store.push_back(chain.population_coi_r);
+            population_responsibility_store.push_back(chain.population_responsibility_vector.data());
+            // Reset flag for this thread (though not strictly necessary since lambda ends)
+            moire_parallel::disable_nested_parallelism = false;
+        }
+        });
+    } else {
+        // Single chain: sequential at top level, inner operations can parallelize
+        auto &chain = chains[0];
+        ProfileScope s_update("Chain::updates (sample)");
+        chain.update_eps_neg(params.burnin + step);
+        chain.update_eps_pos(params.burnin + step);
+        chain.update_p(params.burnin + step);
+        chain.update_m(params.burnin + step);
+
+        if (params.allow_relatedness)
+        {
+            chain.update_r(params.burnin + step);
+            chain.update_eff_coi(params.burnin + step);
+        }
+        chain.update_samples(params.burnin + step);
+        chain.update_population_coi_p(params.burnin + step);
+        chain.update_population_coi_r(params.burnin + step);
+        chain.update_population_responsibility_vector(params.burnin + step);
+
+        if ((params.thin == 0 or step % params.thin == 0) and chain.is_hot())
+        {
+            ProfileScope s_store("MCMC::store_samples");
+            for (size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
+                {
+                    const auto [begin, end] = chain.p.inner_iterators({pop_idx, locus_idx});
+                    p_store[pop_idx][locus_idx].push_back(std::vector(begin, end));
+                }
+            }
+
+            for (size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
+            {
+                m_store[sample_idx].push_back(chain.m.at({sample_idx}));
+                eps_neg_store[sample_idx].push_back(chain.eps_neg.at({sample_idx}));
+                eps_pos_store[sample_idx].push_back(chain.eps_pos.at({sample_idx}));
+                r_store[sample_idx].push_back(chain.r.at({sample_idx}));
+
+                if (params.record_latent_genotypes) {
+                    for (size_t sample_locus_idx = 0; sample_locus_idx < genotyping_data.num_loci; ++sample_locus_idx)
+                    {
+                        const auto [begin, end] = chain.latent_genotypes_new.inner_iterators({sample_idx, sample_locus_idx});
+                        latent_genotypes_store[sample_idx][sample_locus_idx].push_back(std::vector(begin, end));
+                    }
+                }
+            }
+            const auto population_assignment_vec = (chain.transmission_llik_new.sum() + chain.coi_prior_new)
+                    .element_add(chain.population_responsibility_vector.log().as_span())
+                    .softmax(true);
             for (size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx) {
                 const auto [begin, end] = population_assignment_vec.inner_iterators({sample_idx});
                 population_assignment_store[sample_idx].push_back(std::vector(begin, end));
@@ -308,11 +410,11 @@ float MCMC::get_prior() { return chains[swap_indices[0]].get_prior(); }
 float MCMC::get_posterior() { return chains[swap_indices[0]].get_posterior(); }
 
 // [[Rcpp::export]]
-SEXP openmp_enabled()
+SEXP tbb_enabled()
 {
-    #ifdef _OPENMP
-        return Rcpp::wrap(true);
-    #else
-        return Rcpp::wrap(false);
-    #endif
+#ifdef MOIRE_HAVE_PARALLEL
+    return Rcpp::wrap(true);
+#else
+    return Rcpp::wrap(false);
+#endif
 }

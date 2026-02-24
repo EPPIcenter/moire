@@ -1,5 +1,8 @@
 #pragma once
 
+// Used only by cpp/tests (e.g. distance_matrix_test.cpp); not included in main package build.
+// Jaccard/similarity in the main build is provided by mcmc_utils.h / UtilFunctions.
+
 #ifndef DISTANCE_MATRIX_H_
 #define DISTANCE_MATRIX_H_
 
@@ -319,34 +322,35 @@ public:
         }
     }
     
-    // Compute distance matrix from data with parallel processing
+    // Compute distance matrix from data with parallel processing when enabled
+    // @note Requires MOIRE_ENABLE_PARALLEL to be defined for parallel execution.
+    //       Falls back gracefully to sequential computation if parallel libraries unavailable.
     template<typename DataContainer>
     void compute_parallel(const DataContainer& data) {
         if (!distance_function_) {
             throw std::runtime_error("No distance function set");
         }
         
-        // Use parallel processing for large matrices
-        #if defined(TBB_AVAILABLE)
-        tbb::parallel_for(
-            tbb::blocked_range2d<size_t>(0, num_samples_, 0, num_samples_),
-            [&](const tbb::blocked_range2d<size_t>& range) {
-                for (size_t i = range.rows().begin(); i != range.rows().end(); ++i) {
-                    for (size_t j = range.cols().begin(); j != range.cols().end(); ++j) {
-                        if (i == j) {
-                            distance_matrix_.at({i, j}) = 0;
-                        } else {
-                            T distance = distance_function_(data[i], data[j]);
-                            distance_matrix_.at({i, j}) = distance;
-                        }
+        const size_t total_elements = num_samples_ * num_samples_;
+        constexpr size_t parallel_threshold = 10000; // Threshold for parallel execution
+        
+        // Use parallel processing for large matrices when enabled
+        #ifdef MOIRE_ENABLE_PARALLEL
+        if (total_elements >= parallel_threshold) {
+            moire_parallel::parallel_for_2d(0, num_samples_, 0, num_samples_,
+                [&](size_t i, size_t j) {
+                    if (i == j) {
+                        distance_matrix_.at({i, j}) = 0;
+                    } else {
+                        T distance = distance_function_(data[i], data[j]);
+                        distance_matrix_.at({i, j}) = distance;
                     }
-                }
-            }
-        );
-        #else
+                });
+            return;
+        }
+        #endif
         // Fallback to sequential computation
         compute(data);
-        #endif
     }
     
     // Get distance between two samples

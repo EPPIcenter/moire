@@ -5,8 +5,20 @@ run_mcmc_rcpp <- function(args) {
     .Call(`_moire_run_mcmc`, args)
 }
 
-openmp_enabled <- function() {
-    .Call(`_moire_openmp_enabled`)
+tbb_enabled <- function() {
+    .Call(`_moire_tbb_enabled`)
+}
+
+compare_mobius_inclusion_exclusion <- function(p_full, support_vec, max_n) {
+    .Call(`_moire_compare_mobius_inclusion_exclusion`, p_full, support_vec, max_n)
+}
+
+moire_profiler_stats <- function() {
+    .Call(`_moire_moire_profiler_stats`)
+}
+
+moire_profiler_reset <- function() {
+    invisible(.Call(`_moire_moire_profiler_reset`))
 }
 
 start_profiler <- function(str) {

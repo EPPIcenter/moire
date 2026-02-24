@@ -7,10 +7,4 @@
 #include <Rinterface.h>
 #endif
 
-#if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
-#include <execution>
-#include "RcppParallel.h"
-#define HAS_EXECUTION 1
-#endif
-
 #endif

@@ -21,14 +21,46 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// openmp_enabled
-SEXP openmp_enabled();
-RcppExport SEXP _moire_openmp_enabled() {
+// tbb_enabled
+SEXP tbb_enabled();
+RcppExport SEXP _moire_tbb_enabled() {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    rcpp_result_gen = Rcpp::wrap(openmp_enabled());
+    rcpp_result_gen = Rcpp::wrap(tbb_enabled());
     return rcpp_result_gen;
+END_RCPP
+}
+// compare_mobius_inclusion_exclusion
+Rcpp::List compare_mobius_inclusion_exclusion(Rcpp::NumericVector p_full, Rcpp::IntegerVector support_vec, int max_n);
+RcppExport SEXP _moire_compare_mobius_inclusion_exclusion(SEXP p_fullSEXP, SEXP support_vecSEXP, SEXP max_nSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type p_full(p_fullSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type support_vec(support_vecSEXP);
+    Rcpp::traits::input_parameter< int >::type max_n(max_nSEXP);
+    rcpp_result_gen = Rcpp::wrap(compare_mobius_inclusion_exclusion(p_full, support_vec, max_n));
+    return rcpp_result_gen;
+END_RCPP
+}
+// moire_profiler_stats
+Rcpp::DataFrame moire_profiler_stats();
+RcppExport SEXP _moire_moire_profiler_stats() {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    rcpp_result_gen = Rcpp::wrap(moire_profiler_stats());
+    return rcpp_result_gen;
+END_RCPP
+}
+// moire_profiler_reset
+void moire_profiler_reset();
+RcppExport SEXP _moire_moire_profiler_reset() {
+BEGIN_RCPP
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    moire_profiler_reset();
+    return R_NilValue;
 END_RCPP
 }
 // start_profiler
@@ -55,7 +87,10 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_moire_run_mcmc", (DL_FUNC) &_moire_run_mcmc, 1},
-    {"_moire_openmp_enabled", (DL_FUNC) &_moire_openmp_enabled, 0},
+    {"_moire_tbb_enabled", (DL_FUNC) &_moire_tbb_enabled, 0},
+    {"_moire_compare_mobius_inclusion_exclusion", (DL_FUNC) &_moire_compare_mobius_inclusion_exclusion, 3},
+    {"_moire_moire_profiler_stats", (DL_FUNC) &_moire_moire_profiler_stats, 0},
+    {"_moire_moire_profiler_reset", (DL_FUNC) &_moire_moire_profiler_reset, 0},
     {"_moire_start_profiler", (DL_FUNC) &_moire_start_profiler, 1},
     {"_moire_stop_profiler", (DL_FUNC) &_moire_stop_profiler, 0},
     {NULL, NULL, 0}

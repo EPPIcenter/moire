@@ -1,8 +1,5 @@
 #pragma once
 
-#ifndef CHAIN_H_
-#define CHAIN_H_
-
 #include "combination_indices_generator.h"
 #include "genotyping_data.h"
 #include "parameters.h"
@@ -189,6 +186,11 @@ class Chain
     // indexed by population
     MultiVector<float, 1> population_responsibility_vector{};
     
+    // Cached log of population responsibility vector (invalidated when vector changes)
+    // This avoids recomputing log() on every calc_new_likelihood() call
+    mutable MultiVector<float, 1> population_responsibility_vector_log_{};
+    mutable bool population_responsibility_vector_log_valid_ = false;
+    
     // Population responsibility vector proposal variance
     // indexed by population
     MultiVector<float, 1> population_responsibility_vector_prop_var{};
@@ -289,5 +291,3 @@ class Chain
     void set_hot(bool hot) { this->hot = hot; };
     bool is_hot() { return hot; };
 };
-
-#endif  // CHAIN_H_

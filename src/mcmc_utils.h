@@ -23,6 +23,7 @@
 
 namespace UtilFunctions
 {
+// ----- R conversion (r_to_*, print, rewrite_line, message) -----
 float fastlog2(float x);
 
 float fastlog(float x);
@@ -152,6 +153,25 @@ void print_vector(std::vector<T> v)
     }
 }
 
+template <class T>
+void print_span(const std::span<T> v)
+{
+    if (v.size() == 0)
+    {
+        Rcpp::Rcout << "[]\n";
+    }
+    else
+    {
+        Rcpp::Rcout << '[';
+        for (size_t i = 0; i < v.size() - 1; i++)
+        {
+            Rcpp::Rcout << v[i] << ", ";
+        }
+        Rcpp::Rcout << v[v.size() - 1] << "]\n";
+    }
+}
+
+// ----- Math / util (logit, expit, log_pq, logitSum, logitScale, logSumExp, jaccard) -----
 template <class T>
 inline float logit(const T x)
 {
@@ -393,15 +413,9 @@ typename std::iterator_traits<Iter>::value_type logSumExp(const Iter &begin,
         return -std::numeric_limits<ValueType>::infinity();
     }
 
-#ifdef HAS_EXECUTION
-    auto sum = std::reduce(std::execution::unseq, begin, end, ValueType{},
-                           [max_el](ValueType a, ValueType b)
-                           { return a + std::exp(b - max_el); });
-#else
-    auto sum = std::accumulate(begin, end, ValueType{},
-                               [max_el](ValueType a, ValueType b)
-                               { return a + std::exp(b - max_el); });
-#endif
+    auto sum = moire_parallel::transform_reduce_unseq_or_seq(
+        begin, end, ValueType{}, std::plus<ValueType>{},
+        [max_el](ValueType b) { return std::exp(b - max_el); });
     return max_el + std::log(sum);
 }
 
@@ -421,7 +435,12 @@ inline float logSumExp(const std::vector<float> &x)
     }
 
     float sum = 0;
-#pragma omp simd reduction(+ : sum)
+    // Use compiler-specific hints for SIMD vectorization
+    #if defined(__GNUC__) || defined(__clang__)
+    #pragma GCC ivdep
+    #elif defined(_MSC_VER)
+    #pragma loop(ivdep)
+    #endif
     for (size_t i = 0; i < x.size(); ++i)
     {
         sum += std::exp(x[i] - max_el);
@@ -435,6 +454,8 @@ constexpr const T &clamp(const T &el, const T &low, const T &high)
     return el < low ? low : el > high ? high : el;
 }
 
+// Canonical Jaccard implementation for the main package build. distance_matrix.h provides
+// a separate implementation used only by cpp/tests (see comment in distance_matrix.h).
 template <typename T>
 T jaccard_similarity(std::span<int const> x, std::span<int const> y) {
     std::vector<int> intersection;
@@ -476,12 +497,13 @@ MultiVector<T, 2> calculate_pairwise_jaccard_similarity(GenotypingData &genotypi
     return dist;
 }
 
+// ----- GenotypingData / Sampler helpers (calculate_pairwise_jaccard_similarity, calculate_clustered_allele_frequencies) -----
 template <class T>
 RaggedMultiVector<T, 3> calculate_clustered_allele_frequencies(GenotypingData &genotyping_data, int num_populations, Sampler &sampler)
 {
     
     RaggedMultiVector<T, 3> p;
-    p.resize({num_populations, genotyping_data.num_loci}, genotyping_data.num_alleles);
+    p.resize({static_cast<size_t>(num_populations), genotyping_data.num_loci}, genotyping_data.num_alleles);
 
     MultiVector<T, 2> jaccard_similarity_matrix = genotyping_data.jaccard_similarity_matrix;
 
@@ -518,7 +540,7 @@ RaggedMultiVector<T, 3> calculate_clustered_allele_frequencies(GenotypingData &g
         for (size_t i = 0; i < available_samples.size(); ++i) {
             int other_sample = available_samples[i];
             if (other_sample != sample_idx) {
-                distances.push_back({jaccard_similarity_matrix.at({sample_idx, other_sample}), other_sample});
+                distances.push_back({jaccard_similarity_matrix.at({static_cast<size_t>(sample_idx), static_cast<size_t>(other_sample)}), other_sample});
             }
         }
         

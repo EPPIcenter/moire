@@ -20,14 +20,24 @@
 #'
 #' @examples
 #' # Example with simulated data
-#' data <- simulate_data(num_samples = 100, num_loci = 10)
+#' data <- simulate_data(
+#'   num_samples = 100,
+#'   mean_coi = 2,
+#'   epsilon_pos = 0.01,
+#'   epsilon_neg = 0.01,
+#'   locus_freq_alphas = list(c(1, 1), c(1, 1, 1))
+#' )
 #' # Use custom clustering (e.g., hierarchical clustering)
 #' # population_assignments <- cutree(hclust(dist_matrix), k = 3)
 #' # initial_freqs <- prepare_initial_allele_frequencies(data, population_assignments, 3)
-prepare_initial_allele_frequencies <- function(data, population_assignments, num_populations, pseudocount = 1) {
-  cat("=== Preparing Initial Allele Frequencies ===\n")
+cat_progress_header <- function(title, data) {
+  cat("=== ", title, " ===\n", sep = "")
   cat("Number of samples:", length(data$sample_ids), "\n")
   cat("Number of loci:", length(data$loci), "\n")
+}
+
+prepare_initial_allele_frequencies <- function(data, population_assignments, num_populations, pseudocount = 1) {
+  cat_progress_header("Preparing Initial Allele Frequencies", data)
   cat("Number of populations:", num_populations, "\n")
   cat("Population assignments:", table(population_assignments), "\n")
   
@@ -104,6 +114,27 @@ prepare_initial_allele_frequencies <- function(data, population_assignments, num
   cat("==========================================\n\n")
   
   return(result)
+}
+
+# ---- Profiling helpers ----
+#' Get C++ profiler stats
+#' @return data.frame with key, calls, total_ms, avg_ms
+#' @export
+moire_prof_stats <- function() {
+  if (!exists("moire_profiler_stats")) {
+    stop("Profiler not available; rebuild and load package.")
+  }
+  df <- moire_profiler_stats()
+  df[order(-df$total_ms), ]
+}
+
+#' Reset C++ profiler stats
+#' @export
+moire_prof_reset <- function() {
+  if (!exists("moire_profiler_reset")) {
+    stop("Profiler not available; rebuild and load package.")
+  }
+  invisible(moire_profiler_reset())
 }
 
 #' Load long form data
@@ -246,10 +277,8 @@ load_delimited_data <- function(data, sep = ";", warn_uninformative = TRUE) {
 #' long_form <- convert_to_long_form(loaded_data)
 #' print(long_form)
 convert_to_long_form <- function(data) {
-  cat("=== Converting Data to Long Form ===\n")
-  cat("Number of samples:", length(data$sample_ids), "\n")
-  cat("Number of loci:", length(data$loci), "\n")
-  
+  cat_progress_header("Converting Data to Long Form", data)
+
   # Initialize result data frame
   result_rows <- list()
   row_count <- 0
@@ -360,7 +389,7 @@ plot_chain_swaps <- function(mcmc_results) {
     # swaps for a chain happen every 2 samples
     swaps_per_chain <- mcmc_results$args$samples_per_chain / 2
     swap_dist <- chain$swap_acceptances / swaps_per_chain
-    temps <- temps <- mcmc_results$chains[[1]]$temp_gradient
+    temps <- mcmc_results$chains[[1]]$temp_gradient
     swap_idx <- (temps[1:length(temps) - 1] + temps[2:length(temps)]) / 2 # nolint: seq_linter.
     dat <- data.frame(swap_rate = swap_dist, temp = swap_idx)
     g <- ggplot(dat, aes(x = .data$temp, y = .data$swap_rate)) +
@@ -370,4 +399,207 @@ plot_chain_swaps <- function(mcmc_results) {
     g
   })
   return(plots)
+}
+
+# ---- Label Switching Correction ----
+
+#' Find optimal permutation between two population assignment matrices
+#'
+#' @details Finds the permutation of population labels that maximizes the
+#' correlation between two assignment matrices. Uses a greedy matching algorithm
+#' that finds the best matching for each population by maximizing correlation.
+#'
+#' @param assignments_t Matrix of population assignments at step t.
+#'   Rows are samples, columns are populations. Values should be probabilities.
+#' @param assignments_t1 Matrix of population assignments at step t+1.
+#'   Same structure as assignments_t.
+#' @return A permutation vector where \code{perm[i]} gives the population index in
+#'   \code{assignments_t1} that corresponds to population \code{i} in \code{assignments_t}.
+#'
+#' @importFrom stats cor
+#' @keywords internal
+find_optimal_permutation <- function(assignments_t, assignments_t1) {
+  num_populations <- ncol(assignments_t)
+  
+  # Compute correlation matrix between populations
+  # cor[i, j] = correlation between population i in step t and population j in step t+1
+  cor_matrix <- matrix(0, nrow = num_populations, ncol = num_populations)
+  for (i in seq_len(num_populations)) {
+    for (j in seq_len(num_populations)) {
+      cor_matrix[i, j] <- cor(assignments_t[, i], assignments_t1[, j], use = "pairwise.complete.obs")
+    }
+  }
+  
+  # Replace NA with 0 (occurs when there's no variation)
+  cor_matrix[is.na(cor_matrix)] <- 0
+  
+  # Greedy matching: find best permutation
+  # Start with highest correlations and match them
+  permutation <- rep(NA_integer_, num_populations)
+  used_target <- rep(FALSE, num_populations)
+  
+  # Sort correlations in descending order
+  cor_list <- list()
+  for (i in seq_len(num_populations)) {
+    for (j in seq_len(num_populations)) {
+      cor_list[[length(cor_list) + 1]] <- list(
+        source = i,
+        target = j,
+        cor = cor_matrix[i, j]
+      )
+    }
+  }
+  cor_list <- cor_list[order(sapply(cor_list, function(x) x$cor), decreasing = TRUE)]
+  
+  # Greedily assign matches
+  for (item in cor_list) {
+    if (is.na(permutation[item$source]) && !used_target[item$target]) {
+      permutation[item$source] <- item$target
+      used_target[item$target] <- TRUE
+    }
+  }
+  
+  # Handle any unmatched populations (shouldn't happen, but just in case)
+  unmatched_source <- which(is.na(permutation))
+  unmatched_target <- which(!used_target)
+  if (length(unmatched_source) > 0 && length(unmatched_target) > 0) {
+    for (i in seq_along(unmatched_source)) {
+      if (i <= length(unmatched_target)) {
+        permutation[unmatched_source[i]] <- unmatched_target[i]
+      }
+    }
+  }
+  
+  return(permutation)
+}
+
+#' Apply permutation to population assignments
+#'
+#' @details Reorders the columns of an assignment matrix according to a permutation.
+#'
+#' @param assignments Matrix of population assignments. Rows are samples,
+#'   columns are populations.
+#' @param permutation Vector where \code{permutation[i]} gives the new index for
+#'   population \code{i}. If NULL or identity, returns assignments unchanged.
+#' @return Matrix with permuted columns.
+#'
+#' @keywords internal
+apply_permutation <- function(assignments, permutation) {
+  if (is.null(permutation) || all(permutation == seq_along(permutation))) {
+    return(assignments)
+  }
+  
+  # Reorder columns according to permutation
+  # permutation[i] = j means: population i in original maps to population j in permuted
+  # So we need the inverse: which column in original corresponds to each column in permuted
+  num_populations <- length(permutation)
+  inverse_permutation <- integer(num_populations)
+  for (i in seq_len(num_populations)) {
+    inverse_permutation[permutation[i]] <- i
+  }
+  
+  return(assignments[, inverse_permutation, drop = FALSE])
+}
+
+#' Correct label switching in population assignments
+#'
+#' @details Corrects label switching by aligning population labels across MCMC steps.
+#' Uses correlation between population assignment vectors to identify the optimal
+#' permutation of labels for each step.
+#'
+#' @param population_assignments List of population assignment vectors, one per MCMC step.
+#'   Each element should be a list of vectors (one per sample), where each vector contains
+#'   log probabilities for each population.
+#' @param method Alignment method: "iterative" (align each step to previous) or
+#'   "reference" (align all steps to first step).
+#' @return List of corrected population assignment vectors with same structure as input.
+#'
+#' @export
+correct_label_switching <- function(population_assignments, method = "iterative") {
+  if (length(population_assignments) == 0) {
+    return(population_assignments)
+  }
+  
+  num_samples <- length(population_assignments[[1]])
+  if (num_samples == 0) {
+    return(population_assignments)
+  }
+  
+  num_steps <- length(population_assignments)
+  num_populations <- length(population_assignments[[1]][[1]])
+  
+  # Convert log probabilities to probabilities for correlation computation
+  # Build matrices for each step: rows = samples, columns = populations
+  step_matrices <- lapply(population_assignments, function(step_assignments) {
+    mat <- matrix(0, nrow = num_samples, ncol = num_populations)
+    for (sample_idx in seq_len(num_samples)) {
+      log_probs <- step_assignments[[sample_idx]]
+      log_probs <- as.numeric(unlist(log_probs))  # ensure numeric vector (handles list format)
+      # Handle -Inf values by setting to very small number before exp
+      log_probs_finite <- pmax(log_probs, -700)  # exp(-700) is very small but finite
+      probs <- exp(log_probs_finite)
+      # Normalize to ensure probabilities sum to 1 (handles numerical issues)
+      probs <- probs / sum(probs)
+      mat[sample_idx, ] <- probs
+    }
+    return(mat)
+  })
+  
+  # Apply label switching correction (only when we have 2+ steps)
+  if (num_steps == 1) {
+    corrected_matrices <- step_matrices
+  } else if (method == "iterative") {
+    # Align each step to the previous step
+    corrected_matrices <- list(step_matrices[[1]])  # First step unchanged
+    
+    for (step_idx in 2:num_steps) {
+      # Find optimal permutation to align step t to step t-1
+      permutation <- find_optimal_permutation(
+        corrected_matrices[[step_idx - 1]],
+        step_matrices[[step_idx]]
+      )
+      
+      # Apply permutation
+      corrected_matrices[[step_idx]] <- apply_permutation(
+        step_matrices[[step_idx]],
+        permutation
+      )
+    }
+  } else if (method == "reference") {
+    # Align all steps to the first step
+    reference_matrix <- step_matrices[[1]]
+    corrected_matrices <- list(reference_matrix)
+    
+    for (step_idx in 2:num_steps) {
+      # Find optimal permutation to align step t to reference (first step)
+      permutation <- find_optimal_permutation(
+        reference_matrix,
+        step_matrices[[step_idx]]
+      )
+      
+      # Apply permutation
+      corrected_matrices[[step_idx]] <- apply_permutation(
+        step_matrices[[step_idx]],
+        permutation
+      )
+    }
+  } else {
+    stop("method must be 'iterative' or 'reference'")
+  }
+  
+  # Convert back to original format (log probabilities)
+  corrected_assignments <- lapply(corrected_matrices, function(mat) {
+    lapply(seq_len(nrow(mat)), function(sample_idx) {
+      probs <- mat[sample_idx, ]
+      # Avoid log(0) by adding small epsilon
+      probs <- pmax(probs, .Machine$double.eps)
+      log_probs <- log(probs)
+      # Normalize log probabilities (subtract log-sum-exp)
+      log_sum_exp <- log(sum(exp(log_probs)))
+      log_probs <- log_probs - log_sum_exp
+      return(log_probs)
+    })
+  })
+  
+  return(corrected_assignments)
 }

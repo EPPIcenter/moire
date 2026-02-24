@@ -1,3 +1,6 @@
+# Parallel backend: same as Unix (see src/parallel_backend.h)
+PKG_CXXFLAGS += -DMOIRE_ENABLE_PARALLEL
+# Ensure backend detects TBB when using RcppParallel on Windows (RcppParallel may not define this)
 PKG_CXXFLAGS += -DRCPP_PARALLEL_USE_TBB=1
 
 PKG_LIBS += $(shell "${R_HOME}/bin${R_ARCH_BIN}/Rscript.exe" \

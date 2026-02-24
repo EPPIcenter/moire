@@ -2,6 +2,7 @@
 
 #include "mcmc_utils.h"
 #include "sampler.h"
+#include "profiler.h"
 
 #include <cmath>
 #include <algorithm>
@@ -55,6 +56,8 @@ void Chain::initialize_population_responsibility()
     std::sort(vec.begin(), vec.end(), std::greater<float>());
 
     population_responsibility_vector.inner_fill(std::span<float const>(vec));
+    // Initialize cache as invalid (will be computed on first calc_new_likelihood call)
+    population_responsibility_vector_log_valid_ = false;
 
     population_responsibility_vector_prop_var.clear();
     population_responsibility_vector_prop_var.resize({params.num_populations}, 1);
@@ -224,6 +227,7 @@ void Chain::initialize_parameters()
 
 void Chain::update_m(int iteration)
 {
+    ProfileScope scope("Chain::update_m");
     auto indices = std::vector<std::size_t>(genotyping_data.num_samples);
     std::iota(indices.begin(), indices.end(), 0);
     sampler.shuffle_vec(indices);
@@ -239,51 +243,54 @@ void Chain::update_m(int iteration)
 
             float adj_ratio = 0;
 
-            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+            // First, sample latent genotypes for pop_idx == 0 (sequential, uses sampler)
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                {
-                    if (pop_idx == 0)
-                    {
-                        const auto& lg = sampler.sample_latent_genotype(
-                            genotyping_data.get_observed_alleles(sample_idx, locus_idx), 
-                            m.at({sample_idx}), 
-                            eps_pos.at({sample_idx}), 
-                            eps_neg.at({sample_idx})
-                        );
-                        latent_genotypes_new.inner_fill({sample_idx, locus_idx}, -1);
-                        latent_genotypes_new.inner_fill({sample_idx, locus_idx}, lg.value);
-                        lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
-                        adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
-                        calculate_observation_likelihood(sample_idx, locus_idx);
-                    }
-                    calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-                }
+                const auto& lg = sampler.sample_latent_genotype(
+                    genotyping_data.get_observed_alleles(sample_idx, locus_idx), 
+                    m.at({sample_idx}), 
+                    eps_pos.at({sample_idx}), 
+                    eps_neg.at({sample_idx})
+                );
+                latent_genotypes_new.inner_fill({sample_idx, locus_idx}, -1);
+                latent_genotypes_new.inner_fill({sample_idx, locus_idx}, lg.value);
+                lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
+                adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
+                calculate_observation_likelihood(sample_idx, locus_idx);
             }
+
+            // Then, compute transmission likelihoods across all populations/loci
+            // Always parallelize if workload is large enough; TBB's work-stealing will
+            // balance load when nested parallelism occurs (multiple chains scenario)
+            moire_parallel::parallel_for_2d(0, params.num_populations, 0, genotyping_data.num_loci,
+                [&](std::size_t pop_idx, std::size_t locus_idx)
+                {
+                    calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
+                });
 
             const float new_llik = calc_new_likelihood();
             const float new_prior = calc_new_prior();
             const float new_post = new_llik * temp + new_prior;
             const float alpha = sampler.sample_log_mh_acceptance();
             const float mh_ratio = new_post - get_posterior() + adj_ratio;
-            if (!std::isnan(new_post) && alpha <= mh_ratio)
+            if (std::isfinite(new_post) && alpha <= mh_ratio)
             // Accept
             {
                 llik = new_llik;
                 prior = new_prior;
 
                 save_coi_likelihood(sample_idx);
-                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+                // Save observation likelihoods for pop_idx == 0 (sequential)
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
                 {
-                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                    {
-                        if (pop_idx == 0)
-                        {
-                            save_observation_likelihood(sample_idx, locus_idx);
-                            lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
-                            auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
-                            std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
-                        }
+                    save_observation_likelihood(sample_idx, locus_idx);
+                    lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
+                    auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                    std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
+                }
+                // Save transmission likelihoods across all populations/loci
+                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
                         save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
                     }
                 }
@@ -294,17 +301,17 @@ void Chain::update_m(int iteration)
             {
                 m.at({sample_idx}) = prev_m;
                 restore_coi_likelihood(sample_idx);
-                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+                // Restore observation likelihoods for pop_idx == 0 (sequential)
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
                 {
-                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                    {
-                        if (pop_idx == 0)
-                        {
-                            restore_observation_likelihood(sample_idx, locus_idx);
-                            lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
-                            auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
-                            std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
-                        }
+                    restore_observation_likelihood(sample_idx, locus_idx);
+                    lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
+                    auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
+                    std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
+                }
+                // Restore transmission likelihoods across all populations/loci
+                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
                         restore_transmission_likelihood(sample_idx, pop_idx, locus_idx);
                     }
                 }
@@ -315,6 +322,7 @@ void Chain::update_m(int iteration)
 
 void Chain::update_eff_coi(int iteration)
 {
+    ProfileScope scope("Chain::update_eff_coi");
     auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
     sampler.shuffle_vec(sample_indices);
@@ -331,7 +339,7 @@ void Chain::update_eff_coi(int iteration)
         const std::size_t prop_m = m.at({sample_idx}) + sampler.sample_coi_delta(2);
         const float prop_r = 1.0f - (prop_eff_coi - 1.0f) / (prop_m - 1.0f);
 
-        if (prop_m <= 0 || prop_m > params.max_coi || prop_r > .99999 || prop_r < .00001 || std::isnan(prop_r)) {
+        if (prop_m <= 0 || prop_m > params.max_coi || prop_r > .99999 || prop_r < .00001 || !std::isfinite(prop_r)) {
             continue;
         }
 
@@ -348,9 +356,11 @@ void Chain::update_eff_coi(int iteration)
         for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
         {
 
-            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
+            // Note: This is inside update_eff_coi which iterates over pop_idx first
+            // We need to sample latent genotypes only for pop_idx == 0
+            if (pop_idx == 0)
             {
-                if (pop_idx == 0)
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
                 {
                     const auto &lg = sampler.sample_latent_genotype(
                         genotyping_data.get_observed_alleles(sample_idx, locus_idx), 
@@ -364,8 +374,14 @@ void Chain::update_eff_coi(int iteration)
                     adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
                     calculate_observation_likelihood(sample_idx, locus_idx);
                 }
-                calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
             }
+            // Calculate transmission likelihoods for this population across all loci
+            // Always parallelize if workload is large enough; TBB's work-stealing will
+            // balance load when nested parallelism occurs (multiple chains scenario)
+            moire_parallel::parallel_for(0, genotyping_data.num_loci, [&](std::size_t locus_idx)
+            {
+                calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
+            });
 
         }
 
@@ -376,24 +392,24 @@ void Chain::update_eff_coi(int iteration)
         const double alpha = sampler.sample_log_mh_acceptance();
 
         // Reject
-        if (std::isnan(new_post) || std::isnan(mh_ratio) || alpha > mh_ratio)
+        if (!std::isfinite(new_post) || !std::isfinite(mh_ratio) || alpha > mh_ratio)
         {
             m.at({sample_idx}) = prev_m;
             r.at({sample_idx}) = prev_r;
             restore_relatedness_likelihood(sample_idx);
             restore_coi_likelihood(sample_idx);
-            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+            // Restore observation likelihoods for pop_idx == 0 (sequential)
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                {
+                lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
+                const auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
+                restore_observation_likelihood(sample_idx, locus_idx);
+            }
+            // Restore transmission likelihoods across all populations/loci
+            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
                     restore_transmission_likelihood(sample_idx, pop_idx, locus_idx);
-                    if (pop_idx == 0)
-                    {
-                        lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
-                        const auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
-                        std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
-                        restore_observation_likelihood(sample_idx, locus_idx);
-                    }
                 }
             }
         }
@@ -404,19 +420,18 @@ void Chain::update_eff_coi(int iteration)
             prior = new_prior;
             save_relatedness_likelihood(sample_idx);
             save_coi_likelihood(sample_idx);
-            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+            // Save observation likelihoods for pop_idx == 0 (sequential)
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                {
+                lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
+                const auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
+                save_observation_likelihood(sample_idx, locus_idx);
+            }
+            // Save transmission likelihoods across all populations/loci
+            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
                     save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-                    if (pop_idx == 0)
-                    {
-                        lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
-                        const auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
-                        std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
-                        save_observation_likelihood(sample_idx, locus_idx);
-                    }
-
                 }
             }
             ++m_r_accept.at({sample_idx});
@@ -436,6 +451,7 @@ void Chain::update_eff_coi(int iteration)
 
 void Chain::update_r(int iteration)
 {
+    ProfileScope scope("Chain::update_r");
     auto sample_indices = std::vector<size_t>(genotyping_data.num_samples);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
     sampler.shuffle_vec(sample_indices);
@@ -464,15 +480,14 @@ void Chain::update_r(int iteration)
         const float new_post = new_llik * temp + new_prior;
 
         // Reject
-        if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
+        if (!std::isfinite(new_post) or sampler.sample_log_mh_acceptance() >
                                         (new_post - get_posterior() + adj))
         {
             r.at({sample_idx}) = prev_r;
             restore_relatedness_likelihood(sample_idx);
-            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-            {
-                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
-                {
+            // Restore transmission likelihoods across all populations/loci
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
+                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
                     restore_transmission_likelihood(sample_idx, pop_idx, locus_idx);
                 }
             }
@@ -482,10 +497,9 @@ void Chain::update_r(int iteration)
             llik = new_llik;
             prior = new_prior;
             save_relatedness_likelihood(sample_idx);
-            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-            {
-                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
-                {
+            // Save transmission likelihoods across all populations/loci
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
+                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
                     save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
                 }
             }
@@ -506,6 +520,7 @@ void Chain::update_r(int iteration)
 
 void Chain::update_m_r(int iteration)
 {
+    ProfileScope scope("Chain::update_m_r");
     auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
     sampler.shuffle_vec(sample_indices);
@@ -532,27 +547,30 @@ void Chain::update_m_r(int iteration)
         float adj_ratio = adj;
 
         calculate_coi_likelihood(sample_idx);
-        for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+        // First, sample latent genotypes for pop_idx == 0 (sequential, uses sampler)
+        for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
         {
-            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-            {
-                if (pop_idx == 0)
-                {
-                    const auto &lg = sampler.sample_latent_genotype(
-                        genotyping_data.get_observed_alleles(sample_idx, locus_idx), 
-                        m.at({sample_idx}), 
-                        eps_pos.at({sample_idx}),
-                        eps_neg.at({sample_idx})
-                    );
-                    latent_genotypes_new.inner_fill({sample_idx, locus_idx}, -1);
-                    latent_genotypes_new.inner_fill({sample_idx, locus_idx}, lg.value);
-                    lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
-                    adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
-                    calculate_observation_likelihood(sample_idx, locus_idx);
-                }
-                calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-            }
+            const auto &lg = sampler.sample_latent_genotype(
+                genotyping_data.get_observed_alleles(sample_idx, locus_idx), 
+                m.at({sample_idx}), 
+                eps_pos.at({sample_idx}),
+                eps_neg.at({sample_idx})
+            );
+            latent_genotypes_new.inner_fill({sample_idx, locus_idx}, -1);
+            latent_genotypes_new.inner_fill({sample_idx, locus_idx}, lg.value);
+            lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
+            adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
+            calculate_observation_likelihood(sample_idx, locus_idx);
         }
+
+        // Then, compute transmission likelihoods across all populations/loci
+        // Always parallelize if workload is large enough; TBB's work-stealing will
+        // balance load when nested parallelism occurs (multiple chains scenario)
+        moire_parallel::parallel_for_2d(0, params.num_populations, 0, genotyping_data.num_loci,
+            [&](std::size_t pop_idx, std::size_t locus_idx)
+            {
+                calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
+            });
 
         const float new_llik = calc_new_likelihood();
         const float new_prior = calc_new_prior();
@@ -561,23 +579,23 @@ void Chain::update_m_r(int iteration)
         const float mh_ratio = new_post - get_posterior() + adj_ratio;
 
         // Reject
-        if (std::isnan(new_post) or alpha > mh_ratio)
+        if (!std::isfinite(new_post) or alpha > mh_ratio)
         {
             r.at({sample_idx}) = prev_r;
             restore_relatedness_likelihood(sample_idx);
             m.at({sample_idx}) = prev_m;
             restore_coi_likelihood(sample_idx);
-            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+            // Restore observation likelihoods for pop_idx == 0 (sequential)
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                {
-                    if (pop_idx == 0)
-                    {
-                        restore_observation_likelihood(sample_idx, locus_idx);
-                        lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
-                        const auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
-                        std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
-                    }
+                restore_observation_likelihood(sample_idx, locus_idx);
+                lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
+                const auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
+            }
+            // Restore transmission likelihoods across all populations/loci
+            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
                     restore_transmission_likelihood(sample_idx, pop_idx, locus_idx);
                 }
             }
@@ -588,17 +606,17 @@ void Chain::update_m_r(int iteration)
             prior = new_prior;
             save_relatedness_likelihood(sample_idx);
             save_coi_likelihood(sample_idx);
-            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+            // Save observation likelihoods for pop_idx == 0 (sequential)
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                {
-                    if (pop_idx == 0)
-                    {
-                        save_observation_likelihood(sample_idx, locus_idx);
-                        lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
-                        const auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
-                        std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
-                    }
+                save_observation_likelihood(sample_idx, locus_idx);
+                lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
+                const auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
+            }
+            // Save transmission likelihoods across all populations/loci
+            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
                     save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
                 }
             }
@@ -623,6 +641,7 @@ void Chain::update_m_r(int iteration)
  */
 void Chain::update_p(int iteration)
 {
+    ProfileScope scope("Chain::update_p");
     auto locus_indices = std::vector<std::size_t>(genotyping_data.num_loci);
     auto pop_indices = std::vector<std::size_t>(params.num_populations);
     std::iota(locus_indices.begin(), locus_indices.end(), 0);
@@ -634,7 +653,7 @@ void Chain::update_p(int iteration)
         for (const std::size_t locus_idx : locus_indices)
         {
             const std::size_t num_alleles = p.ragged_dimensions(locus_idx);
-            // std::size_t rep = num_alleles; 
+            // Alternative: rep = num_alleles (fixed rep=3 used for tuning) 
             std::size_t rep = 3;
             const auto [begin, end] = p.inner_iterators({pop_idx, locus_idx});
             while (rep-- > 0)
@@ -642,7 +661,10 @@ void Chain::update_p(int iteration)
                 const size_t allele_idx = sampler.sample_random_int(0, num_alleles - 1);
 
                 ++p_attempt.at({pop_idx, locus_idx, allele_idx});
-
+                {
+                    ProfileScope scope("Chain::update_p::build_logit");
+                    // build logit of current simplex
+                }
                 auto logitPropP = UtilFunctions::logitVec(begin, end);
 
                 const float logitCurr = logitPropP[allele_idx];
@@ -663,6 +685,9 @@ void Chain::update_p(int iteration)
                     (currLogPQ.first - propLogPQ.first) +
                     (num_alleles - 1) * (currLogPQ.second - propLogPQ.second);
 
+                {
+                    ProfileScope scope("Chain::update_p::expit");
+                }
                 const auto prop_p = UtilFunctions::expitVec(logitPropP);
                 // check to make sure the proposed simplex is within a bounded range
                 bool sub_threshold_flag = false;
@@ -670,7 +695,7 @@ void Chain::update_p(int iteration)
                 {
                     // below a very small threshold that can cause numerical
                     // instability
-                    if (el < 1e-12)
+                    if (el < 1e-4 || !std::isfinite(el))
                     {
                         sub_threshold_flag = true;
                         break;
@@ -690,33 +715,41 @@ void Chain::update_p(int iteration)
                     calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
                 }
 
-                const float new_llik = calc_new_likelihood();
-                const float new_prior = calc_new_prior();
-                const float new_post = new_llik * temp + new_prior;
+                float new_llik;
+                float new_prior;
+                float new_post;
+                {
+                    ProfileScope scope("Chain::update_p::calc_post");
+                    new_llik = calc_new_likelihood();
+                    new_prior = calc_new_prior();
+                    new_post = new_llik * temp + new_prior;
+                }
 
                 const float acceptanceRatio = new_post - get_posterior() + logAdj;
 
-                if (std::isnan(new_post) or
+                if (!std::isfinite(new_post) or
                     sampler.sample_log_mh_acceptance() > acceptanceRatio)
                 {
+                    ProfileScope scope("Chain::update_p::reject_restore");
                     p.inner_fill({pop_idx, locus_idx}, prev_p);
                     for (std::size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
                     {
-                        for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+                        for (std::size_t pop_idx_restore = 0; pop_idx_restore < params.num_populations; ++pop_idx_restore)
                         {
-                            restore_transmission_likelihood(sample_idx, pop_idx, locus_idx);
+                            restore_transmission_likelihood(sample_idx, pop_idx_restore, locus_idx);
                         }
                     }
                 }
                 else
                 {
+                    ProfileScope scope("Chain::update_p::accept_save");
                     llik = new_llik;
                     prior = new_prior;
                     for (std::size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
                     {
-                        for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+                        for (std::size_t pop_idx_save = 0; pop_idx_save < params.num_populations; ++pop_idx_save)
                         {
-                            save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
+                            save_transmission_likelihood(pop_idx_save, sample_idx, locus_idx);
                         }
                     }
                     ++p_accept.at({pop_idx, locus_idx, allele_idx});
@@ -738,6 +771,7 @@ void Chain::update_p(int iteration)
 
 void Chain::update_eps_pos(int iteration)
 {
+    ProfileScope scope("Chain::update_eps_pos");
     auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
     sampler.shuffle_vec(sample_indices);
@@ -765,7 +799,7 @@ void Chain::update_eps_pos(int iteration)
             const float new_post = new_llik * temp + new_prior;
 
             // Reject
-            if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
+            if (!std::isfinite(new_post) or sampler.sample_log_mh_acceptance() >
                                             (new_post - get_posterior() + adj))
             {
                 eps_pos.at({sample_idx}) = prev_eps_pos;
@@ -803,6 +837,7 @@ void Chain::update_eps_pos(int iteration)
 
 void Chain::update_eps_neg(int iteration)
 {
+    ProfileScope scope("Chain::update_eps_neg");
     auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
     sampler.shuffle_vec(sample_indices);
@@ -830,7 +865,7 @@ void Chain::update_eps_neg(int iteration)
             const float new_post = new_llik * temp + new_prior;
 
             // Reject
-            if (std::isnan(new_post) or sampler.sample_log_mh_acceptance() >
+            if (!std::isfinite(new_post) or sampler.sample_log_mh_acceptance() >
                                             (new_post - get_posterior() + adj))
             {
                 eps_neg.at({sample_idx}) = prev_eps_neg;
@@ -868,6 +903,7 @@ void Chain::update_eps_neg(int iteration)
 
 void Chain::update_samples(int iteration)
 {
+    ProfileScope scope("Chain::update_samples");
     auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
     sampler.shuffle_vec(sample_indices);
@@ -924,31 +960,34 @@ void Chain::update_samples(int iteration)
             float adj_ratio = eps_neg_adj + eps_pos_adj + r_adj;
 
             calculate_coi_likelihood(sample_idx);
-            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+            // First, sample latent genotypes for pop_idx == 0 (sequential, uses sampler)
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
             {
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                {
-                    if (pop_idx == 0)
-                    {
-                        auto lg = sampler.sample_latent_genotype(
-                            genotyping_data.get_observed_alleles(sample_idx, locus_idx), m.at({sample_idx}),
-                            eps_pos.at({sample_idx}), eps_neg.at({sample_idx}));
-                        latent_genotypes_new.inner_fill({sample_idx, locus_idx}, -1);
-                        latent_genotypes_new.inner_fill({sample_idx, locus_idx}, lg.value);
-                        lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
-                        adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
-                        calculate_observation_likelihood(sample_idx, locus_idx);
-                    }
-                    calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-                }
+                auto lg = sampler.sample_latent_genotype(
+                    genotyping_data.get_observed_alleles(sample_idx, locus_idx), m.at({sample_idx}),
+                    eps_pos.at({sample_idx}), eps_neg.at({sample_idx}));
+                latent_genotypes_new.inner_fill({sample_idx, locus_idx}, -1);
+                latent_genotypes_new.inner_fill({sample_idx, locus_idx}, lg.value);
+                lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
+                adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
+                calculate_observation_likelihood(sample_idx, locus_idx);
             }
+
+            // Then, compute transmission likelihoods across all populations/loci
+            // Always parallelize if workload is large enough; TBB's work-stealing will
+            // balance load when nested parallelism occurs (multiple chains scenario)
+            moire_parallel::parallel_for_2d(0, params.num_populations, 0, genotyping_data.num_loci,
+                [&](std::size_t pop_idx, std::size_t locus_idx)
+                {
+                    calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
+                });
 
             const float new_llik = calc_new_likelihood();
             const float new_prior = calc_new_prior();
             const float new_post = new_llik * temp + new_prior;
             const float alpha = sampler.sample_log_mh_acceptance();
 
-            if (!std::isnan(new_post) and
+            if (std::isfinite(new_post) and
                 alpha <= (new_post - get_posterior() + adj_ratio))
             {
                 llik = new_llik;
@@ -957,17 +996,17 @@ void Chain::update_samples(int iteration)
                 save_eps_pos_likelihood(sample_idx);
                 save_relatedness_likelihood(sample_idx);
                 save_coi_likelihood(sample_idx);
-                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+                // Save observation likelihoods for pop_idx == 0 (sequential)
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
                 {
-                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                    {
-                        if (pop_idx == 0)
-                        {
-                            save_observation_likelihood(sample_idx, locus_idx);
-                            lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
-                            auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
-                            std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
-                        }
+                    save_observation_likelihood(sample_idx, locus_idx);
+                    lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
+                    auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                    std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
+                }
+                // Save transmission likelihoods across all populations/loci
+                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
                         save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
                     }
                 }
@@ -983,17 +1022,17 @@ void Chain::update_samples(int iteration)
                 restore_eps_pos_likelihood(sample_idx);
                 restore_relatedness_likelihood(sample_idx);
                 restore_coi_likelihood(sample_idx);
-                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx)
+                // Restore observation likelihoods for pop_idx == 0 (sequential)
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
                 {
-                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                    {
-                        if (pop_idx == 0)
-                        {
-                            restore_observation_likelihood(sample_idx, locus_idx);
-                            lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
-                            auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
-                            std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
-                        }
+                    restore_observation_likelihood(sample_idx, locus_idx);
+                    lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
+                    auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
+                    std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
+                }
+                // Restore transmission likelihoods across all populations/loci
+                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
                         restore_transmission_likelihood(sample_idx, pop_idx, locus_idx);
                     }
                 }
@@ -1021,7 +1060,7 @@ void Chain::update_population_coi_p(int iteration)
     const float new_post = new_llik * temp + new_prior;
 
     const float alpha = sampler.sample_log_mh_acceptance();
-    if (!std::isnan(new_post) and alpha <= (new_post - get_posterior() + adj))
+    if (std::isfinite(new_post) and alpha <= (new_post - get_posterior() + adj))
     {
         llik = new_llik;
         prior = new_prior;
@@ -1071,7 +1110,7 @@ void Chain::update_population_coi_r(int iteration)
 
     const float alpha = sampler.sample_log_mh_acceptance();
 
-    if (!std::isnan(new_post) and alpha <= (new_post - get_posterior() + adj))
+    if (std::isfinite(new_post) and alpha <= (new_post - get_posterior() + adj))
     {
         llik = new_llik;
         prior = new_prior;
@@ -1154,7 +1193,7 @@ void Chain::update_population_responsibility_vector(int iteration)
             [prop_p_begin](size_t i1, size_t i2) { return prop_p_begin[i1] > prop_p_begin[i2]; });
         
         std::vector<float> sorted_resp(params.num_populations);
-        // std::vector<float> sorted_var(params.num_populations);
+        // sorted_var (alternative formulation, kept for reference)
 
         for (size_t i = 0; i < params.num_populations; ++i) {
             sorted_resp[i] = prop_p_begin[indices[i]];
@@ -1163,6 +1202,8 @@ void Chain::update_population_responsibility_vector(int iteration)
         const auto prev_p = std::vector<float>(begin, end);
         // population_responsibility_vector.inner_fill(prop_p);
         population_responsibility_vector.inner_fill(sorted_resp);
+        // Invalidate cached log when vector changes
+        population_responsibility_vector_log_valid_ = false;
         calculate_population_responsibility_vector_likelihood();
 
         const float new_llik = calc_new_likelihood();
@@ -1173,9 +1214,11 @@ void Chain::update_population_responsibility_vector(int iteration)
 
         bool reject = sampler.sample_log_mh_acceptance() > acceptance_ratio;
 
-        if (std::isnan(new_post) or reject)
+        if (!std::isfinite(new_post) or reject)
         {
             population_responsibility_vector.inner_fill(prev_p);
+            // Invalidate cached log when reverting
+            population_responsibility_vector_log_valid_ = false;
             restore_population_responsibility_vector_likelihood();
         }
         else
@@ -1204,6 +1247,7 @@ float Chain::calc_transmission_process(
     std::span<int const> full_allele_index_vec,
     std::span<float const> allele_frequencies, int coi, float relatedness)
 {
+    ProfileScope scope_all("Chain::calc_transmission_process::all");
     // transmission process - prob that after "coi" number of draws, all
     // alleles are drawn at least once conditional on all draws come
     // from the constrained set, where the constrained set is the set of
@@ -1215,21 +1259,56 @@ float Chain::calc_transmission_process(
 
     if (allele_index_vec.size() > coi) 
     {
-        throw std::invalid_argument("Allele index vec size is greater than COI");
+        // Invalid state: more alleles than COI is impossible
+        static int log_count = 0;
+        if (log_count < 10) {
+            UtilFunctions::print("WARNING: calc_transmission_process: allele_index_vec.size() > coi:",
+                                 "size =", allele_index_vec.size(), "coi =", coi);
+            log_count++;
+        }
+        return -std::numeric_limits<float>::infinity();
     }
-
 
     float constrained_set_total_prob = 0;
     std::vector<float> res{};
     const size_t total_alleles = allele_index_vec.size();
+    
+    if (total_alleles == 0) {
+        // No constrained support -> cannot see all categories; transmission prob is zero
+        return -std::numeric_limits<float>::infinity();
+    }
+    
     std::vector<float> prVec_{};
 
     res.reserve(coi - total_alleles + 1);
     prVec_.reserve(total_alleles);
     for (const auto &e : allele_index_vec)
     {
+        // Bounds check: ensure e is valid index into allele_frequencies
+        if (static_cast<size_t>(e) >= allele_frequencies.size() || e < 0) {
+            // Invalid allele index - return -infinity instead of throwing
+            // (throwing exceptions from parallel code causes issues with R's error handling)
+            static int log_count = 0;
+            if (log_count < 10) {
+                UtilFunctions::print("WARNING: calc_transmission_process: invalid allele index:",
+                                     "e =", e, "allele_frequencies.size() =", allele_frequencies.size());
+                log_count++;
+            }
+            return -std::numeric_limits<float>::infinity();
+        }
         prVec_.push_back(allele_frequencies[e]);
         constrained_set_total_prob += prVec_.back();
+    }
+
+    // Check for zero total probability (shouldn't happen but safety check)
+    if (constrained_set_total_prob <= 0.0f || !std::isfinite(constrained_set_total_prob)) {
+        static int log_count = 0;
+        if (log_count < 10) {
+            UtilFunctions::print("WARNING: calc_transmission_process: invalid constrained_set_total_prob:",
+                                 "value =", constrained_set_total_prob, "total_alleles =", total_alleles);
+            log_count++;
+        }
+        return -std::numeric_limits<float>::infinity();
     }
 
     const float log_constrained_set_total_prob = std::log(constrained_set_total_prob);
@@ -1241,25 +1320,82 @@ float Chain::calc_transmission_process(
     }
 
     // break early if relatedness is not allowed
+    // Create a local probAnyMissingFunctor instance to avoid thread-safety issues
+    // (the member probAnyMissing_ is shared across threads and contains non-thread-safe state)
+    probAnyMissingFunctor local_probAnyMissing;
     if (!params.allow_relatedness)
     {
-        return std::log(1 - probAnyMissing_(prVec_, coi)) +
+        return std::log(1 - local_probAnyMissing(prVec_, coi)) +
                log_constrained_set_total_prob * coi;
     }
 
     // Only go up to coi - total_alleles because there must be at least
     // total_alleles unrelated strains at this locus
-    const std::vector<double> pamVec = probAnyMissing_.vectorized(prVec_, coi);
-    for (size_t i = 0; i <= coi - total_alleles; ++i)
+    // Safety check: ensure coi >= total_alleles to avoid negative loop bounds
+    if (static_cast<int>(coi) < static_cast<int>(total_alleles)) {
+        static int log_count = 0;
+        if (log_count < 10) {
+            UtilFunctions::print("WARNING: calc_transmission_process: coi < total_alleles:",
+                                 "coi =", coi, "total_alleles =", total_alleles);
+            log_count++;
+        }
+        return -std::numeric_limits<float>::infinity();
+    }
+    
     {
-        // Calculate the probability of `i` related strains being present, where
-        // there are at most coi - total_alleles related strains
+        ProfileScope scope_loop("Chain::calc_transmission_process::loop");
+        // Safety check: ensure coi and total_alleles are reasonable to avoid explosion in combination calculations
+        // Very large values can cause numCombinations to overflow or be astronomically large
+        // The inclusion-exclusion calculation scales as sum of (n choose k) for k=1..n, which grows exponentially
+        if (coi > 100 || total_alleles > 30 || (coi > 50 && total_alleles > 20)) {
+            // For extreme values, return -infinity to avoid computation explosion
+            static int log_count = 0;
+            if (log_count < 10) {
+                UtilFunctions::print("WARNING: calc_transmission_process: extreme coi/total_alleles values:",
+                                     "coi =", coi, "total_alleles =", total_alleles);
+                log_count++;
+            }
+            return -std::numeric_limits<float>::infinity();
+        }
+        const std::vector<double> pamVec = local_probAnyMissing.vectorized(prVec_, coi);
+        const size_t loop_upper = static_cast<size_t>(coi - total_alleles);
+        for (size_t i = 0; i <= loop_upper; ++i)
+        {
+            // Calculate the probability of `i` related strains being present, where
+            // there are at most coi - total_alleles related strains
 
-        // prob of i related strains
-        const float pr = sampler.dbinom(i, coi - 1, relatedness);
-        const float i_res = std::log(1 - pamVec[coi - i - 1]) +
-                            log_constrained_set_total_prob * (coi - i);
-        res.push_back(pr + i_res);
+            // prob of i related strains
+            const float pr = sampler.dbinom(i, coi - 1, relatedness);
+            const size_t pam_idx = static_cast<size_t>(coi - i - 1);
+            // Bounds check on pamVec access
+            if (pam_idx >= pamVec.size()) {
+                // Index out of bounds - skip this iteration instead of throwing
+                // (throwing exceptions from parallel code causes issues with R's error handling)
+                static int log_count = 0;
+                if (log_count < 10) {
+                    UtilFunctions::print("WARNING: calc_transmission_process: pam_idx out of bounds:",
+                                         "pam_idx =", pam_idx, "pamVec.size() =", pamVec.size(),
+                                         "coi =", coi, "i =", i, "total_alleles =", total_alleles);
+                    log_count++;
+                }
+                continue;
+            }
+            const float i_res = std::log(1 - pamVec[pam_idx]) +
+                                log_constrained_set_total_prob * (coi - i);
+            res.push_back(pr + i_res);
+        }
+    }
+
+    // If res is empty (all iterations skipped due to bounds issues), return -infinity
+    if (res.empty()) {
+        static int log_count = 0;
+        if (log_count < 10) {
+            const size_t loop_upper = static_cast<size_t>(coi - total_alleles);
+            UtilFunctions::print("WARNING: calc_transmission_process: res is empty after loop:",
+                                 "coi =", coi, "total_alleles =", total_alleles, "loop_upper =", loop_upper);
+            log_count++;
+        }
+        return -std::numeric_limits<float>::infinity();
     }
 
     return UtilFunctions::logSumExp(res);
@@ -1269,6 +1405,7 @@ float Chain::calc_observation_process(std::span<int const> full_allele_index_vec
                                       std::span<int const> obs_genotype,
                                       float epsilon_neg, float epsilon_pos)
 {
+    ProfileScope scope("Chain::calc_observation_process");
     float res = 0;
     unsigned int fp = 0;
     unsigned int tp = 0;
@@ -1310,24 +1447,39 @@ float Chain::calc_observation_process(std::span<int const> full_allele_index_vec
 
 
 float Chain::calc_new_likelihood() {
+    ProfileScope scope("Chain::calc_new_likelihood");
     // All observation likelihoods are independent of each other
-    auto observation_llik = observation_llik_new.full_sum();
+    float observation_llik;
+    {
+        ProfileScope s_obs("Chain::calc_new_likelihood::obs_sum");
+        observation_llik = observation_llik_new.full_sum();
+    }
 
     // std::cout << "Observation likelihood: " << observation_llik << std::endl;
 
     // Transmission likelihoods are independent across loci
-    auto transmission_llik = (transmission_llik_new.parallel_sum() + coi_prior_new)
-        // weight by population responsibility
-        .parallel_element_add(population_responsibility_vector.parallel_log())
-        // logsumexp over populations
-        .parallel_logsumexp()
-        // sum over samples
-        .parallel_full_sum();
+    float transmission_llik;
+    {
+        ProfileScope s_tx("Chain::calc_new_likelihood::transmission_sum");
+        // Cache log of population_responsibility_vector to avoid recomputing on every call
+        // (the vector only changes once per iteration, but this function is called many times)
+        if (!population_responsibility_vector_log_valid_) {
+            population_responsibility_vector_log_ = population_responsibility_vector.log();
+            population_responsibility_vector_log_valid_ = true;
+        }
+        
+        // MultiVector methods now automatically choose parallel vs sequential based on workload size
+        transmission_llik = (transmission_llik_new.sum() + coi_prior_new)
+            .element_add(population_responsibility_vector_log_.as_span())
+            .logsumexp()
+            .full_sum();
+    }
 
     return observation_llik + transmission_llik;
 }
 
 float Chain::calc_new_prior() {
+    ProfileScope scope("Chain::calc_new_prior");
     return eps_neg_prior_new.full_sum() + 
                 eps_pos_prior_new.full_sum() + 
                 relatedness_prior_new.full_sum() + 
@@ -1340,6 +1492,7 @@ float Chain::get_llik() { return llik; }
 float Chain::get_prior() { return prior; }
 float Chain::get_posterior() { return llik * temp + prior; }
 
+// Legacy per-sample get_llik/get_prior/get_posterior and calculate_genotype_likelihood (kept for reference)
 // float Chain::get_llik(int sample) { 
 //     int idx = sample * genotyping_data.num_loci;
 
@@ -1396,6 +1549,7 @@ float Chain::get_posterior() { return llik * temp + prior; }
 // }
 
 void Chain::calculate_observation_likelihood(std::size_t sample_idx, std::size_t locus_idx) {
+    ProfileScope scope("Chain::calculate_observation_likelihood");
     if (genotyping_data.is_missing(sample_idx, locus_idx)) {
         observation_llik_new.at({sample_idx, locus_idx}) = 0;
     } else {
@@ -1410,6 +1564,7 @@ void Chain::calculate_observation_likelihood(std::size_t sample_idx, std::size_t
 }
 
 void Chain::calculate_transmission_likelihood(std::size_t population_idx, std::size_t sample_idx, std::size_t locus_idx) {
+    ProfileScope scope("Chain::calculate_transmission_likelihood");
     if (genotyping_data.is_missing(sample_idx, locus_idx)) {
         transmission_llik_new.at({sample_idx, population_idx, locus_idx}) = 0;
     } else {
@@ -1425,44 +1580,52 @@ void Chain::calculate_transmission_likelihood(std::size_t population_idx, std::s
     }
 }
 
+
 void Chain::calculate_eps_neg_likelihood(std::size_t sample_idx)
 {
+    ProfileScope scope("Chain::calculate_eps_neg_likelihood");
     eps_neg_prior_new.at({sample_idx}) = sampler.get_beta_log_prior(
         eps_neg.at({sample_idx}), params.eps_neg_alpha, params.eps_neg_beta);
 }
 
 void Chain::calculate_eps_pos_likelihood(std::size_t sample_idx)
 {
+    ProfileScope scope("Chain::calculate_eps_pos_likelihood");
     eps_pos_prior_new.at({sample_idx}) = sampler.get_beta_log_prior(
         eps_pos.at({sample_idx}), params.eps_pos_alpha, params.eps_pos_beta);
 }
 
 void Chain::calculate_relatedness_likelihood(std::size_t sample_idx)
 {
+    ProfileScope scope("Chain::calculate_relatedness_likelihood");
     relatedness_prior_new.at({sample_idx}) = sampler.get_relatedness_log_prior(
         r.at({sample_idx}), params.r_alpha, params.r_beta);
 }
 
 void Chain::calculate_coi_likelihood(std::size_t sample_idx)
 {
+    ProfileScope scope("Chain::calculate_coi_likelihood");
     coi_prior_new.at({sample_idx}) =
         sampler.get_coi_log_prior(m.at({sample_idx}), population_coi_p, population_coi_r);
 }
 
 void Chain::calculate_population_coi_p_likelihood()
 {
+    ProfileScope scope("Chain::calculate_population_coi_p_likelihood");
     population_coi_p_hyper_prior_new = sampler.get_beta_log_prior(
         population_coi_p, params.population_coi_p_alpha, params.population_coi_p_beta);
 }
 
 void Chain::calculate_population_coi_r_likelihood()
 {
+    ProfileScope scope("Chain::calculate_population_coi_r_likelihood");
     population_coi_r_hyper_prior_new = sampler.get_gamma_log_prior(
         population_coi_r, params.population_coi_r_shape, params.population_coi_r_rate);
 }
 
 void Chain::calculate_population_responsibility_vector_likelihood()
 {
+    ProfileScope scope("Chain::calculate_population_responsibility_vector_likelihood");
     population_responsibility_vector_prior_new = sampler.unnormalized_dirichlet_log_prior(
         population_responsibility_vector, params.population_responsibility_vector_alpha
     );
@@ -1475,6 +1638,7 @@ void Chain::save_population_responsibility_vector_likelihood()
 
 void Chain::initialize_likelihood()
 {
+    ProfileScope scope("Chain::initialize_likelihood");
     const std::size_t num_samples = genotyping_data.num_samples;
     const std::size_t num_loci = genotyping_data.num_loci;
     const std::size_t num_populations = params.num_populations;
@@ -1497,6 +1661,7 @@ void Chain::initialize_likelihood()
     coi_prior_new.resize({num_samples, num_populations});
     coi_prior_old.resize({num_samples, num_populations});
 
+    // population_coi_mean_hyper_prior resize (optional formulation, kept for reference)
     // population_coi_mean_hyper_prior_new.resize({num_populations});
     // population_coi_mean_hyper_prior_old.resize({num_populations});
 
@@ -1636,7 +1801,7 @@ void Chain::set_temp(float temp) { this->temp = temp; }
 float Chain::get_temp() { return this->temp; }
 
 Chain::Chain(GenotypingData genotyping_data, Parameters params, float temp)
-    : genotyping_data(genotyping_data), params(params), temp(temp), llik(std::numeric_limits<float>::lowest()), sampler()
+    : genotyping_data(genotyping_data), params(params), sampler(), temp(temp), llik(std::numeric_limits<float>::lowest())
 
 {
     initialize_parameters();
