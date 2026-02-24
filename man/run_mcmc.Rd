@@ -19,8 +19,15 @@ run_mcmc(
   eps_neg_beta = 1,
   r_alpha = 1,
   r_beta = 1,
-  mean_coi_shape = 0.1,
-  mean_coi_scale = 10,
+  population_coi_p_alpha = 1,
+  population_coi_p_beta = 1,
+  population_coi_r_shape = 0.1,
+  population_coi_r_rate = 10,
+  population_coi_lam_shape = 0.1,
+  population_coi_lam_rate = 10,
+  population_coi_method = "nb",
+  num_populations = 1,
+  populations_prior = NULL,
   max_eps_pos = 2,
   max_eps_neg = 2,
   max_coi = 40,
@@ -34,7 +41,8 @@ run_mcmc(
   pre_adapt_steps = 25,
   temp_adapt_steps = 25,
   max_initialization_tries = 10000,
-  max_runtime = Inf
+  max_runtime = Inf,
+  initial_allele_frequencies = NULL
 )
 }
 \arguments{
@@ -79,9 +87,25 @@ distribution for relatedness prior}
 \item{r_beta}{Positive Numeric. Beta parameter in Beta
 distribution for relatedness prior}
 
-\item{mean_coi_shape}{shape parameter for gamma hyperprior on mean COI}
+\item{population_coi_p_alpha}{Alpha for Beta prior on negative-binomial p (COI)}
 
-\item{mean_coi_scale}{scale parameter for gamma hyperprior on mean COI}
+\item{population_coi_p_beta}{Beta for Beta prior on negative-binomial p (COI)}
+
+\item{population_coi_r_shape}{Shape for gamma prior on negative-binomial r (COI)}
+
+\item{population_coi_r_rate}{Rate for gamma prior on negative-binomial r (COI)}
+
+\item{population_coi_lam_shape}{Shape for gamma prior on Poisson rate (COI)}
+
+\item{population_coi_lam_rate}{Rate for gamma prior on Poisson rate (COI)}
+
+\item{population_coi_method}{Character. Method for modeling population COI.
+For negative binomial model, accepts: "nb", "nbinom", "negbinom", "negative_binomial".
+For Poisson model, accepts: "pois", "poisson".}
+
+\item{num_populations}{Number of populations}
+
+\item{populations_prior}{Prior probability for each population (length \code{num_populations} or 1)}
 
 \item{max_eps_pos}{Numeric. Maximum allowed value for eps_pos}
 
@@ -130,6 +154,12 @@ chain before giving up}
 \item{max_runtime}{Maximum runtime in minutes. If the MCMC is running for
 more than this amount of time, the function will stop and return the current
 state of the MCMC.}
+
+\item{initial_allele_frequencies}{Optional list of initial allele frequencies
+for each population. If provided, should be a list of length \code{num_populations},
+where each element is a list of length \code{num_loci}, and each locus element is
+a numeric vector of allele frequencies that sum to 1. If NULL, allele frequencies
+will be initialized using clustering-based approach.}
 }
 \description{
 Sample from the target distribution using MCMC

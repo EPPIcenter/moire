@@ -65,11 +65,22 @@ num_samples <- 1e3
 pt_chains <- seq(1, 0, length.out = 80)
 pt_num_threads <- 20 # number of threads to use for parallel tempering
 
+initial_freqs <- prepare_initial_allele_frequencies(
+  data = simulated_data,
+  population_assignments = rep(1, length(simulated_data$sample_ids)),
+  num_populations = 1,
+  pseudocount = 1
+)
+
 mcmc_results <- moire::run_mcmc(
   simulated_data,
+  num_populations = 1,
+  r_alpha = 2,
+  r_beta = 3,
   verbose = TRUE, burnin = burnin, samples_per_chain = num_samples,
   pt_chains = pt_chains, pt_num_threads = pt_num_threads,
-  adapt_temp = TRUE
+  adapt_temp = TRUE,
+  initial_allele_frequencies = initial_freqs
 )
 ```
 

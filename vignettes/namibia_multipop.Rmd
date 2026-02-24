@@ -1,8 +1,8 @@
 ---
-title: "Application to Namibia"
+title: "Application to Namibia (multi-population)"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Application to Namibia}
+  %\VignetteIndexEntry{Application to Namibia (multi-population)}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteDepends{parallelly, dplyr}
@@ -34,8 +34,8 @@ epi_dat <- full_dat |>
 allow_relatedness <- TRUE
 burnin <- 1e3
 num_samples <- 1e3
-r_alpha <- 3
-r_beta <- 3
+r_alpha <- 5
+r_beta <- 5
 eps_pos_alpha <- 1
 eps_pos_beta <- 1
 eps_neg_alpha <- 1
@@ -43,87 +43,181 @@ eps_neg_beta <- 1
 
 # pt_chains <- seq(1, 0.75, length.out = 20)
 
-# full_dat_filtered <- full_dat |>
-#   dplyr::group_by(locus, allele) |>
-#   dplyr::mutate(n = dplyr::n()) |>
-#   dplyr::ungroup() |>
-#   dplyr::filter(n > 5)
+# allele prevalences
+allele_prevalences <- full_dat |>
+  dplyr::group_by(locus, allele, HealthFacility) |>
+  dplyr::summarize(hf_allele_n = dplyr::n(), .groups = "drop") |>
+  dplyr::group_by(locus, HealthFacility) |>
+  dplyr::mutate(hf_total_obs = sum(hf_allele_n), hf_prevalence = hf_allele_n / hf_total_obs) |>
+  dplyr::ungroup() |>
+  dplyr::group_by(locus, allele) |>
+  dplyr::mutate(global_allele_n = sum(hf_allele_n)) |>
+  dplyr::ungroup() |>
+  dplyr::group_by(locus) |>
+  dplyr::mutate(global_total_obs = sum(global_allele_n), global_prevalence = global_allele_n / global_total_obs) |>
+  dplyr::ungroup() |>
+  dplyr::group_by(locus, allele) |>
+  dplyr::summarize(max_hf_prevalence = max(hf_prevalence), global_prevalence = max(global_prevalence), max_hf_allele_n = max(hf_allele_n), global_allele_n = max(global_allele_n)) |>
+  dplyr::select(locus, allele, max_hf_prevalence, global_prevalence, max_hf_allele_n, global_allele_n) |>
+  dplyr::arrange(desc(max_hf_prevalence), desc(global_prevalence))
 
-andara_dat <- full_dat |>
-  dplyr::filter(HealthDistrict == "Andara")
-nyangana_dat <- full_dat |>
-  dplyr::filter(HealthDistrict == "Nyangana")
-rundu_dat <- full_dat |>
-  dplyr::filter(HealthDistrict == "Rundu")
-zambezi_dat <- full_dat |>
-  dplyr::filter(HealthDistrict == "Zambezi")
+full_dat_filtered <- full_dat |>
+  dplyr::left_join(allele_prevalences, by = c("locus", "allele")) |>
+  dplyr::filter(max_hf_allele_n > 5)
 
-dat <- moire::load_long_form_data(andara_dat)
-res_andara <- moire::run_mcmc(
-  dat, dat$is_missing,
-  allow_relatedness = allow_relatedness,
-  burnin = burnin, samples_per_chain = num_samples,
-  r_alpha = r_alpha, r_beta = r_beta,
-  eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
-  eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
-  # max_runtime = 60 * 6, 
-  num_populations = 10,
-  populations_prior = rep(1 / 10, 10),
-  max_initialization_tries = 5
+# andara_dat <- full_dat |>
+#   dplyr::filter(HealthDistrict == "Andara")
+# nyangana_dat <- full_dat |>
+#   dplyr::filter(HealthDistrict == "Nyangana")
+# rundu_dat <- full_dat |>
+#   dplyr::filter(HealthDistrict == "Rundu")
+# zambezi_dat <- full_dat |>
+#   dplyr::filter(HealthDistrict == "Zambezi")
+
+# dat <- moire::load_long_form_data(andara_dat)
+# res_andara <- moire::run_mcmc(
+#   dat, dat$is_missing,
+#   allow_relatedness = allow_relatedness,
+#   burnin = burnin, samples_per_chain = num_samples,
+#   r_alpha = r_alpha, r_beta = r_beta,
+#   eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+#   eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
+#   # max_runtime = 60 * 6,
+#   num_populations = 1,
+#   # populations_prior = rep(1 / 1, 1),
+#   max_initialization_tries = 5
+# )
+
+# dat <- moire::load_long_form_data(nyangana_dat)
+# res_nyangana <- moire::run_mcmc(
+#   dat, dat$is_missing,
+#   allow_relatedness = allow_relatedness,
+#   burnin = burnin, samples_per_chain = num_samples,
+#   r_alpha = r_alpha, r_beta = r_beta,
+#   eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+#   eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
+#   num_populations = 10,
+#   populations_prior = rep(1 / 10, 10),
+#   max_initialization_tries = 5
+# )
+
+# moire_rundu_dat <- moire::load_long_form_data(rundu_dat)
+# res_rundu <- moire::run_mcmc(
+#   moire_rundu_dat, moire_rundu_dat$is_missing,
+#   allow_relatedness = allow_relatedness,
+#   burnin = burnin, samples_per_chain = num_samples,
+#   r_alpha = r_alpha, r_beta = r_beta,
+#   eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+#   eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
+#   num_populations = 10,
+#   populations_prior = rep(1 / 10, 10)
+# )
+
+# dat <- moire::load_long_form_data(zambezi_dat)
+# res_zambezi <- moire::run_mcmc(
+#   dat, dat$is_missing,
+#   allow_relatedness = allow_relatedness,
+#   burnin = burnin, samples_per_chain = num_samples,
+#   r_alpha = r_alpha, r_beta = r_beta,
+#   eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+#   eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
+#   # max_runtime = 60 * 6,
+#   num_populations = 10,
+#   populations_prior = rep(1 / 10, 10),
+#   max_initialization_tries = 5
+# )
+
+full_moire_dat <- moire::load_long_form_data(full_dat_filtered)
+# res_full <- moire::run_mcmc(
+#   full_moire_dat, full_moire_dat$is_missing,
+#   allow_relatedness = allow_relatedness,
+#   burnin = burnin, samples_per_chain = num_samples,
+#   r_alpha = r_alpha, r_beta = r_beta,
+#   eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
+#   eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
+#   # max_runtime = 60 * 6,
+#   num_populations = 10,
+#   populations_prior = rep(1 / 10, 10),
+#   max_initialization_tries = 5
+# )
+
+calculate_jaccard_similarity <- function(data) {
+  num_samples <- length(data$sample_ids)
+  similarity_matrix <- matrix(0, nrow = num_samples, ncol = num_samples)
+  
+  for (i in 1:num_samples) {
+    for (j in 1:num_samples) {
+      if (i != j) {
+        # Calculate Jaccard similarity across all loci
+        total_shared <- 0
+        total_possible <- 0
+        for (locus_idx in seq_along(data$loci)) {
+          alleles_i <- data$data[[locus_idx]][[i]]
+          alleles_j <- data$data[[locus_idx]][[j]]
+          
+          # Convert to binary presence/absence
+          present_i <- alleles_i > 0
+          present_j <- alleles_j > 0
+
+          
+          # Jaccard similarity = intersection / union
+          intersection <- sum(present_i & present_j)
+          union_size <- sum(present_i | present_j)
+
+          if (union_size > 0) {
+            total_shared <- total_shared + intersection
+            total_possible <- total_possible + union_size
+          }
+        }
+        similarity_matrix[i, j] <- total_shared / total_possible
+      } else {
+        similarity_matrix[i, i] <- 1.0
+      }
+    }
+  }
+  
+  return(similarity_matrix)
+}
+
+# similarity_matrix <- calculate_jaccard_similarity(full_moire_dat)
+# readr::write_rds(similarity_matrix, "astmh/namibia_similarity_matrix.rds")
+similarity_matrix <- readr::read_rds("astmh/namibia_similarity_matrix.rds")
+
+# Convert to distance matrix
+distance_matrix <- 1 - similarity_matrix
+# Perform hierarchical clustering
+hc_result <- hclust(as.dist(distance_matrix), method = "ward.D2")
+
+# plot the dendrogram
+# plot(hc_result, main = "Hierarchical Clustering with Jaccard Distance")
+
+# Cut tree to get 5 populations
+num_populations <- 8
+population_assignments <- cutree(hc_result, k = num_populations)
+
+initial_freqs <- moire::prepare_initial_allele_frequencies(
+  data = full_moire_dat,
+  population_assignments = population_assignments,
+  num_populations = num_populations,
+  pseudocount = 1
 )
 
-dat <- moire::load_long_form_data(nyangana_dat)
-res_nyangana <- moire::run_mcmc(
-  dat, dat$is_missing,
-  allow_relatedness = allow_relatedness,
-  burnin = burnin, samples_per_chain = num_samples,
-  r_alpha = r_alpha, r_beta = r_beta,
-  eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
-  eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
-  num_populations = 10,
-  populations_prior = rep(1 / 10, 10),
-  max_initialization_tries = 5
-)
-
-moire_rundu_dat <- moire::load_long_form_data(rundu_dat)
-res_rundu <- moire::run_mcmc(
-  moire_rundu_dat, moire_rundu_dat$is_missing,
-  allow_relatedness = allow_relatedness,
-  burnin = burnin, samples_per_chain = num_samples,
-  r_alpha = r_alpha, r_beta = r_beta,
-  eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
-  eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
-  num_populations = 10,
-  populations_prior = rep(1 / 10, 10),
-  max_initialization_tries = 5
-)
-
-dat <- moire::load_long_form_data(zambezi_dat)
-res_zambezi <- moire::run_mcmc(
-  dat, dat$is_missing,
-  allow_relatedness = allow_relatedness,
-  burnin = burnin, samples_per_chain = num_samples,
-  r_alpha = r_alpha, r_beta = r_beta,
-  eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
-  eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
-  # max_runtime = 60 * 6, 
-  num_populations = 10,
-  populations_prior = rep(1 / 10, 10),
-  max_initialization_tries = 5
-)
-
-full_moire_dat <- moire::load_long_form_data(full_dat)
 res_full <- moire::run_mcmc(
-  full_moire_dat, full_moire_dat$is_missing,
-  allow_relatedness = allow_relatedness,
-  burnin = burnin, samples_per_chain = num_samples,
-  r_alpha = r_alpha, r_beta = r_beta,
-  eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
-  eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
-  # max_runtime = 60 * 6, 
-  num_populations = 10,
-  populations_prior = rep(1 / 10, 10),
-  max_initialization_tries = 5
+  data = full_moire_dat,
+  is_missing = full_moire_dat$is_missing,
+  num_populations = num_populations,
+  initial_allele_frequencies = initial_freqs,
+  max_coi = 40,
+  pt_chains = seq(1, 0.5, length.out = 20),
+  adapt_temp = TRUE,
+  burnin = burnin,
+  samples_per_chain = num_samples,
+  r_alpha = r_alpha,
+  r_beta = r_beta,
+  eps_pos_alpha = eps_pos_alpha,
+  eps_pos_beta = eps_pos_beta,
+  eps_neg_alpha = eps_neg_alpha,
+  eps_neg_beta = eps_neg_beta,
 )
 
 
@@ -162,9 +256,9 @@ rundu_cluster_assignments_df <- purrr::imap(rundu_cluster_assignments, ~ tibble:
 rundu_cluster_assignments_df |>
   dplyr::group_by(cluster, HealthFacility) |>
   dplyr::summarize(
-    mean_ecoi = mean(post_effective_coi_med), 
-    median_ecoi = median(post_effective_coi_med), 
-    lower_ecoi = quantile(post_effective_coi_med, 0.025), 
+    mean_ecoi = mean(post_effective_coi_med),
+    median_ecoi = median(post_effective_coi_med),
+    lower_ecoi = quantile(post_effective_coi_med, 0.025),
     upper_ecoi = quantile(post_effective_coi_med, 0.975),
     n = dplyr::n()
   ) |>
@@ -222,7 +316,7 @@ res_rundu_nyangana <- moire::run_mcmc(
   r_alpha = r_alpha, r_beta = r_beta,
   eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
   eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta,
-  # max_runtime = 60 * 6, 
+  # max_runtime = 60 * 6,
   num_populations = 10,
   populations_prior = rep(1 / 10, 10),
   max_initialization_tries = 5
@@ -259,9 +353,9 @@ rundu_nyangana_cluster_assignments_df <- purrr::imap(rundu_nyangana_cluster_assi
 rundu_nyangana_cluster_assignments_df |>
   dplyr::group_by(cluster, HealthFacility) |>
   dplyr::summarize(
-    mean_ecoi = mean(post_effective_coi_med), 
-    median_ecoi = median(post_effective_coi_med), 
-    lower_ecoi = quantile(post_effective_coi_med, 0.025), 
+    mean_ecoi = mean(post_effective_coi_med),
+    median_ecoi = median(post_effective_coi_med),
+    lower_ecoi = quantile(post_effective_coi_med, 0.025),
     upper_ecoi = quantile(post_effective_coi_med, 0.975),
     n = dplyr::n()
   ) |>
@@ -304,7 +398,7 @@ res_rundu_dh <- moire::run_mcmc(
 
 
 healthfacility_order <- c(
-  "Sauyemwa C", "Ndama C", "Rundu DH", "Nkarapamwe C", "Kaisosi C", "Kayengona C", "Sambyu HC", "Mashare C", 
+  "Sauyemwa C", "Ndama C", "Rundu DH", "Nkarapamwe C", "Kaisosi C", "Kayengona C", "Sambyu HC", "Mashare C",
   "Mabushe", "Ndonga Linenea", "Karukuta C", "Nyangana DH", "Katere C", "Shinyungwe C", "Mbambi East",
   "Kangongo C", "Mayara C", "Biro C", "Shadikongoro C", "Andara DH", "Divundu C", "Mutjiku C", "Old Bagani C",
   "Choi C", "Sesheke C", "Sibbinda HC", "Chinchimani C", "Kanono C", "Kasheshe C"
@@ -347,9 +441,9 @@ full_cluster_assignments_df <- purrr::imap(full_cluster_assignments, ~ tibble::t
 full_cluster_assignments_df |>
   dplyr::group_by(cluster, HealthFacility) |>
   dplyr::summarize(
-    mean_ecoi = mean(post_effective_coi_med), 
-    median_ecoi = median(post_effective_coi_med), 
-    lower_ecoi = quantile(post_effective_coi_med, 0.025), 
+    mean_ecoi = mean(post_effective_coi_med),
+    median_ecoi = median(post_effective_coi_med),
+    lower_ecoi = quantile(post_effective_coi_med, 0.025),
     upper_ecoi = quantile(post_effective_coi_med, 0.975),
     n = dplyr::n()
   ) |>
@@ -593,7 +687,9 @@ for (i in 1:length(pop_1_afs_summary)) {
 
 
 clusters <- tibble::tibble(
-  cluster = sapply(res$chains[[1]]$population_assignment, function(x) {which.max(x[[1000]])}),
+  cluster = sapply(res$chains[[1]]$population_assignment, function(x) {
+    which.max(x[[1000]])
+  }),
   sample_id = res$args$data$sample_id
 )
 
