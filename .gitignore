@@ -2,6 +2,12 @@
 .RData
 .Rproj.user
 
+.cursor/
+Rplots.pdf
+*.Rcheck/
+
+moire_*.tar.gz
+
 \.DS_Store
 
 \.vscode/
@@ -71,3 +77,9 @@ build/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+perf.data
+
+perf.data.old
+
+astmh/
