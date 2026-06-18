@@ -4,7 +4,6 @@
 #include <array>
 #include <span>
 #include <stdexcept>
-#include <execution>
 #include <numeric>
 #include <algorithm>
 #include <cmath>
@@ -27,9 +26,9 @@ public:
     /// @param default_value The default value for elements.
     RaggedMultiVector(const std::array<size_t, N - 1>& dimensions, const std::span<size_t const> ragged_dimensions, const T& default_value = T{}) : dimensions_(dimensions), ragged_dimensions_(ragged_dimensions.begin(), ragged_dimensions.end()) {
         std::vector<size_t> entry_dimensions(dimensions_.begin(), dimensions_.end() - 1);
-        size_t total_entries = std::reduce(std::execution::seq, entry_dimensions.begin(), entry_dimensions.end(), size_t(1), std::multiplies<size_t>());
+        size_t total_entries = std::reduce(entry_dimensions.begin(), entry_dimensions.end(), size_t(1), std::multiplies<size_t>());
         {
-            size_t data_size = std::reduce(std::execution::seq, ragged_dimensions_.begin(), ragged_dimensions_.end());
+            size_t data_size = std::reduce(ragged_dimensions_.begin(), ragged_dimensions_.end(), size_t(0), std::plus<size_t>());
             size_t total_size = total_entries * data_size;
 
             // Calculate the strides for the N - 2 dimensions
@@ -61,8 +60,8 @@ public:
         dimensions_ = dimensions;
         ragged_dimensions_ = std::vector<size_t>(ragged_dimensions.begin(), ragged_dimensions.end());
         std::vector<size_t> entry_dimensions(dimensions_.begin(), dimensions_.end() - 1);
-        size_t total_entries = std::reduce(std::execution::seq, entry_dimensions.begin(), entry_dimensions.end(), size_t(1), std::multiplies<size_t>());
-        size_t data_size = std::reduce(std::execution::seq, ragged_dimensions_.begin(), ragged_dimensions_.end());
+        size_t total_entries = std::reduce(entry_dimensions.begin(), entry_dimensions.end(), size_t(1), std::multiplies<size_t>());
+        size_t data_size = std::reduce(ragged_dimensions_.begin(), ragged_dimensions_.end(), size_t(0), std::plus<size_t>());
         size_t total_size = total_entries * data_size;
 
         // Calculate the strides for the N - 2 dimensions
@@ -122,6 +121,14 @@ public:
             throw std::out_of_range("RaggedMultiVector::at index out of bounds");
         }
         return data_.at(calculate_index(indices));
+    }
+
+    /// Unchecked element access for internal hot paths. Caller must ensure indices are valid.
+    inline T& unchecked_at(const std::array<size_t, N>& indices) {
+        return data_[calculate_index(indices)];
+    }
+    inline const T& unchecked_at(const std::array<size_t, N>& indices) const {
+        return data_[calculate_index(indices)];
     }
 
     /// Iterator for the innermost dimension
@@ -184,6 +191,79 @@ public:
         return data_;
     }
 
+    /// Invoke func(outer_indices, begin, end) for each innermost slice.
+    template<typename Func>
+    void for_each_inner_slice(Func&& func) {
+        if constexpr (N == 2) {
+            for (size_t slot = 0; slot < ragged_dimensions_.size(); ++slot) {
+                std::array<size_t, 1> outer{slot};
+                auto [begin, end] = inner_iterators(outer);
+                func(outer, begin, end);
+            }
+        } else if constexpr (N == 3) {
+            for (size_t i = 0; i < dimensions_[0]; ++i) {
+                for (size_t j = 0; j < dimensions_[1]; ++j) {
+                    std::array<size_t, 2> outer{i, j};
+                    auto [begin, end] = inner_iterators(outer);
+                    func(outer, begin, end);
+                }
+            }
+        } else {
+            auto visit = [&](auto& self, std::array<size_t, N - 1>& outer, size_t dim) -> void {
+                if (dim == N - 2) {
+                    for (size_t slot = 0; slot < ragged_dimensions_.size(); ++slot) {
+                        outer[dim] = slot;
+                        auto [begin, end] = inner_iterators(outer);
+                        func(outer, begin, end);
+                    }
+                    return;
+                }
+                for (size_t i = 0; i < dimensions_[dim]; ++i) {
+                    outer[dim] = i;
+                    self(self, outer, dim + 1);
+                }
+            };
+            std::array<size_t, N - 1> outer{};
+            visit(visit, outer, 0);
+        }
+    }
+
+    template<typename Func>
+    void for_each_inner_slice(Func&& func) const {
+        if constexpr (N == 2) {
+            for (size_t slot = 0; slot < ragged_dimensions_.size(); ++slot) {
+                std::array<size_t, 1> outer{slot};
+                auto [begin, end] = inner_iterators(outer);
+                func(outer, begin, end);
+            }
+        } else if constexpr (N == 3) {
+            for (size_t i = 0; i < dimensions_[0]; ++i) {
+                for (size_t j = 0; j < dimensions_[1]; ++j) {
+                    std::array<size_t, 2> outer{i, j};
+                    auto [begin, end] = inner_iterators(outer);
+                    func(outer, begin, end);
+                }
+            }
+        } else {
+            auto visit = [&](auto& self, std::array<size_t, N - 1>& outer, size_t dim) -> void {
+                if (dim == N - 2) {
+                    for (size_t slot = 0; slot < ragged_dimensions_.size(); ++slot) {
+                        outer[dim] = slot;
+                        auto [begin, end] = inner_iterators(outer);
+                        func(outer, begin, end);
+                    }
+                    return;
+                }
+                for (size_t i = 0; i < dimensions_[dim]; ++i) {
+                    outer[dim] = i;
+                    self(self, outer, dim + 1);
+                }
+            };
+            std::array<size_t, N - 1> outer{};
+            visit(visit, outer, 0);
+        }
+    }
+
 private:
     std::vector<T> data_;
     std::array<size_t, N - 1> dimensions_;
@@ -207,23 +287,41 @@ private:
             throw std::out_of_range("Index out of bounds");
         }
 #endif
-        size_t index = 0;
-        for (size_t i = 0; i < N - 2; ++i) {
-            index += indices[i] * strides_[i];
+        if constexpr (N == 3) {
+            return indices[0] * strides_[0] + ragged_offsets_[indices[1]] + indices[2];
+        } else if constexpr (N == 2) {
+            return ragged_offsets_[indices[0]] + indices[1];
+        } else {
+            size_t index = 0;
+            for (size_t i = 0; i < N - 2; ++i) {
+                index += indices[i] * strides_[i];
+            }
+            index += ragged_offsets_[indices[N - 2]] + indices.back();
+            return index;
         }
-        index += ragged_offsets_[indices[N - 2]] + indices.back();
-        return index;
     }
 
     /// Helper function to calculate start and end indices for iterators
     /// @param outer_indices The indices of the outer dimensions.
     /// @return A pair of start and end indices for the iterators.
     std::pair<size_t, size_t> calculate_start_end_indices(const std::array<size_t, N - 1>& outer_indices) const {
-        std::array<size_t, N> full_indices{};
-        std::copy(outer_indices.begin(), outer_indices.end(), full_indices.begin());
-        const size_t start_index = calculate_index(full_indices);
-        const size_t end_index = start_index + ragged_dimensions_.at(outer_indices[N - 2]);
-        return {start_index, end_index};
+        if constexpr (N == 3) {
+            const size_t slot = outer_indices[1];
+            const size_t start_index = outer_indices[0] * strides_[0] + ragged_offsets_[slot];
+            const size_t end_index = start_index + ragged_dimensions_[slot];
+            return {start_index, end_index};
+        } else if constexpr (N == 2) {
+            const size_t slot = outer_indices[0];
+            const size_t start_index = ragged_offsets_[slot];
+            const size_t end_index = start_index + ragged_dimensions_[slot];
+            return {start_index, end_index};
+        } else {
+            std::array<size_t, N> full_indices{};
+            std::copy(outer_indices.begin(), outer_indices.end(), full_indices.begin());
+            const size_t start_index = calculate_index(full_indices);
+            const size_t end_index = start_index + ragged_dimensions_.at(outer_indices[N - 2]);
+            return {start_index, end_index};
+        }
     }
 };
 

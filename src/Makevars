@@ -2,13 +2,18 @@ ifdef ENABLE_GLIBCXX_DEBUG
     PKG_CXXFLAGS+=-D_GLIBCXX_DEBUG
 endif
 
-# ifdef ENABLE_PROFILER
+ifdef ENABLE_PROFILER
     PKG_LIBS+=-lprofiler
     PKG_CXXFLAGS+=-DENABLE_PROFILER
-# endif
+endif
 
-PKG_CXXFLAGS+=-DMOIRE_ENABLE_PARALLEL
-# Enable C++ profiler registry for MCMC profiling (moire_prof_stats)
+PKG_CXXFLAGS+=-DRCPP_PARALLEL_USE_TBB=1
+# Enable C++ profiler registry for MCMC profiling (moire_prof_stats).
+# Set MOIRE_DISABLE_PROFILER_REGISTRY=1 for wall-clock benchmarks without scope overhead.
+ifneq ($(MOIRE_DISABLE_PROFILER_REGISTRY),1)
 PKG_CXXFLAGS+=-DMOIRE_ENABLE_PROFILER_REGISTRY
+endif
+
+PKG_CPPFLAGS+=-Imultivector -Iobservation -Iinference -Imcmc -Icore -I.
 
 PKG_LIBS+=$(shell ${R_HOME}/bin/Rscript -e "RcppParallel::RcppParallelLibs()")

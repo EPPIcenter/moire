@@ -45,4 +45,8 @@ Parameters::Parameters(const Rcpp::List &args)
     if (use_initial_allele_frequencies) {
         initial_allele_frequencies = Rcpp::as<Rcpp::List>(args["initial_allele_frequencies"]);
     }
+
+    const std::string observation_model =
+        UtilFunctions::r_to_string(args["observation_model"]);
+    observation_model_kind = parse_observation_model_kind(observation_model);
 };

@@ -52,7 +52,7 @@ class ProfileScope {
 };
 
 #else
-// ProfileScope disabled - no-op implementation to avoid lock contention
+// ProfileScope and ProfilerRegistry are no-ops unless MOIRE_ENABLE_PROFILER_REGISTRY is set.
 #include <string>
 #include <vector>
 
@@ -60,10 +60,9 @@ class ProfileScope {
   public:
     explicit ProfileScope(const char* key) {}
     explicit ProfileScope(const std::string& key) {}
-    ~ProfileScope() {}  // Trivial destructor - does nothing
+    ~ProfileScope() = default;
 };
 
-// Dummy ProfilerRegistry for compatibility
 class ProfilerRegistry {
   public:
     struct Snapshot {
@@ -72,7 +71,7 @@ class ProfilerRegistry {
         long long numCalls;
     };
     static ProfilerRegistry& instance();
-    std::vector<Snapshot> snapshot() { return std::vector<Snapshot>(); }
+    std::vector<Snapshot> snapshot() { return {}; }
     void reset() {}
 };
 

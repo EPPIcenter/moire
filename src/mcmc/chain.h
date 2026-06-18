@@ -1,9 +1,13 @@
 #pragma once
 
+#include "observation_model_factory.h"
+
+#include <cstdint>
+#include <memory>
+#include <string>
 #include "combination_indices_generator.h"
 #include "genotyping_data.h"
 #include "parameters.h"
-#include "prob_any_missing.h"
 #include "sampler.h"
 #include "multivector.h"
 
@@ -15,8 +19,8 @@ class Chain
    private:
     GenotypingData genotyping_data;
     Parameters params;
+    std::unique_ptr<ObservationModel> observation_model_;
     Sampler sampler;
-    probAnyMissingFunctor probAnyMissing_;
     bool hot = false;
     float temp;
     float llik;
@@ -39,17 +43,27 @@ class Chain
         std::span<float const> allele_frequencies, int coi,
         float relatedness);
 
-    float calc_observation_process(std::span<int const> allele_index_vec,
-                                   std::span<int const> obs_genotype,
-                                   float epsilon_neg, float epsilon_pos);
+    float calc_transmission_process_after_r_change(
+        std::span<int const> full_allele_index_vec,
+        std::span<float const> allele_frequencies,
+        int coi,
+        float relatedness);
 
-    float calculate_llik(int num_samples);
     float calc_new_likelihood();
     float calc_new_prior();
-    float calc_new_posterior();
+    float calc_transmission_llik_sum();
+    void invalidate_transmission_llik_cache();
+    void rebuild_transmission_llik_cache();
+    float apply_transmission_cell_change(
+        std::size_t sample_idx, std::size_t pop_idx, float old_val, float new_val);
 
     void calculate_observation_likelihood(std::size_t sample_idx, std::size_t locus_idx);
+    void sync_obs_sum_for_sample(std::size_t sample_idx);
     void calculate_transmission_likelihood(std::size_t population_idx, std::size_t sample_idx, std::size_t locus_idx);
+    void calculate_transmission_likelihood_after_r_change(
+        std::size_t population_idx,
+        std::size_t sample_idx,
+        std::size_t locus_idx);
     void calculate_eps_neg_likelihood(std::size_t sample_idx);
     void calculate_eps_pos_likelihood(std::size_t sample_idx);
     void calculate_coi_likelihood(std::size_t sample_idx);
@@ -164,24 +178,6 @@ class Chain
     float population_coi_r_hyper_prior_old;
     float population_coi_r_hyper_prior_new;
 
-
-    // // Population COI
-    // // indexed by population
-    // MultiVector<float, 1> population_mean_coi{};
-    // // Population COI variance
-    // // indexed by population
-    // MultiVector<float, 1> population_mean_coi_var{};
-    // // Population COI acceptance
-    // // indexed by population
-    // MultiVector<float, 1> population_mean_coi_accept{};
-    // // Population COI hyper prior
-    // // indexed by population
-    // MultiVector<float, 1> population_mean_coi_hyper_prior_old{};
-    // // Population COI hyper prior
-    // // indexed by population
-    // MultiVector<float, 1> population_mean_coi_hyper_prior_new{};
-    // // Population COI variance hyper prior
-
     // Population responsibility vector
     // indexed by population
     MultiVector<float, 1> population_responsibility_vector{};
@@ -190,7 +186,32 @@ class Chain
     // This avoids recomputing log() on every calc_new_likelihood() call
     mutable MultiVector<float, 1> population_responsibility_vector_log_{};
     mutable bool population_responsibility_vector_log_valid_ = false;
-    
+
+    // Cached transmission log-likelihood decomposition for incremental updates.
+    // tx_loci_sum_new[sample, pop] = sum_loci transmission_llik_new[sample, pop, :]
+    // tx_sample_logsumexp_new[sample] = logsumexp_pop(loci_sum + coi_prior + pop_log)
+    // tx_llik_sum_new = sum_sample tx_sample_logsumexp_new
+    MultiVector<float, 2> tx_loci_sum_new{};
+    MultiVector<float, 1> tx_sample_logsumexp_new{};
+    float tx_llik_sum_new{0.f};
+    bool tx_llik_cache_valid_{false};
+
+    // Running scalar sums maintained incrementally to avoid O(N) / O(N*L)
+    // reductions on every Metropolis proposal. Each tracks the sum of the
+    // corresponding *_new array and is rebuilt from scratch at the end of
+    // initialize_likelihood(). Observation updates happen in parallel over loci,
+    // so its sum is resynced per-sample (sequentially) via
+    // sync_obs_sum_for_sample(); the per-sample priors are updated in place
+    // inside calculate_*/restore_* since those run sequentially.
+    float obs_llik_sum_new_{0.f};
+    std::vector<float> obs_row_sum_new_{};
+    float eps_neg_prior_sum_new_{0.f};
+    float eps_pos_prior_sum_new_{0.f};
+    float relatedness_prior_sum_new_{0.f};
+
+    // Reused buffers for update_p SALT proposals (sized to max alleles per locus).
+    std::vector<float> update_p_prev_p_ws_{};
+
     // Population responsibility vector proposal variance
     // indexed by population
     MultiVector<float, 1> population_responsibility_vector_prop_var{};
@@ -264,7 +285,10 @@ class Chain
     MultiVector<int, 1> sample_accept{};
 
     Chain(GenotypingData genotyping_data, Parameters params, float temp = 1.0);
-    Chain() {};
+    Chain()
+        : observation_model_(make_observation_model(ObservationModelKind::Binary, 2.0f, 2.0f))
+    {
+    }
     void update_m(int iteration);
     void update_r(int iteration);
     void update_m_r(int iteration);
@@ -281,9 +305,6 @@ class Chain
     float get_llik();
     float get_prior();
     float get_posterior();
-    float get_llik(int sample);
-    float get_prior(int sample);
-    float get_posterior(int sample);
 
     void set_llik(float llik);
     void set_temp(float temp);

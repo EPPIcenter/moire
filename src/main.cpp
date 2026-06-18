@@ -5,6 +5,7 @@
 #include "mcmc_progress_bar.h"
 #include "mcmc_utils.h"
 #include "parameters.h"
+#include "pam_fast_paths.h"
 
 #include <progress.hpp>
 
@@ -12,6 +13,10 @@
 // [[Rcpp::export(name='run_mcmc_rcpp')]]
 Rcpp::List run_mcmc(Rcpp::List args)
 {
+    // Resolve the transmission-optimization flag once per run so the hot path
+    // avoids getenv on every transmission evaluation.
+    pam_fast_paths::refresh_tx_opts_from_env();
+
     Parameters params(args);
     GenotypingData genotyping_data(args);
 

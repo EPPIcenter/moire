@@ -413,7 +413,7 @@ typename std::iterator_traits<Iter>::value_type logSumExp(const Iter &begin,
         return -std::numeric_limits<ValueType>::infinity();
     }
 
-    auto sum = moire_parallel::transform_reduce_unseq_or_seq(
+    auto sum = moire_parallel::transform_reduce(
         begin, end, ValueType{}, std::plus<ValueType>{},
         [max_el](ValueType b) { return std::exp(b - max_el); });
     return max_el + std::log(sum);
@@ -454,14 +454,31 @@ constexpr const T &clamp(const T &el, const T &low, const T &high)
     return el < low ? low : el > high ? high : el;
 }
 
-// Canonical Jaccard implementation for the main package build. distance_matrix.h provides
-// a separate implementation used only by cpp/tests (see comment in distance_matrix.h).
+// Canonical Jaccard implementation for the main package build. cpp/support/distance_matrix.h
+// provides a separate implementation used only by cpp/tests.
 template <typename T>
 T jaccard_similarity(std::span<int const> x, std::span<int const> y) {
+    if (x.size() != y.size()) {
+        return 0.0;
+    }
+
+    std::vector<int> x_present;
+    std::vector<int> y_present;
+    x_present.reserve(x.size());
+    y_present.reserve(y.size());
+    for (size_t i = 0; i < x.size(); ++i) {
+        if (x[i] > 0) {
+            x_present.push_back(static_cast<int>(i));
+        }
+        if (y[i] > 0) {
+            y_present.push_back(static_cast<int>(i));
+        }
+    }
+
     std::vector<int> intersection;
     std::vector<int> union_;
-    std::set_intersection(x.begin(), x.end(), y.begin(), y.end(), std::back_inserter(intersection));
-    std::set_union(x.begin(), x.end(), y.begin(), y.end(), std::back_inserter(union_));
+    std::set_intersection(x_present.begin(), x_present.end(), y_present.begin(), y_present.end(), std::back_inserter(intersection));
+    std::set_union(x_present.begin(), x_present.end(), y_present.begin(), y_present.end(), std::back_inserter(union_));
 
     if (union_.size() == 0) {
         return 0.0;
@@ -563,23 +580,28 @@ RaggedMultiVector<T, 3> calculate_clustered_allele_frequencies(GenotypingData &g
 
         // use the closest samples to calculate the allele frequencies for the population
         for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
-            for (size_t allele_idx = 0; allele_idx < genotyping_data.num_alleles[locus_idx]; ++allele_idx) {
-                p.at({pop_idx, locus_idx, allele_idx}) = 2.0f;
-            }
+            auto [begin, end] = p.inner_iterators({pop_idx, locus_idx});
+            std::fill(begin, end, 2.0f);
         }
 
         std::vector<int> total_alleles(genotyping_data.num_loci, 0);
         for (size_t sample_idx : closest_samples) {
             for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
-                for (size_t allele_idx = 0; allele_idx < genotyping_data.num_alleles[locus_idx]; ++allele_idx) {
-                    p.at({pop_idx, locus_idx, allele_idx}) += genotyping_data.get_observed_alleles(sample_idx, locus_idx)[allele_idx]; 
-                    total_alleles[locus_idx] += genotyping_data.get_observed_alleles(sample_idx, locus_idx)[allele_idx];
+                const auto obs = genotyping_data.get_observed_alleles(sample_idx, locus_idx);
+                auto [begin, end] = p.inner_iterators({pop_idx, locus_idx});
+                size_t allele_idx = 0;
+                for (auto it = begin; it != end; ++it, ++allele_idx) {
+                    *it += obs[allele_idx];
+                    total_alleles[locus_idx] += obs[allele_idx];
                 }
             }
         }
         for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
-            for (size_t allele_idx = 0; allele_idx < genotyping_data.num_alleles[locus_idx]; ++allele_idx) {
-                p.at({pop_idx, locus_idx, allele_idx}) /= total_alleles[locus_idx];
+            const float denom = total_alleles[locus_idx];
+            if (denom == 0) continue;
+            auto [begin, end] = p.inner_iterators({pop_idx, locus_idx});
+            for (auto it = begin; it != end; ++it) {
+                *it /= denom;
             }
         }
 

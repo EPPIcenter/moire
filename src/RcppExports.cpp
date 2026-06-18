@@ -63,6 +63,25 @@ BEGIN_RCPP
     return R_NilValue;
 END_RCPP
 }
+// moire_pam_cache_stats
+Rcpp::List moire_pam_cache_stats();
+RcppExport SEXP _moire_moire_pam_cache_stats() {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    rcpp_result_gen = Rcpp::wrap(moire_pam_cache_stats());
+    return rcpp_result_gen;
+END_RCPP
+}
+// moire_pam_cache_reset
+void moire_pam_cache_reset();
+RcppExport SEXP _moire_moire_pam_cache_reset() {
+BEGIN_RCPP
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    moire_pam_cache_reset();
+    return R_NilValue;
+END_RCPP
+}
 // start_profiler
 SEXP start_profiler(SEXP str);
 RcppExport SEXP _moire_start_profiler(SEXP strSEXP) {
@@ -91,6 +110,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_moire_compare_mobius_inclusion_exclusion", (DL_FUNC) &_moire_compare_mobius_inclusion_exclusion, 3},
     {"_moire_moire_profiler_stats", (DL_FUNC) &_moire_moire_profiler_stats, 0},
     {"_moire_moire_profiler_reset", (DL_FUNC) &_moire_moire_profiler_reset, 0},
+    {"_moire_moire_pam_cache_stats", (DL_FUNC) &_moire_moire_pam_cache_stats, 0},
+    {"_moire_moire_pam_cache_reset", (DL_FUNC) &_moire_moire_pam_cache_reset, 0},
     {"_moire_start_profiler", (DL_FUNC) &_moire_start_profiler, 1},
     {"_moire_stop_profiler", (DL_FUNC) &_moire_stop_profiler, 0},
     {NULL, NULL, 0}

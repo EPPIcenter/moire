@@ -1,7 +1,7 @@
 Third-party components and license notices
 
 Component: spline.h (simple cubic spline interpolation)
-Location: src/include/spline/src/spline.h
+Location: src/vendor/spline/src/spline.h
 Original Author: Tino Kluge (ttk448 at gmail.com)
 Original Copyright: 2011, 2014, 2016, 2021
 Original License: GNU General Public License, version 2 or (at your option) any later version (GPL-2.0-or-later), as stated in the file header.

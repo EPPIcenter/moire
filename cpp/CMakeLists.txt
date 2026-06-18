@@ -23,16 +23,31 @@ endif()
 
 # Find required packages
 find_package(Threads REQUIRED)
-
-# Find TBB
 find_package(TBB REQUIRED)
 
-# Find OpenMP
-find_package(OpenMP REQUIRED)
-
-# Include directories
+# Include directories (mirror src/Makevars module layout)
 include_directories(../src)
+include_directories(../src/multivector)
+include_directories(../src/observation)
+include_directories(../src/inference)
+include_directories(../src/mcmc)
+include_directories(../src/core)
+include_directories(support)
+include_directories(.)
 include_directories(${TBB_INCLUDE_DIRS})
+
+execute_process(
+    COMMAND Rscript -e "cat(system.file('include', package='BH'))"
+    OUTPUT_VARIABLE BH_INCLUDE_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if (BH_INCLUDE_DIR)
+    include_directories(${BH_INCLUDE_DIR})
+endif()
+
+# Shared parallel support (TBB via multivector_ops.h; no OpenMP)
+add_library(moire_parallel_support INTERFACE)
+target_link_libraries(moire_parallel_support INTERFACE Threads::Threads TBB::tbb)
 
 # Test framework (Catch2)
 include(FetchContent)
@@ -45,76 +60,86 @@ FetchContent_MakeAvailable(Catch2)
 
 # Test executables
 add_executable(multivector_tests tests/multivector_tests.cpp)
-target_link_libraries(multivector_tests 
-    PRIVATE 
+target_link_libraries(multivector_tests
+    PRIVATE
     Catch2::Catch2WithMain
-    Threads::Threads
-    TBB::tbb
-    OpenMP::OpenMP_CXX
+    moire_parallel_support
 )
 
 add_executable(distance_matrix_tests tests/distance_matrix_test.cpp)
-target_link_libraries(distance_matrix_tests 
-    PRIVATE 
+target_link_libraries(distance_matrix_tests
+    PRIVATE
     Catch2::Catch2WithMain
-    Threads::Threads
-    TBB::tbb
-    OpenMP::OpenMP_CXX
+    moire_parallel_support
+)
+
+add_executable(observation_model_tests tests/observation_model_tests.cpp)
+target_link_libraries(observation_model_tests
+    PRIVATE
+    Catch2::Catch2WithMain
+    moire_parallel_support
+)
+target_sources(observation_model_tests PRIVATE
+    tests/observation_model_test_stubs.cpp
+)
+
+add_executable(prob_any_missing_tests tests/prob_any_missing_tests.cpp)
+target_link_libraries(prob_any_missing_tests
+    PRIVATE
+    Catch2::Catch2WithMain
+    moire_parallel_support
+)
+target_sources(prob_any_missing_tests PRIVATE
+    ../src/prob_any_missing.cpp
+    ../src/combination_indices_generator.cpp
 )
 
 add_executable(zeta_mobius_tests tests/zeta_mobius_tests.cpp)
-target_link_libraries(zeta_mobius_tests 
-    PRIVATE 
+target_link_libraries(zeta_mobius_tests
+    PRIVATE
     Catch2::Catch2WithMain
-    Threads::Threads
-    TBB::tbb
-    OpenMP::OpenMP_CXX
+    moire_parallel_support
+)
+
+add_executable(transmission_incremental_tests tests/transmission_incremental_tests.cpp)
+target_link_libraries(transmission_incremental_tests
+    PRIVATE
+    Catch2::Catch2WithMain
+    moire_parallel_support
+)
+target_sources(transmission_incremental_tests PRIVATE
+    ../src/prob_any_missing.cpp
+    ../src/combination_indices_generator.cpp
 )
 
 # Benchmark executables
 add_executable(multivector_benchmarks1 benchmarks/multivector_benchmark1.cpp)
 add_executable(multivector_benchmarks2 benchmarks/multivector_benchmark2.cpp)
-target_link_libraries(multivector_benchmarks1 
-    PRIVATE 
-    Threads::Threads
-    TBB::tbb
-    OpenMP::OpenMP_CXX
-)
-
-target_link_libraries(multivector_benchmarks2 
-    PRIVATE 
-    Threads::Threads
-    TBB::tbb
-    OpenMP::OpenMP_CXX
-)
+target_link_libraries(multivector_benchmarks1 PRIVATE moire_parallel_support)
+target_link_libraries(multivector_benchmarks2 PRIVATE moire_parallel_support)
 
 add_executable(multivector_regression_benchmarks benchmarks/multivector_regression_benchmark.cpp)
-target_link_libraries(multivector_regression_benchmarks
-    PRIVATE
-    Threads::Threads
-    TBB::tbb
-    OpenMP::OpenMP_CXX
-)
+target_link_libraries(multivector_regression_benchmarks PRIVATE moire_parallel_support)
 
 add_executable(prob_any_missing_benchmarks benchmarks/prob_any_missing_benchmark.cpp)
-target_link_libraries(prob_any_missing_benchmarks 
-    PRIVATE 
-    Threads::Threads
-    TBB::tbb
-    OpenMP::OpenMP_CXX
-)
+target_link_libraries(prob_any_missing_benchmarks PRIVATE moire_parallel_support)
 target_sources(prob_any_missing_benchmarks PRIVATE
     ../src/prob_any_missing.cpp
     ../src/combination_indices_generator.cpp
 )
 
-add_executable(ragged_multivector_benchmarks benchmarks/ragged_multivector_benchmark.cpp)
-target_link_libraries(ragged_multivector_benchmarks 
-    PRIVATE 
-    Threads::Threads
-    TBB::tbb
-    OpenMP::OpenMP_CXX
+add_executable(pam_cache_calibration benchmarks/pam_cache_calibration.cpp)
+target_link_libraries(pam_cache_calibration PRIVATE moire_parallel_support)
+target_sources(pam_cache_calibration PRIVATE
+    ../src/prob_any_missing.cpp
+    ../src/combination_indices_generator.cpp
 )
+
+add_executable(ragged_multivector_benchmarks benchmarks/ragged_multivector_benchmark.cpp)
+target_link_libraries(ragged_multivector_benchmarks PRIVATE moire_parallel_support)
+
+add_executable(fused_mcmc_benchmarks benchmarks/fused_mcmc_benchmark.cpp)
+target_link_libraries(fused_mcmc_benchmarks PRIVATE moire_parallel_support)
 
 # Legacy test executables removed - using new Catch2-based framework
 
@@ -124,7 +149,10 @@ enable_testing()
 # Add tests
 add_test(NAME multivector_tests COMMAND multivector_tests)
 add_test(NAME distance_matrix_tests COMMAND distance_matrix_tests)
+add_test(NAME observation_model_tests COMMAND observation_model_tests)
+add_test(NAME prob_any_missing_tests COMMAND prob_any_missing_tests)
 add_test(NAME zeta_mobius_tests COMMAND zeta_mobius_tests)
+add_test(NAME transmission_incremental_tests COMMAND transmission_incremental_tests)
 
 # Set test properties
 set_tests_properties(multivector_tests PROPERTIES
@@ -145,7 +173,7 @@ set_tests_properties(zeta_mobius_tests PROPERTIES
 # Custom targets
 add_custom_target(run_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS multivector_tests distance_matrix_tests zeta_mobius_tests
+    DEPENDS multivector_tests distance_matrix_tests observation_model_tests prob_any_missing_tests zeta_mobius_tests transmission_incremental_tests
     COMMENT "Running all tests"
 )
 
@@ -173,4 +201,3 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         target_link_libraries(zeta_mobius_tests PRIVATE --coverage)
     endif()
 endif()
-

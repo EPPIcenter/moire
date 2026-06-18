@@ -4,9 +4,19 @@
 #include "mcmc_utils.h"
 
 #include <span>
+#include <stdexcept>
 
 GenotypingData::GenotypingData(const Rcpp::List &args)
 {
+    if (args.containsElementNamed("aggregate") && !Rcpp::RObject(args["aggregate"]).isNULL())
+    {
+        aggregate = UtilFunctions::r_to_string(args["aggregate"]);
+    }
+    else
+    {
+        aggregate = "binary";
+    }
+
     // indexed by locus, sample, allele
     std::vector<std::vector<std::vector<int>>> observed_alleles_input = UtilFunctions::r_to_array_int(args["data"]);
     // indexed by locus, sample
@@ -29,10 +39,11 @@ GenotypingData::GenotypingData(const Rcpp::List &args)
     {
         for (std::size_t sample = 0; sample < num_samples; ++sample)
         {
-            for (std::size_t allele = 0; allele < num_alleles[locus]; ++allele)
-            {
-                observed_alleles.at({sample, locus, allele}) = observed_alleles_input[locus][sample][allele];
-            }
+            observed_alleles.inner_fill(
+                {sample, locus},
+                std::span<const int>(
+                    observed_alleles_input[locus][sample].data(),
+                    observed_alleles_input[locus][sample].size()));
         }
     }
 
@@ -40,7 +51,7 @@ GenotypingData::GenotypingData(const Rcpp::List &args)
     {
         for (std::size_t sample = 0; sample < num_samples; ++sample)
         {
-            is_missing_.at({sample, locus}) = is_missing_input[locus][sample];
+            is_missing_.unchecked_at({sample, locus}) = is_missing_input[locus][sample];
         }
     }
 
@@ -50,15 +61,19 @@ GenotypingData::GenotypingData(const Rcpp::List &args)
     {
         for (size_t locus_idx = 0; locus_idx < num_loci; locus_idx++)
         {
-            std::size_t total_alleles = 0;
-            for (size_t allele_idx = 0; allele_idx < num_alleles[locus_idx]; allele_idx++)
+            std::size_t present_alleles = 0;
+            const auto [begin, end] = observed_alleles.inner_iterators({sample_idx, locus_idx});
+            for (auto it = begin; it != end; ++it)
             {
-                total_alleles += observed_alleles.at({sample_idx, locus_idx, allele_idx});
+                if (*it > 0)
+                {
+                    ++present_alleles;
+                }
             }
 
-            if (total_alleles > observed_coi[sample_idx])
+            if (present_alleles > observed_coi[sample_idx])
             {
-                observed_coi[sample_idx] = total_alleles;
+                observed_coi[sample_idx] = present_alleles;
             }
         }
     }
@@ -69,10 +84,10 @@ GenotypingData::GenotypingData(const Rcpp::List &args)
     for (size_t i = 0; i < num_samples; ++i) {
         for (size_t j = i + 1; j < num_samples; ++j) {
             for (size_t locus_idx = 0; locus_idx < num_loci; ++locus_idx) {
-                jaccard_similarity_matrix.at({i, j}) += UtilFunctions::jaccard_similarity<float>(get_observed_alleles(i, locus_idx), get_observed_alleles(j, locus_idx));
+                jaccard_similarity_matrix.unchecked_at({i, j}) += UtilFunctions::jaccard_similarity<float>(get_observed_alleles(i, locus_idx), get_observed_alleles(j, locus_idx));
             }
-            jaccard_similarity_matrix.at({i, j}) /= num_loci;
-            jaccard_similarity_matrix.at({j, i}) = jaccard_similarity_matrix.at({i, j});
+            jaccard_similarity_matrix.unchecked_at({i, j}) /= num_loci;
+            jaccard_similarity_matrix.unchecked_at({j, i}) = jaccard_similarity_matrix.unchecked_at({i, j});
         }
     }
 }
@@ -85,5 +100,41 @@ std::span<int const> GenotypingData::get_observed_alleles(std::size_t sample, st
 
 bool GenotypingData::is_missing(std::size_t sample, std::size_t locus) const
 {
-    return is_missing_.at({sample, locus});
+    return is_missing_.unchecked_at({sample, locus});
+}
+
+bool GenotypingData::has_count_barcodes() const
+{
+    for (std::size_t sample_idx = 0; sample_idx < num_samples; ++sample_idx)
+    {
+        for (std::size_t locus_idx = 0; locus_idx < num_loci; ++locus_idx)
+        {
+            const auto [begin, end] = observed_alleles.inner_iterators({sample_idx, locus_idx});
+            for (auto it = begin; it != end; ++it)
+            {
+                if (*it > 1)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+void GenotypingData::validate_for_observation_model(
+    ObservationModelKind observation_model_kind) const
+{
+    if (observation_model_kind == ObservationModelKind::Binary && has_count_barcodes())
+    {
+        throw std::runtime_error(
+            "Count barcodes (allele values > 1) require observation_model = \"counts\".");
+    }
+
+    if (observation_model_kind == ObservationModelKind::Counts && aggregate == "binary"
+        && has_count_barcodes())
+    {
+        throw std::runtime_error(
+            "Count barcodes require aggregate = \"count\" when loading data.");
+    }
 }

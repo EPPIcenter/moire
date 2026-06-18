@@ -1,4 +1,5 @@
 #include "profiler.h"
+#include "prob_any_missing_cache.h"
 #include <Rcpp.h>
 
 #ifdef MOIRE_ENABLE_PROFILER_REGISTRY
@@ -89,6 +90,30 @@ void moire_profiler_reset() {
 #ifdef MOIRE_ENABLE_PROFILER_REGISTRY
     ProfilerRegistry::instance().reset();
 #endif
+}
+
+// [[Rcpp::export]]
+Rcpp::List moire_pam_cache_stats() {
+    const pam_cache::Stats& s = pam_cache::stats();
+    const pam_cache::Config& cfg = pam_cache::Config::instance();
+    return Rcpp::List::create(
+        Rcpp::Named("quantize") = cfg.quantize,
+        Rcpp::Named("delta") = cfg.delta,
+        Rcpp::Named("verify") = cfg.verify,
+        Rcpp::Named("exact_hits") = static_cast<double>(s.exact_hits),
+        Rcpp::Named("quant_hits") = static_cast<double>(s.quant_hits),
+        Rcpp::Named("misses") = static_cast<double>(s.misses),
+        Rcpp::Named("verify_checks") = static_cast<double>(s.verify_checks),
+        Rcpp::Named("verify_over_tol") = static_cast<double>(s.verify_over_tol),
+        Rcpp::Named("verify_max_pam_diff") = s.verify_max_pam_diff,
+        Rcpp::Named("verify_max_log_diff") = s.verify_max_log_diff
+    );
+}
+
+// [[Rcpp::export]]
+void moire_pam_cache_reset() {
+    pam_cache::stats().reset();
+    pam_vector_cache().clear();
 }
 
 #ifdef ENABLE_PROFILER

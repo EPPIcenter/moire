@@ -1,6 +1,8 @@
 #ifndef PARAMETERS_H_
 #define PARAMETERS_H_
 
+#include "observation_model_kind.h"
+
 #include <Rcpp.h>
 #include <vector>
 
@@ -55,6 +57,8 @@ class Parameters
     // Initial allele frequencies from R (optional)
     bool use_initial_allele_frequencies;
     Rcpp::List initial_allele_frequencies;
+
+    ObservationModelKind observation_model_kind;
 
     // constructors
     Parameters(const Rcpp::List &args);

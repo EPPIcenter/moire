@@ -1,8 +1,9 @@
 #include "mcmc.h"
 
-#include "include/spline/src/spline.h"
+#include "vendor/spline/src/spline.h"
 #include "mcmc_utils.h"
 #include "multivector.h"
+#include "multivector_fused.h"
 
 #include <Rcpp.h>
 #include "profiler.h"
@@ -318,10 +319,10 @@ void MCMC::sample(int step)
                 }
 
             }
-            // MultiVector methods now automatically choose parallel vs sequential based on workload size
-            const auto population_assignment_vec = (chain.transmission_llik_new.sum() + chain.coi_prior_new)
-                    .element_add(chain.population_responsibility_vector.log().as_span())
-                    .softmax(true);
+            const auto population_assignment_vec = moire_fused::population_assignment_log_softmax(
+                chain.transmission_llik_new,
+                chain.coi_prior_new,
+                chain.population_responsibility_vector.log());
             for (size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx) {
                 const auto [begin, end] = population_assignment_vec.inner_iterators({sample_idx});
                 population_assignment_store[sample_idx].push_back(std::vector(begin, end));
@@ -378,9 +379,10 @@ void MCMC::sample(int step)
                     }
                 }
             }
-            const auto population_assignment_vec = (chain.transmission_llik_new.sum() + chain.coi_prior_new)
-                    .element_add(chain.population_responsibility_vector.log().as_span())
-                    .softmax(true);
+            const auto population_assignment_vec = moire_fused::population_assignment_log_softmax(
+                chain.transmission_llik_new,
+                chain.coi_prior_new,
+                chain.population_responsibility_vector.log());
             for (size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx) {
                 const auto [begin, end] = population_assignment_vec.inner_iterators({sample_idx});
                 population_assignment_store[sample_idx].push_back(std::vector(begin, end));

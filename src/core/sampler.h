@@ -7,12 +7,9 @@
 #include <span>
 #include <random>
 #include <array>
+#include <vector>
 
-struct LatentGenotype
-{
-    std::vector<int> value;
-    float log_prob;
-};
+#include "latent_genotype.h"
 
 class Sampler
 {
@@ -77,10 +74,6 @@ class Sampler
     float dgamma(float x, float shape, float scale, bool return_log);
     float rgamma(float alpha, float beta);
     float rgamma2(float shape, float rate);
-
-    LatentGenotype sample_latent_genotype(std::span<int const> obs_genotype,
-                                          int coi, float epsilon_pos,
-                                          float epsilon_neg);
 
     Sampler();
 };
