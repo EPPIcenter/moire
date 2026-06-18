@@ -15,7 +15,7 @@
 calculate_med_allele_freqs <- function(mcmc_results, merge_chains = TRUE) {
   if (merge_chains) {
     chains <- mcmc_results$chains
-    post_af <- purrr::transpose(purrr::map(chains, ~ .x$allele_freqs))
+    post_af <- purrr::transpose(purrr::map(chains, chain_allele_freqs_by_locus))
     medians <- purrr::map(post_af, function(loc) {
       samples <- purrr::flatten(loc)
       mat <- matrix(unlist(samples), ncol = length(samples[[1]]))
@@ -26,7 +26,7 @@ calculate_med_allele_freqs <- function(mcmc_results, merge_chains = TRUE) {
   } else {
     chains <- mcmc_results$chains
     medians <- lapply(chains, function(chain) {
-      post_af <- chain$allele_freqs
+      post_af <- chain_allele_freqs_by_locus(chain)
       res <- purrr::map(post_af, function(samples) {
         mat <- matrix(unlist(samples), ncol = length(samples[[1]]))
         d <- dist(t(mat))
@@ -114,6 +114,11 @@ calculate_naive_allele_frequencies <- function(data) {
     return(allele_counts / sum(allele_counts))
   })
   return(allele_freqs)
+}
+
+# Internal helper: get allele_freqs as list-of-loci (C++ returns list of populations, each pop = list of loci)
+chain_allele_freqs_by_locus <- function(chain) {
+  chain$allele_freqs[[1]]
 }
 
 # Internal helper: merge chains (or not), then apply quantile/mean to list of vectors per entity.
@@ -308,8 +313,9 @@ summarize_allele_freq_fn <- function(mcmc_results, fn,
     post_allele_freqs <- lapply(seq_along(mcmc_results$args$data$loci), function(x) c())
 
     for (chain in mcmc_results$chains) {
-      for (l in seq_along(chain$allele_freqs)) {
-        post_allele_freqs[[l]] <- c(post_allele_freqs[[l]], chain$allele_freqs[[l]])
+      by_locus <- chain_allele_freqs_by_locus(chain)
+      for (l in seq_along(by_locus)) {
+        post_allele_freqs[[l]] <- c(post_allele_freqs[[l]], by_locus[[l]])
       }
     }
 
@@ -473,9 +479,10 @@ summarize_allele_freqs <- function(mcmc_results,
     allele_freq_matrices <- lapply(seq_along(mcmc_results$args$data$loci), function(x) c())
     total_samples <- 0
     for (chain in mcmc_results$chains) {
-      total_samples <- total_samples + length(chain$allele_freqs[[1]])
-      for (l in seq_along(chain$allele_freqs)) {
-        locus <- chain$allele_freqs[[l]]
+      by_locus <- chain_allele_freqs_by_locus(chain)
+      total_samples <- total_samples + length(by_locus[[1]])
+      for (l in seq_along(by_locus)) {
+        locus <- by_locus[[l]]
         allele_freq_matrices[[l]] <- c(allele_freq_matrices[[l]], unlist(locus))
       }
     }
@@ -514,7 +521,7 @@ summarize_allele_freqs <- function(mcmc_results,
     for (idx in seq_along(mcmc_results$chains)) {
       chain <- mcmc_results$chains[[idx]]
       chain_res <- lapply(
-        chain$allele_freqs,
+        chain_allele_freqs_by_locus(chain),
         function(locus) {
           num_alleles <- length(locus[[1]])
           allele_freq_matrix <- matrix(unlist(locus), nrow = num_alleles)

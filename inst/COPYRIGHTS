@@ -1,0 +1,20 @@
+Third-party components and license notices
+
+Component: spline.h (simple cubic spline interpolation)
+Location: src/include/spline/src/spline.h
+Original Author: Tino Kluge (ttk448 at gmail.com)
+Original Copyright: 2011, 2014, 2016, 2021
+Original License: GNU General Public License, version 2 or (at your option) any later version (GPL-2.0-or-later), as stated in the file header.
+Upstream Source: https://github.com/ttk592/spline
+Upstream Commit: 5894bea
+
+Modifications for this package:
+- The file has been adapted for use within the moire package. Changes include local adjustments and integrations specific to this codebase. See the project git history for a complete list of modifications.
+
+License compatibility:
+- The package overall is licensed under GPL (>= 3) as declared in DESCRIPTION. The included third-party file is under GPL-2.0-or-later, which permits redistribution under GPL-3.0, making it compatible with the package license.
+
+Attribution requirements:
+- The original license notice and attribution are preserved in the file header. This COPYRIGHTS file records provenance and modifications in accordance with best practices.
+
+

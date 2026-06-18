@@ -352,7 +352,7 @@ void MCMC::sample(int step)
         chain.update_population_coi_r(params.burnin + step);
         chain.update_population_responsibility_vector(params.burnin + step);
 
-        if ((params.thin == 0 or step % params.thin == 0) and chain.is_hot())
+        if ((params.thin == 0 or step % params.thin == 0) and (chain.is_hot() or chains.size() == 1))
         {
             ProfileScope s_store("MCMC::store_samples");
             for (size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {

@@ -39,8 +39,9 @@ Parameters::Parameters(const Rcpp::List &args)
     num_populations = UtilFunctions::r_to_int(args["num_populations"]);
     population_responsibility_vector_alpha = UtilFunctions::r_to_vector_float(args["populations_prior"]);
     
-    // Check if initial allele frequencies are provided
-    use_initial_allele_frequencies = args.containsElementNamed("initial_allele_frequencies");
+    // Check if initial allele frequencies are provided (and not R NULL)
+    use_initial_allele_frequencies = args.containsElementNamed("initial_allele_frequencies") &&
+        !Rcpp::RObject(args["initial_allele_frequencies"]).isNULL();
     if (use_initial_allele_frequencies) {
         initial_allele_frequencies = Rcpp::as<Rcpp::List>(args["initial_allele_frequencies"]);
     }

@@ -8,5 +8,7 @@ endif
 # endif
 
 PKG_CXXFLAGS+=-DMOIRE_ENABLE_PARALLEL
+# Enable C++ profiler registry for MCMC profiling (moire_prof_stats)
+PKG_CXXFLAGS+=-DMOIRE_ENABLE_PROFILER_REGISTRY
 
 PKG_LIBS+=$(shell ${R_HOME}/bin/Rscript -e "RcppParallel::RcppParallelLibs()")

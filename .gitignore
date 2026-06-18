@@ -51,6 +51,18 @@ cpp_tests/*.out
 cpp_tests/*.test
 cpp_tests/compile_commands.json
 
+cpp/build/
+cpp/build/_deps/
+cpp/CMakeCache.txt
+cpp/CMakeFiles/
+cpp/cmake_install.cmake
+cpp/Makefile
+cpp/*.cmake
+cpp/*.exe
+cpp/*.out
+cpp/*.test
+cpp/compile_commands.json
+
 build/
 
 # C++ object files and executables
