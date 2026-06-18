@@ -250,6 +250,47 @@ profile:
     @echo "📊 Profiling C++ code..."
     Rscript -e "Rcpp::sourceCpp('src/profiler.cpp')"
 
+# MCMC end-to-end baseline benchmark (wall-clock + profiler registry)
+bench-mcmc preset="vignette":
+    @echo "⚡ Running MCMC baseline benchmark ({{preset}})..."
+    Rscript -e "devtools::load_all(quiet=TRUE)"
+    Rscript inst/scripts/bench_mcmc_baseline.R {{preset}}
+
+# Save MCMC baseline to inst/benchmarks/mcmc_baseline.csv
+bench-mcmc-save preset="vignette":
+    @echo "💾 Saving MCMC baseline ({{preset}})..."
+    Rscript -e "devtools::load_all(quiet=TRUE)"
+    Rscript inst/scripts/bench_mcmc_baseline.R {{preset}} --save
+
+# Compare current MCMC run against saved baseline (exits 1 on regression)
+bench-mcmc-compare preset="vignette":
+    @echo "📈 Comparing MCMC against baseline ({{preset}})..."
+    Rscript -e "devtools::load_all(quiet=TRUE)"
+    Rscript inst/scripts/bench_mcmc_baseline.R {{preset}} --compare
+
+# Quick profiler report (single run, no baseline file)
+profile-mcmc preset="vignette":
+    @echo "📊 Profiling MCMC hotspots ({{preset}})..."
+    Rscript -e "devtools::load_all(quiet=TRUE)"
+    Rscript inst/scripts/profile_mcmc.R {{preset}}
+
+# Detailed hotspot breakdown for update_p / transmission paths
+analyze-hotspots preset="vignette":
+    @echo "🔬 Analyzing MCMC hotspots ({{preset}})..."
+    Rscript -e "devtools::load_all(quiet=TRUE)"
+    Rscript inst/scripts/analyze_hotspots.R {{preset}}
+
+# Wall-clock with profiler registry disabled
+bench-wall-clock-fast preset="vignette":
+    @echo "⏱ Wall-clock (profiler registry OFF)..."
+    MOIRE_DISABLE_PROFILER_REGISTRY=1 Rscript -e "devtools::clean_dll(); devtools::load_all(quiet=TRUE)"
+    MOIRE_DISABLE_PROFILER_REGISTRY=1 Rscript inst/scripts/bench_wall_clock.R {{preset}} --compare-baseline
+
+# Calibrate P(any missing) cache quantization grid (C++)
+calibrate-pam-quantize trials="2000":
+    @echo "📐 Calibrating PAM cache quantization..."
+    ./cpp/build/pam_cache_calibration {{trials}}
+
 # =============================================================================
 # VERSION MANAGEMENT
 # =============================================================================
