@@ -4,7 +4,12 @@
 \alias{load_delimited_data}
 \title{Load delimited data}
 \usage{
-load_delimited_data(data, sep = ";", warn_uninformative = TRUE)
+load_delimited_data(
+  data,
+  sep = ";",
+  warn_uninformative = TRUE,
+  aggregate = c("binary", "count")
+)
 }
 \arguments{
 \item{data}{data.frame containing the described data}
@@ -13,6 +18,8 @@ load_delimited_data(data, sep = ";", warn_uninformative = TRUE)
 
 \item{warn_uninformative}{boolean whether or not to print message when
 removing uninformative loci}
+
+\item{aggregate}{forwarded to \code{\link[=load_long_form_data]{load_long_form_data()}}; \code{"binary"} (default) or \code{"count"}.}
 }
 \description{
 Load delimited data

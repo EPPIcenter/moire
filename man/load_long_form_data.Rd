@@ -4,7 +4,11 @@
 \alias{load_long_form_data}
 \title{Load long form data}
 \usage{
-load_long_form_data(df, warn_uninformative = TRUE)
+load_long_form_data(
+  df,
+  warn_uninformative = TRUE,
+  aggregate = c("binary", "count")
+)
 }
 \arguments{
 \item{df}{data frame with 3 columns: \code{sample_id}, \code{locus}, \code{allele}.
@@ -13,6 +17,12 @@ locus for a given sample.}
 
 \item{warn_uninformative}{boolean whether or not to print message when
 removing uninformative loci}
+
+\item{aggregate}{\code{"binary"} (default) for presence/absence barcodes, or
+\code{"count"} to sum per-allele read counts into integer barcodes.}
+
+\item{reads}{Optional integer column of per-row read depths. When omitted,
+each row is treated as one read. Required semantics for \code{aggregate = "count"}.}
 }
 \description{
 Load long form data

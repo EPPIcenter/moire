@@ -42,7 +42,8 @@ run_mcmc(
   temp_adapt_steps = 25,
   max_initialization_tries = 10000,
   max_runtime = Inf,
-  initial_allele_frequencies = NULL
+  initial_allele_frequencies = NULL,
+  observation_model = c("binary", "counts")
 )
 }
 \arguments{
@@ -160,6 +161,9 @@ for each population. If provided, should be a list of length \code{num_populatio
 where each element is a list of length \code{num_loci}, and each locus element is
 a numeric vector of allele frequencies that sum to 1. If NULL, allele frequencies
 will be initialized using clustering-based approach.}
+
+\item{observation_model}{\code{"binary"} (default) for presence/absence error
+process, or \code{"counts"} for Poisson count emissions.}
 }
 \description{
 Sample from the target distribution using MCMC

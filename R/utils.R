@@ -1,3 +1,10 @@
+#' @export
+cat_progress_header <- function(title, data) {
+  cat("=== ", title, " ===\n", sep = "")
+  cat("Number of samples:", length(data$sample_ids), "\n")
+  cat("Number of loci:", length(data$loci), "\n")
+}
+
 #' Prepare initial allele frequencies for MCMC
 #'
 #' @details This function helps prepare initial allele frequencies for the MCMC
@@ -30,12 +37,6 @@
 #' # Use custom clustering (e.g., hierarchical clustering)
 #' # population_assignments <- cutree(hclust(dist_matrix), k = 3)
 #' # initial_freqs <- prepare_initial_allele_frequencies(data, population_assignments, 3)
-cat_progress_header <- function(title, data) {
-  cat("=== ", title, " ===\n", sep = "")
-  cat("Number of samples:", length(data$sample_ids), "\n")
-  cat("Number of loci:", length(data$loci), "\n")
-}
-
 prepare_initial_allele_frequencies <- function(data, population_assignments, num_populations, pseudocount = 1) {
   cat_progress_header("Preparing Initial Allele Frequencies", data)
   cat("Number of populations:", num_populations, "\n")
@@ -149,11 +150,39 @@ moire_prof_reset <- function() {
 #' @param df data frame with 3 columns: `sample_id`, `locus`, `allele`.
 #' Each row is a single observation of an allele at a particular
 #' locus for a given sample.
+#' @param aggregate `"binary"` (default) for presence/absence barcodes, or
+#'  `"count"` to sum per-allele read counts into integer barcodes.
 #' @param warn_uninformative boolean whether or not to print message when
 #'  removing uninformative loci
+#' @param reads Optional integer column of per-row read depths. When omitted,
+#'  each row is treated as one read. Required semantics for `aggregate = "count"`.
 #'
 #' @importFrom rlang .data
-load_long_form_data <- function(df, warn_uninformative = TRUE) {
+load_long_form_data <- function(df,
+                                warn_uninformative = TRUE,
+                                aggregate = c("binary", "count")) {
+  aggregate <- match.arg(aggregate)
+
+  if (!"reads" %in% names(df)) {
+    df$reads <- 1L
+  }
+
+  if (aggregate == "binary") {
+    duplicate_rows <- df |>
+      dplyr::group_by(.data$sample_id, .data$locus, .data$allele) |>
+      dplyr::filter(dplyr::n() > 1L)
+    if (nrow(duplicate_rows) > 0L) {
+      rlang::abort(c(
+        "Duplicate sample/locus/allele rows are not allowed when `aggregate = \"binary\"`.",
+        i = "Use `aggregate = \"count\"` with a `reads` column to sum read depths."
+      ))
+    }
+  } else {
+    df <- df |>
+      dplyr::group_by(.data$sample_id, .data$locus, .data$allele) |>
+      dplyr::summarise(reads = sum(.data$reads), .groups = "drop")
+  }
+
   uninformative_loci <- df |>
     dplyr::ungroup() |>
     dplyr::group_by(.data$locus) |>
@@ -177,13 +206,26 @@ load_long_form_data <- function(df, warn_uninformative = TRUE) {
     dplyr::pull(.data$locus) |>
     dplyr::n_distinct()
 
-  sample_locus_barcodes <- df |>
-    dplyr::group_by(.data$sample_id, .data$locus) |>
-    dplyr::summarize(alleles_grp = list(.data$allele), .groups = "drop") |>
-    dplyr::mutate(missing = FALSE) |>
-    tidyr::complete(.data$sample_id, .data$locus,
-      fill = list(alleles_grp = list(c(NULL)), missing = TRUE)
-    )
+  if (aggregate == "binary") {
+    sample_locus_barcodes <- df |>
+      dplyr::group_by(.data$sample_id, .data$locus) |>
+      dplyr::summarize(alleles_grp = list(.data$allele), .groups = "drop") |>
+      dplyr::mutate(missing = FALSE) |>
+      tidyr::complete(.data$sample_id, .data$locus,
+        fill = list(alleles_grp = list(c(NULL)), missing = TRUE)
+      )
+  } else {
+    sample_locus_barcodes <- df |>
+      dplyr::group_by(.data$sample_id, .data$locus) |>
+      dplyr::summarize(
+        allele_reads = list(stats::setNames(.data$reads, .data$allele)),
+        .groups = "drop"
+      ) |>
+      dplyr::mutate(missing = FALSE) |>
+      tidyr::complete(.data$sample_id, .data$locus,
+        fill = list(allele_reads = list(c()), missing = TRUE)
+      )
+  }
 
   missing_vec <- sample_locus_barcodes |>
     dplyr::arrange(.data$sample_id, .data$locus) |>
@@ -193,17 +235,32 @@ load_long_form_data <- function(df, warn_uninformative = TRUE) {
     dplyr::left_join(unique_alleles, by = "locus") |>
     dplyr::rowwise("sample_id", "locus", "missing") |>
     dplyr::summarise(
-      barcode = list(sapply(
-        unique_alleles,
-        function(x) {
-          as.integer(x %in% .data$alleles_grp)
+      barcode = list(
+        unname(
+        if (aggregate == "binary") {
+          vapply(
+            unique_alleles,
+            function(x) as.integer(x %in% alleles_grp),
+            integer(1)
+          )
+        } else {
+          reads_by_allele <- if (is.list(allele_reads)) allele_reads[[1]] else allele_reads
+          vapply(
+            unique_alleles,
+            function(x) {
+              count <- reads_by_allele[as.character(x)]
+              if (length(count) == 0L) 0L else as.integer(count)
+            },
+            integer(1)
+          )
         }
-      )), .groups = "drop"
+        )
+      ),
+      .groups = "drop"
     ) |>
     dplyr::group_by(.data$locus) |>
     dplyr::arrange(.data$sample_id, by_group = TRUE) |>
     dplyr::summarise(locus_barcodes = list(.data$barcode))
-
 
   sample_ids <- df |>
     dplyr::select("sample_id") |>
@@ -218,7 +275,8 @@ load_long_form_data <- function(df, warn_uninformative = TRUE) {
     data = sample_locus_barcodes$locus_barcodes,
     loci = sample_locus_barcodes$locus,
     is_missing = is_missing,
-    uninformative_loci = uninformative_loci
+    uninformative_loci = uninformative_loci,
+    aggregate = aggregate
   ))
 }
 
@@ -234,11 +292,12 @@ load_long_form_data <- function(df, warn_uninformative = TRUE) {
 #'
 #' @param data data.frame containing the described data
 #' @param sep string used to separate alleles
+#' @param aggregate forwarded to [load_long_form_data()]; `"binary"` (default) or `"count"`.
 #' @param warn_uninformative boolean whether or not to print message when
 #'  removing uninformative loci
 #'
 #' @importFrom rlang .data
-load_delimited_data <- function(data, sep = ";", warn_uninformative = TRUE) {
+load_delimited_data <- function(data, sep = ";", warn_uninformative = TRUE, aggregate = c("binary", "count")) {
   df <- data |>
     tidyr::pivot_longer(-"sample_id",
       names_to = "locus",
@@ -246,7 +305,7 @@ load_delimited_data <- function(data, sep = ";", warn_uninformative = TRUE) {
     ) |>
     tidyr::separate_rows("allele", sep = sep) |>
     dplyr::filter(!is.na(.data$allele))
-  return(load_long_form_data(df))
+  return(load_long_form_data(df, warn_uninformative = warn_uninformative, aggregate = aggregate))
 }
 
 
@@ -278,6 +337,7 @@ load_delimited_data <- function(data, sep = ";", warn_uninformative = TRUE) {
 #' print(long_form)
 convert_to_long_form <- function(data) {
   cat_progress_header("Converting Data to Long Form", data)
+  aggregate <- if (is.null(data$aggregate)) "binary" else data$aggregate
 
   # Initialize result data frame
   result_rows <- list()
@@ -335,15 +395,25 @@ convert_to_long_form <- function(data) {
             # Create allele name
             allele_name <- paste0("Allele_", allele_idx)
             
-            # Add one row for each copy of the allele
-            for (copy in 1:barcode[allele_idx]) {
+            if (aggregate == "count") {
               row_count <- row_count + 1
               result_rows[[row_count]] <- data.frame(
                 sample_id = sample_id,
                 locus = locus_name,
                 allele = allele_name,
+                reads = as.integer(barcode[allele_idx]),
                 stringsAsFactors = FALSE
               )
+            } else {
+              for (copy in seq_len(barcode[allele_idx])) {
+                row_count <- row_count + 1
+                result_rows[[row_count]] <- data.frame(
+                  sample_id = sample_id,
+                  locus = locus_name,
+                  allele = allele_name,
+                  stringsAsFactors = FALSE
+                )
+              }
             }
           }
         }
@@ -355,12 +425,22 @@ convert_to_long_form <- function(data) {
   if (row_count > 0) {
     result_df <- do.call(rbind, result_rows)
   } else {
-    result_df <- data.frame(
-      sample_id = character(0),
-      locus = character(0),
-      allele = character(0),
-      stringsAsFactors = FALSE
-    )
+    result_df <- if (aggregate == "count") {
+      data.frame(
+        sample_id = character(0),
+        locus = character(0),
+        allele = character(0),
+        reads = integer(0),
+        stringsAsFactors = FALSE
+      )
+    } else {
+      data.frame(
+        sample_id = character(0),
+        locus = character(0),
+        allele = character(0),
+        stringsAsFactors = FALSE
+      )
+    }
   }
   
   cat("Generated", nrow(result_df), "observations\n")

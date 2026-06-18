@@ -21,6 +21,14 @@ moire_profiler_reset <- function() {
     invisible(.Call(`_moire_moire_profiler_reset`))
 }
 
+moire_pam_cache_stats <- function() {
+    .Call(`_moire_moire_pam_cache_stats`)
+}
+
+moire_pam_cache_reset <- function() {
+    invisible(.Call(`_moire_moire_pam_cache_reset`))
+}
+
 start_profiler <- function(str) {
     .Call(`_moire_start_profiler`, str)
 }

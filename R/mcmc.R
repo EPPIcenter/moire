@@ -74,6 +74,8 @@
 #' @param max_runtime Maximum runtime in minutes. If the MCMC is running for
 #' more than this amount of time, the function will stop and return the current
 #' state of the MCMC.
+#' @param observation_model `"binary"` (default) for presence/absence error
+#'  process, or `"counts"` for Poisson count emissions.
 #' @param initial_allele_frequencies Optional list of initial allele frequencies
 #' for each population. If provided, should be a list of length `num_populations`,
 #' where each element is a list of length `num_loci`, and each locus element is
@@ -117,13 +119,16 @@ run_mcmc <-
            temp_adapt_steps = 25,
            max_initialization_tries = 10000,
            max_runtime = Inf,
-           initial_allele_frequencies = NULL) {
+           initial_allele_frequencies = NULL,
+           observation_model = c("binary", "counts")) {
+    observation_model <- match.arg(observation_model)
     start_time <- Sys.time()
     args <- as.list(environment())
     mcmc_args <- as.list(environment())
     mcmc_args$data <- data$data
     mcmc_args$sample_ids <- data$sample_ids
     mcmc_args$loci <- data$loci
+    mcmc_args$aggregate <- if (is.null(data$aggregate)) "binary" else data$aggregate
 
     ## if is_missing == FALSE, then generate a default FALSE matrix
     suppressWarnings({
