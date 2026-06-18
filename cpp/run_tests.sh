@@ -23,9 +23,12 @@ fi
 
 cd "$BUILD_DIR"
 
-# Set environment variables for optimal performance
-export TBB_NUM_THREADS=$(nproc)
-export OMP_NUM_THREADS=$(nproc)
+# Set environment variables for optimal performance (TBB only)
+if command -v nproc >/dev/null 2>&1; then
+    export TBB_NUM_THREADS=$(nproc)
+elif command -v sysctl >/dev/null 2>&1; then
+    export TBB_NUM_THREADS=$(sysctl -n hw.ncpu)
+fi
 
 # Run tests based on type
 case "$TEST_TYPE" in
@@ -48,7 +51,13 @@ case "$TEST_TYPE" in
     "coverage")
         echo -e "${BLUE}📊 Running tests with coverage...${NC}"
         cmake .. -DCMAKE_BUILD_TYPE=Debug
-        make -j$(nproc)
+        if command -v nproc >/dev/null 2>&1; then
+            make -j$(nproc)
+        elif command -v sysctl >/dev/null 2>&1; then
+            make -j$(sysctl -n hw.ncpu)
+        else
+            make -j4
+        fi
         ./multivector_tests
         ./distance_matrix_tests
         echo -e "${GREEN}✅ Coverage data generated in build directory${NC}"

@@ -32,8 +32,7 @@ This directory contains a comprehensive C++ testing framework for the Moire pack
 ### **Prerequisites**
 - C++20 compatible compiler (GCC 10+, Clang 12+, MSVC 2019+)
 - CMake 3.20+
-- TBB (Threading Building Blocks)
-- OpenMP
+- TBB (Threading Building Blocks) — sole parallel backend
 - Catch2 (automatically downloaded)
 - Google Benchmark (automatically downloaded)
 
@@ -153,7 +152,6 @@ void test_performance() {
 export CMAKE_BUILD_TYPE=Release    # Build type (Debug/Release)
 export PARALLEL_JOBS=8            # Number of parallel build jobs
 export TBB_NUM_THREADS=4          # TBB thread count
-export OMP_NUM_THREADS=4          # OpenMP thread count
 export TEST_TYPE=all              # Test type to run
 ```
 
@@ -192,9 +190,8 @@ MOIRE_BENCHMARK_CSV=1 ./build/prob_any_missing_benchmarks  # regression CSV; rep
 
 ### **Benchmark Features**
 - **Multiple Iterations**: Configurable warmup and measurement runs
-- **Regression suite**: `multivector_regression_benchmarks` uses fixed seed (42) for repeatable size/operation sweeps (reduce, sum, logsumexp, transform; seq vs parallel).
+- **Regression suite**: `multivector_regression_benchmarks` uses fixed seed (42) for repeatable size/operation sweeps (reduce, sum, logsumexp, transform).
 - **CSV output**: Set `MOIRE_BENCHMARK_CSV=1` to print CSV for baseline capture and CI trend checks. Multivector: `scenario,dim0,dim1,dim2,operation,policy,time_ms`. prob_any_missing: `scenario,total_alleles,coi,operation,time_ms` (time_ms is per-call).
-- **P(any missing) accuracy**: If you see unusual MCMC fits, you can force the legacy (combination-based) inclusion-exclusion path: set env `MOIRE_USE_LEGACY_PAM=1` **before** starting R (e.g. `MOIRE_USE_LEGACY_PAM=1 Rscript -e "moire::run_mcmc(...)"` or set it in the shell before `R` / `devtools::load_all()`). Gray and combination implement the same formula; order of summation can cause small floating-point differences. The benchmark runs a Gray vs combination check (tol 1e-5) before timing.
 - **MCMC C++ profiling (dev)**: To profile the MCMC hot path (e.g. inclusion-exclusion) on simulated data, build with `PKG_CXXFLAGS += -DMOIRE_ENABLE_PROFILER_REGISTRY` in `src/Makevars`, reinstall, then run `Rscript inst/scripts/profile_mcmc.R [minimal|small|vignette]`. Presets: `minimal` (tiny long-form data), `small` (20 samples × 10 loci), `vignette` (100 × 100). Env vars `PROFILE_BURNIN`, `PROFILE_SAMPLES`, `PROFILE_SEED` override defaults. Without the profiler flag, the script still reports wall-clock time.
 
 #### MCMC profiling results (example: small preset)
@@ -237,8 +234,6 @@ Run: **small** (20 samples × 10 loci), 200 burnin + 200 samples, seed 42.
 | **P(any missing) cost** | mobius_miss 22,740 ms + cache_hit 54 ms | included in loop above | — |
 
 Gray-only removes the Möbius/cache overhead entirely; the transmission loop and likelihood are correspondingly much faster.
-
-- **API compatibility**: The explicit `parallel_*` API (e.g. `parallel_reduce`, `parallel_sum`, `parallel_logsumexp`) is retained; no user-facing breaking changes in the current rollout.
 
 #### Observation likelihood parallelization
 
@@ -319,9 +314,7 @@ add_executable(your_tests your_test.cpp)
 target_link_libraries(your_tests 
     PRIVATE 
     Catch2::Catch2WithMain
-    Threads::Threads
-    TBB::tbb
-    OpenMP::OpenMP_CXX
+    moire_parallel_support
 )
 ```
 

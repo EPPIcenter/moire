@@ -1,10 +1,12 @@
 #!/usr/bin/env Rscript
-# Compare full-MCMC wall-clock time: Gray (default) vs legacy P(any missing).
-# Runs the same MCMC twice in separate R processes (env must be set before R starts).
+# Wall-clock MCMC benchmark for P(any missing) path (Gray-code inclusion-exclusion).
 #
 # Usage (from package root):
 #   Rscript inst/scripts/bench_pam_driver.R [preset]
 # Preset: small (default), medium (40 x 50), vignette. Same as profile_mcmc.R for small/vignette.
+#
+# For full profiler breakdown and committed baselines, prefer:
+#   Rscript inst/scripts/bench_mcmc_baseline.R [preset] [--save|--compare]
 #
 # Optional env: BENCH_PAM_BURNIN, BENCH_PAM_SAMPLES (passed to child runs).
 
@@ -53,10 +55,10 @@ samples <- Sys.getenv("BENCH_PAM_SAMPLES", "500")
 pkg_root <- getwd()
 
 message("MCMC: burnin=", burnin, " samples_per_chain=", samples)
-message("Running Gray (default) ...")
+message("Running MCMC ...")
 system2(
   R.home("bin/Rscript"),
-  c(run_script, data_path, "gray", out_dir),
+  c(run_script, data_path, out_dir),
   env = c(
     paste0("BENCH_PAM_PKG_ROOT=", pkg_root),
     paste0("BENCH_PAM_BURNIN=", burnin),
@@ -66,34 +68,10 @@ system2(
   stderr = NULL
 )
 
-message("Running legacy (MOIRE_USE_LEGACY_PAM=1) ...")
-system2(
-  R.home("bin/Rscript"),
-  c(run_script, data_path, "legacy", out_dir),
-  env = c(
-    "MOIRE_USE_LEGACY_PAM=1",
-    paste0("BENCH_PAM_PKG_ROOT=", pkg_root),
-    paste0("BENCH_PAM_BURNIN=", burnin),
-    paste0("BENCH_PAM_SAMPLES=", samples)
-  ),
-  stdout = NULL,
-  stderr = NULL
-)
-
-t_gray   <- as.numeric(readLines(file.path(out_dir, "time_gray.txt")))
-t_legacy <- as.numeric(readLines(file.path(out_dir, "time_legacy.txt")))
-
+elapsed <- as.numeric(readLines(file.path(out_dir, "time.txt")))
 message("")
-message("=== P(any missing) full-MCMC comparison ===")
-message("Gray (default):  ", round(t_gray, 2), " s")
-message("Legacy (combo):  ", round(t_legacy, 2), " s")
-message("Ratio (legacy/Gray): ", round(t_legacy / t_gray, 2))
-if (t_legacy > t_gray) {
-  message("Gray is ", round(100 * (t_legacy - t_gray) / t_legacy, 1), "% faster for this run.")
-} else {
-  message("Legacy is ", round(100 * (t_gray - t_legacy) / t_gray, 1), "% faster for this run.")
-}
+message("=== P(any missing) full-MCMC benchmark ===")
+message("Elapsed: ", round(elapsed, 2), " s")
 message("")
 message("Note: P(any missing) is only part of MCMC (transmission process). Observation process,")
-message("update_p, update_samples, etc. dominate, so a 2x per-call speedup yields ~10% overall.")
-message("Build with MOIRE_ENABLE_PROFILER_REGISTRY to see the exact fraction in profiler stats.")
+message("update_p, update_samples, etc. dominate overall wall-clock.")

@@ -4,6 +4,7 @@
  * MOIRE_BENCHMARK_CSV=1 for before/after and CI.
  */
 #include "prob_any_missing.h"
+#include "prob_any_missing_alternatives.h"
 #include "benchmark_framework.hpp"
 #include <chrono>
 #include <cmath>
@@ -110,6 +111,7 @@ int main(int argc, char* argv[]) {
         }
 
         probAnyMissingFunctor functor;
+        prob_any_missing_bench::ReferenceFunctor bench;
         const std::size_t total_alleles = eventProbs.size();
 
         const int reps = 100000;
@@ -138,7 +140,7 @@ int main(int argc, char* argv[]) {
             WARMUP, ITERS, reps,
             [&]() {
                 for (int r = 0; r < reps; ++r)
-                    (void)functor.vectorized_combination(eventProbs, numEvents);
+                    (void)bench.vectorized_combination(eventProbs, numEvents);
             });
         if (csv) {
             emit_prob_any_missing_csv_row(std::cout, "custom", total_alleles,
@@ -153,7 +155,7 @@ int main(int argc, char* argv[]) {
             WARMUP, ITERS, reps,
             [&]() {
                 for (int r = 0; r < reps; ++r)
-                    (void)functor.vectorized_mobius(eventProbs, numEvents);
+                    (void)bench.vectorized_mobius(eventProbs, numEvents);
             });
         if (csv) {
             emit_prob_any_missing_csv_row(std::cout, "custom", total_alleles,
@@ -196,13 +198,14 @@ int main(int argc, char* argv[]) {
     // Validate Gray-code vs combination (same formula, different iteration order)
     const double tol = 1e-5;
     probAnyMissingFunctor functor_validate;
+    prob_any_missing_bench::ReferenceFunctor bench_validate;
     for (std::size_t total_alleles : total_alleles_vec) {
         std::vector<float> eventProbs = make_event_probs(total_alleles, SEED);
         for (std::size_t coi : coi_vec) {
             if (coi < total_alleles) continue;
             const unsigned int coi_u = static_cast<unsigned int>(coi);
             auto gray = functor_validate.vectorized(eventProbs, 1u, coi_u);
-            auto comb = functor_validate.vectorized_combination(eventProbs, coi_u);
+            auto comb = bench_validate.vectorized_combination(eventProbs, coi_u);
             if (gray.size() != comb.size()) {
                 std::cerr << "FAIL: Gray vs combination size mismatch total_alleles=" << total_alleles
                           << " coi=" << coi << " gray=" << gray.size() << " comb=" << comb.size() << "\n";
@@ -224,6 +227,7 @@ int main(int argc, char* argv[]) {
     for (std::size_t total_alleles : total_alleles_vec) {
         std::vector<float> eventProbs = make_event_probs(total_alleles, SEED);
         probAnyMissingFunctor functor;
+        prob_any_missing_bench::ReferenceFunctor bench;
 
         for (std::size_t coi : coi_vec) {
             if (coi < total_alleles) continue;
@@ -244,7 +248,7 @@ int main(int argc, char* argv[]) {
                     WARMUP, ITERS, reps,
                     [&]() {
                         for (int r = 0; r < reps; ++r)
-                            (void)functor.vectorized_combination(eventProbs, coi_u);
+                            (void)bench.vectorized_combination(eventProbs, coi_u);
                     });
             });
 
@@ -253,7 +257,7 @@ int main(int argc, char* argv[]) {
                     WARMUP, ITERS, reps,
                     [&]() {
                         for (int r = 0; r < reps; ++r)
-                            (void)functor.vectorized_mobius(eventProbs, coi_u);
+                            (void)bench.vectorized_mobius(eventProbs, coi_u);
                     });
             });
 

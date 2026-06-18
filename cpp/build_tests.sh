@@ -11,7 +11,13 @@ NC='\033[0m' # No Color
 # Configuration
 BUILD_DIR="build"
 CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
-PARALLEL_JOBS="${PARALLEL_JOBS:-$(nproc)}"
+if command -v nproc >/dev/null 2>&1; then
+    PARALLEL_JOBS="${PARALLEL_JOBS:-$(nproc)}"
+elif command -v sysctl >/dev/null 2>&1; then
+    PARALLEL_JOBS="${PARALLEL_JOBS:-$(sysctl -n hw.ncpu)}"
+else
+    PARALLEL_JOBS="${PARALLEL_JOBS:-4}"
+fi
 
 echo -e "${BLUE}🔨 Building C++ Tests${NC}"
 echo "================================"

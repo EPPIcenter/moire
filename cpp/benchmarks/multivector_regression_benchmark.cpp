@@ -91,21 +91,21 @@ int main(int argc, char** argv) {
         fill_random(mv, SEED);
 
         run_scenario("size_sweep", d0, d1, d2, "reduce_sum", "seq",
-                     [&]() { (void)mv.reduce(std::plus<double>(), 0.0, std::execution::seq); });
+                     [&]() { (void)mv.reduce(std::plus<double>(), 0.0); });
         run_scenario("size_sweep", d0, d1, d2, "reduce_sum", "parallel",
-                     [&]() { (void)mv.parallel_reduce(std::plus<double>(), 0.0); });
+                     [&]() { (void)mv.reduce(std::plus<double>(), 0.0); });
         run_scenario("size_sweep", d0, d1, d2, "sum", "seq",
-                     [&]() { (void)mv.sum(std::execution::seq); });
+                     [&]() { (void)mv.sum(); });
         run_scenario("size_sweep", d0, d1, d2, "sum", "parallel",
-                     [&]() { (void)mv.parallel_sum(); });
+                     [&]() { (void)mv.sum(); });
         run_scenario("size_sweep", d0, d1, d2, "logsumexp", "seq",
-                     [&]() { (void)mv.logsumexp(std::execution::seq); });
+                     [&]() { (void)mv.logsumexp(); });
         run_scenario("size_sweep", d0, d1, d2, "logsumexp", "parallel",
-                     [&]() { (void)mv.parallel_logsumexp(); });
+                     [&]() { (void)mv.logsumexp(); });
         run_scenario("size_sweep", d0, d1, d2, "transform_sqrt", "seq",
-                     [&]() { (void)mv.transform([](double x) { return std::sqrt(x); }, std::execution::seq); });
+                     [&]() { (void)mv.transform([](double x) { return std::sqrt(x); }); });
         run_scenario("size_sweep", d0, d1, d2, "transform_sqrt", "parallel",
-                     [&]() { (void)mv.parallel_sqrt(); });
+                     [&]() { (void)mv.sqrt(); });
     }
 
     return 0;

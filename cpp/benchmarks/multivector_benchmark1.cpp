@@ -76,7 +76,7 @@ void benchmark_reduce_functions() {
     
     // Benchmark sequential reduction
     double seq_time = run_benchmark("Sequential reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::seq);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
@@ -84,26 +84,26 @@ void benchmark_reduce_functions() {
     // Benchmark parallel reduction (if available)
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
     double par_time = run_benchmark("Parallel reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::par);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double par_unseq_time = run_benchmark("Parallel unsequenced reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::par_unseq);
+        auto result = mv.reduce(std::plus<double>(), 0.0_unseq);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double unseq_time = run_benchmark("Unsequenced reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::unseq);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     // Benchmark built-in parallel implementation
     double builtin_par_time = run_benchmark("Built-in parallel reduce", [&]() {
-        auto result = mv.parallel_reduce(std::plus<double>(), 0.0);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
@@ -137,20 +137,20 @@ void benchmark_reduce_functions() {
     
     // Benchmark convenience methods
     double seq_sum_time = run_benchmark("Sequential sum", [&]() {
-        auto result = mv.sum(std::execution::seq);
+        auto result = mv.sum();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
     double par_sum_time = run_benchmark("Parallel sum", [&]() {
-        auto result = mv.sum(std::execution::par);
+        auto result = mv.sum();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double builtin_par_sum_time = run_benchmark("Built-in parallel sum", [&]() {
-        auto result = mv.parallel_sum();
+        auto result = mv.sum();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
@@ -207,7 +207,7 @@ void benchmark_different_sizes() {
         
         // Benchmark sequential reduction
         double seq_time = run_benchmark("Sequential reduce", [&]() {
-            auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::seq);
+            auto result = mv.reduce(std::plus<double>(), 0.0);
             // Store a sample of the result to prevent optimization
             results.push_back(result.at({0, 0}));
         });
@@ -215,14 +215,14 @@ void benchmark_different_sizes() {
         // Benchmark parallel reduction (if available)
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
         double par_time = run_benchmark("Parallel reduce", [&]() {
-            auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::par);
+            auto result = mv.reduce(std::plus<double>(), 0.0);
             // Store a sample of the result to prevent optimization
             results.push_back(result.at({0, 0}));
         });
         
         // Benchmark built-in parallel implementation
         double builtin_par_time = run_benchmark("Built-in parallel reduce", [&]() {
-            auto result = mv.parallel_reduce(std::plus<double>(), 0.0);
+            auto result = mv.reduce(std::plus<double>(), 0.0);
             // Store a sample of the result to prevent optimization
             results.push_back(result.at({0, 0}));
         });
@@ -280,25 +280,25 @@ void benchmark_different_operations() {
     
     // Benchmark different operations with sequential execution
     double seq_sum_time = run_benchmark("Sequential sum", [&]() {
-        auto result = mv.sum(std::execution::seq);
+        auto result = mv.sum();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double seq_product_time = run_benchmark("Sequential product", [&]() {
-        auto result = mv.product(std::execution::seq);
+        auto result = mv.product();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double seq_max_time = run_benchmark("Sequential max", [&]() {
-        auto result = mv.max(std::execution::seq);
+        auto result = mv.max();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double seq_min_time = run_benchmark("Sequential min", [&]() {
-        auto result = mv.min(std::execution::seq);
+        auto result = mv.min();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
@@ -306,50 +306,50 @@ void benchmark_different_operations() {
     // Benchmark different operations with parallel execution (if available)
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
     double par_sum_time = run_benchmark("Parallel sum", [&]() {
-        auto result = mv.sum(std::execution::par);
+        auto result = mv.sum();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double par_product_time = run_benchmark("Parallel product", [&]() {
-        auto result = mv.product(std::execution::par);
+        auto result = mv.product();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double par_max_time = run_benchmark("Parallel max", [&]() {
-        auto result = mv.max(std::execution::par);
+        auto result = mv.max();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double par_min_time = run_benchmark("Parallel min", [&]() {
-        auto result = mv.min(std::execution::par);
+        auto result = mv.min();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     // Benchmark different operations with built-in parallel implementation
     double builtin_par_sum_time = run_benchmark("Built-in parallel sum", [&]() {
-        auto result = mv.parallel_sum();
+        auto result = mv.sum();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double builtin_par_product_time = run_benchmark("Built-in parallel product", [&]() {
-        auto result = mv.parallel_product();
+        auto result = mv.product();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double builtin_par_max_time = run_benchmark("Built-in parallel max", [&]() {
-        auto result = mv.parallel_max();
+        auto result = mv.max();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double builtin_par_min_time = run_benchmark("Built-in parallel min", [&]() {
-        auto result = mv.parallel_min();
+        auto result = mv.min();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
@@ -433,7 +433,7 @@ void benchmark_2d_multivector() {
     
     // Benchmark sequential reduction
     double seq_time = run_benchmark("2D Sequential reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::seq);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0}));
     });
@@ -441,26 +441,26 @@ void benchmark_2d_multivector() {
     // Benchmark parallel reduction (if available)
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
     double par_time = run_benchmark("2D Parallel reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::par);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0}));
     });
     
     double par_unseq_time = run_benchmark("2D Parallel unsequenced reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::par_unseq);
+        auto result = mv.reduce(std::plus<double>(), 0.0_unseq);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0}));
     });
     
     double unseq_time = run_benchmark("2D Unsequenced reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::unseq);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0}));
     });
     
     // Benchmark built-in parallel implementation
     double builtin_par_time = run_benchmark("2D Built-in parallel reduce", [&]() {
-        auto result = mv.parallel_reduce(std::plus<double>(), 0.0);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0}));
     });
@@ -500,20 +500,20 @@ void benchmark_2d_multivector() {
     
     // Benchmark convenience methods
     double seq_sum_time = run_benchmark("2D Sequential sum", [&]() {
-        auto result = mv.sum(std::execution::seq);
+        auto result = mv.sum();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0}));
     });
     
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
     double par_sum_time = run_benchmark("2D Parallel sum", [&]() {
-        auto result = mv.sum(std::execution::par);
+        auto result = mv.sum();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0}));
     });
     
     double builtin_par_sum_time = run_benchmark("2D Built-in parallel sum", [&]() {
-        auto result = mv.parallel_sum();
+        auto result = mv.sum();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0}));
     });
@@ -574,7 +574,7 @@ void benchmark_4d_multivector() {
     
     // Benchmark sequential reduction
     double seq_time = run_benchmark("4D Sequential reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::seq);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
@@ -582,26 +582,26 @@ void benchmark_4d_multivector() {
     // Benchmark parallel reduction (if available)
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
     double par_time = run_benchmark("4D Parallel reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::par);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double par_unseq_time = run_benchmark("4D Parallel unsequenced reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::par_unseq);
+        auto result = mv.reduce(std::plus<double>(), 0.0_unseq);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double unseq_time = run_benchmark("4D Unsequenced reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::unseq);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     // Benchmark built-in parallel implementation
     double builtin_par_time = run_benchmark("4D Built-in parallel reduce", [&]() {
-        auto result = mv.parallel_reduce(std::plus<double>(), 0.0);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
@@ -641,20 +641,20 @@ void benchmark_4d_multivector() {
     
     // Benchmark convenience methods
     double seq_sum_time = run_benchmark("4D Sequential sum", [&]() {
-        auto result = mv.sum(std::execution::seq);
+        auto result = mv.sum();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
     double par_sum_time = run_benchmark("4D Parallel sum", [&]() {
-        auto result = mv.sum(std::execution::par);
+        auto result = mv.sum();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
     
     double builtin_par_sum_time = run_benchmark("4D Built-in parallel sum", [&]() {
-        auto result = mv.parallel_sum();
+        auto result = mv.sum();
         // Store a sample of the result to prevent optimization
         results.push_back(result.at({0, 0}));
     });
@@ -718,14 +718,14 @@ void benchmark_logsumexp() {
         
         // Benchmark sequential logsumexp
         double seq_time = run_benchmark("Sequential logsumexp", [&]() {
-            auto result = mv.logsumexp(std::execution::seq);
+            auto result = mv.logsumexp();
             // Store a sample of the result to prevent optimization
             results.push_back(result.at({0, 0}));
         });
         
         // Benchmark parallel logsumexp
         double par_time = run_benchmark("Parallel logsumexp", [&]() {
-            auto result = mv.parallel_logsumexp();
+            auto result = mv.logsumexp();
             // Store a sample of the result to prevent optimization
             results.push_back(result.at({0, 0}));
         });
@@ -802,7 +802,7 @@ void benchmark_1d_multivector() {
     
     // Benchmark sequential reduction
     double seq_time = run_benchmark("1D Sequential reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::seq);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store the result to prevent optimization
         results.push_back(result);
     });
@@ -810,26 +810,26 @@ void benchmark_1d_multivector() {
     // Benchmark parallel reduction (if available)
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
     double par_time = run_benchmark("1D Parallel reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::par);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store the result to prevent optimization
         results.push_back(result);
     });
     
     double par_unseq_time = run_benchmark("1D Parallel unsequenced reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::par_unseq);
+        auto result = mv.reduce(std::plus<double>(), 0.0_unseq);
         // Store the result to prevent optimization
         results.push_back(result);
     });
     
     double unseq_time = run_benchmark("1D Unsequenced reduce", [&]() {
-        auto result = mv.reduce(std::plus<double>(), 0.0, std::execution::unseq);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store the result to prevent optimization
         results.push_back(result);
     });
     
     // Benchmark built-in parallel implementation with TBB
     double builtin_par_time = run_benchmark("1D Built-in parallel reduce (TBB)", [&]() {
-        auto result = mv.parallel_reduce(std::plus<double>(), 0.0);
+        auto result = mv.reduce(std::plus<double>(), 0.0);
         // Store the result to prevent optimization
         results.push_back(result);
     });
@@ -869,20 +869,20 @@ void benchmark_1d_multivector() {
     
     // Benchmark convenience methods
     double seq_sum_time = run_benchmark("1D Sequential sum", [&]() {
-        auto result = mv.sum(std::execution::seq);
+        auto result = mv.sum();
         // Store the result to prevent optimization
         results.push_back(result);
     });
     
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
     double par_sum_time = run_benchmark("1D Parallel sum", [&]() {
-        auto result = mv.sum(std::execution::par);
+        auto result = mv.sum();
         // Store the result to prevent optimization
         results.push_back(result);
     });
     
     double builtin_par_sum_time = run_benchmark("1D Built-in parallel sum (TBB)", [&]() {
-        auto result = mv.parallel_sum();
+        auto result = mv.sum();
         // Store the result to prevent optimization
         results.push_back(result);
     });
@@ -987,7 +987,7 @@ void benchmark_element_transform() {
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
     // Benchmark parallel_element_add
     double par_element_add_time = run_benchmark("Parallel element_add", [&]() {
-        mv.parallel_element_add(element_values);
+        mv.element_add(element_values);
         // Store a sample of the result to prevent optimization
         results.push_back(mv.at({0, 0, 0}));
         // Reset for next test
@@ -996,7 +996,7 @@ void benchmark_element_transform() {
     
     // Benchmark parallel_element_subtract
     double par_element_subtract_time = run_benchmark("Parallel element_subtract", [&]() {
-        mv.parallel_element_subtract(element_values);
+        mv.element_subtract(element_values);
         // Store a sample of the result to prevent optimization
         results.push_back(mv.at({0, 0, 0}));
         // Reset for next test
@@ -1005,7 +1005,7 @@ void benchmark_element_transform() {
     
     // Benchmark parallel_element_multiply
     double par_element_multiply_time = run_benchmark("Parallel element_multiply", [&]() {
-        mv.parallel_element_multiply(element_values);
+        mv.element_multiply(element_values);
         // Store a sample of the result to prevent optimization
         results.push_back(mv.at({0, 0, 0}));
         // Reset for next test
@@ -1014,7 +1014,7 @@ void benchmark_element_transform() {
     
     // Benchmark parallel_element_divide
     double par_element_divide_time = run_benchmark("Parallel element_divide", [&]() {
-        mv.parallel_element_divide(element_values);
+        mv.element_divide(element_values);
         // Store a sample of the result to prevent optimization
         results.push_back(mv.at({0, 0, 0}));
         // Reset for next test
@@ -1108,7 +1108,7 @@ void benchmark_element_transform() {
         // Benchmark parallel element_add (if available)
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
         double sized_par_element_add_time = run_benchmark("Parallel element_add", [&]() {
-            mv_sized.parallel_element_add(sized_element_values);
+            mv_sized.element_add(sized_element_values);
             // Reset for next test
             mv_sized = mv_sized_copy;
         });
@@ -1151,7 +1151,7 @@ void benchmark_element_transform() {
     // Benchmark parallel element_add (if available)
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603
     double par_element_add_time_1d = run_benchmark("1D Parallel element_add", [&]() {
-        mv1d.parallel_element_add(element_values1d);
+        mv1d.element_add(element_values1d);
         // Reset for next test
         mv1d = mv1d_copy;
     });
@@ -1367,7 +1367,7 @@ void benchmark_chained_reductions() {
     
     // Benchmark chained operations
     run_benchmark("Chained sum->logsumexp->sum", [&]() {
-        return mv.parallel_sum().parallel_logsumexp().parallel_sum();
+        return mv.sum().logsumexp().sum();
     });
     
     // Benchmark combined approach (single pass)

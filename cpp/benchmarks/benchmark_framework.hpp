@@ -26,9 +26,61 @@ struct RegressionResult {
     double time_ms{0.0};
 };
 
-inline bool output_csv() {
-    const char* env = std::getenv("MOIRE_BENCHMARK_CSV");
+/// Row for committed baseline files (section=summary|profiler).
+struct BaselineRow {
+    std::string section;
+    std::string preset;
+    std::string metric;
+    double value{0.0};
+    std::string unit;
+    long long calls{0};
+};
+
+inline void emit_baseline_header(std::ostream& out) {
+    out << "section,preset,metric,value,unit,calls\n";
+}
+
+inline void emit_baseline_row(std::ostream& out, const BaselineRow& r) {
+    out << r.section << "," << r.preset << "," << r.metric << ","
+        << std::fixed << std::setprecision(6) << r.value << ","
+        << r.unit << "," << r.calls << "\n";
+}
+
+template<typename F>
+double run_timed_ms(int warmup, int iters, F&& fn) {
+    for (int i = 0; i < warmup; ++i) fn();
+    double sum = 0.0;
+    for (int i = 0; i < iters; ++i) {
+        const auto start = std::chrono::high_resolution_clock::now();
+        fn();
+        const auto end = std::chrono::high_resolution_clock::now();
+        sum += std::chrono::duration<double, std::milli>(end - start).count();
+    }
+    return sum / static_cast<double>(iters);
+}
+
+inline bool env_flag(const char* name) {
+    const char* env = std::getenv(name);
     return env && (std::string(env) == "1" || std::string(env) == "true" || std::string(env) == "yes");
+}
+
+inline bool output_csv() {
+    return env_flag("MOIRE_BENCHMARK_CSV");
+}
+
+/// When set, benchmarks emit baseline rows (same CSV schema as MCMC baseline).
+inline bool output_baseline() {
+    return env_flag("MOIRE_BENCHMARK_BASELINE");
+}
+
+inline double regression_threshold_pct() {
+    const char* env = std::getenv("MOIRE_BENCH_REGRESSION_THRESHOLD");
+    if (!env) return 5.0;
+    try {
+        return std::stod(env);
+    } catch (...) {
+        return 5.0;
+    }
 }
 
 inline void emit_csv_header(std::ostream& out) {
