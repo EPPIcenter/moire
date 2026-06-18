@@ -32,3 +32,29 @@ test_that("run_mcmc runs without error with minimal data (multivector refactor c
   expect_length(res$chains, 1L)
   expect_true("args" %in% names(res))
 })
+
+test_that("run_mcmc returns finite posterior with adapt_temp disabled", {
+  data <- list(
+    sample_ids = c("s1", "s2", "s3"),
+    loci = c("L1", "L2"),
+    data = list(
+      list(c(1L, 0L), c(0L, 1L), c(1L, 1L)),
+      list(c(1L, 0L), c(1L, 1L), c(0L, 1L))
+    )
+  )
+  initial_allele_frequencies <- list(
+    list(c(0.5, 0.5), c(0.5, 0.5))
+  )
+
+  res <- moire::run_mcmc(
+    data,
+    burnin = 3L,
+    samples_per_chain = 3L,
+    verbose = FALSE,
+    num_populations = 1L,
+    adapt_temp = FALSE,
+    initial_allele_frequencies = initial_allele_frequencies
+  )
+
+  expect_true(is.finite(res$chains[[1]]$posterior_sample[1]))
+})

@@ -1,5 +1,6 @@
 #include "test_framework.hpp"
 #include "multivector.h"
+#include "multivector_fused.h"
 #include <vector>
 #include <array>
 #include <random>
@@ -42,11 +43,15 @@ public:
         add_test("Invariant Default Constructor", [this]() { test_invariant_default_constructor(); });
         add_test("Invariant After Resize", [this]() { test_invariant_after_resize(); });
         add_test("Indexing N1 N2 N3", [this]() { test_indexing_n1_n2_n3(); });
-        add_test("Parallel Sequential Equivalence", [this]() { test_parallel_sequential_equivalence(); });
+        add_test("Reduce Sum Equivalence", [this]() { test_reduce_sum_equivalence(); });
         add_test("Logsumexp Numerical Stability", [this]() { test_logsumexp_numerical_stability(); });
         add_test("Softmax Normalization", [this]() { test_softmax_normalization(); });
         add_test("Ragged Bounds And Offsets", [this]() { test_ragged_bounds_and_offsets(); });
+        add_test("For Each Inner Slice", [this]() { test_for_each_inner_slice(); });
         add_test("At Bounds Check", [this]() { test_at_bounds_check(); });
+        add_test("Fused Transmission Loglikelihood", [this]() { test_fused_transmission_loglikelihood(); });
+        add_test("Fused Population Assignment", [this]() { test_fused_population_assignment(); });
+        add_test("Ragged Unchecked At", [this]() { test_ragged_unchecked_at(); });
     }
 
 private:
@@ -404,14 +409,6 @@ private:
         
         // For {0, 1}: log(exp(2) + exp(3) + exp(4) + exp(5)) = log(e^2 + e^3 + e^4 + e^5) ≈ 5.4402
         ASSERT_LT(std::abs(logsumexps.at({0, 1}) - 5.4402), 0.0001);
-        
-        // Test parallel_logsumexp
-        auto parallel_logsumexps = mv_double.parallel_logsumexp();
-        ASSERT_EQ(parallel_logsumexps.dimensions(), (std::array<size_t, 2>{2, 3}));
-        
-        // Verify that parallel results match sequential results
-        ASSERT_LT(std::abs(parallel_logsumexps.at({0, 0}) - logsumexps.at({0, 0})), 0.0001);
-        ASSERT_LT(std::abs(parallel_logsumexps.at({0, 1}) - logsumexps.at({0, 1})), 0.0001);
     }
 
     void test_transform_operations() {
@@ -608,19 +605,6 @@ private:
         // Test min reduction - should return a scalar
         int min_val = mv.min();
         ASSERT_EQ(min_val, 1);  // min(1,2,3,4,5)
-        
-        // Test parallel reductions
-        int parallel_sum = mv.parallel_sum();
-        ASSERT_EQ(parallel_sum, 15);
-        
-        int parallel_product = mv.parallel_product();
-        ASSERT_EQ(parallel_product, 120);
-        
-        int parallel_max = mv.parallel_max();
-        ASSERT_EQ(parallel_max, 5);
-        
-        int parallel_min = mv.parallel_min();
-        ASSERT_EQ(parallel_min, 1);
     }
 
     void test_elementwise_operations() {
@@ -714,16 +698,6 @@ private:
             log_sum0 += std::exp(log_softmax_result.at({0, 0, k}));
         }
         ASSERT_LT(std::abs(log_sum0 - 1.0), 1e-10);  // Sum should be 1.0
-        
-        // Test parallel softmax
-        auto parallel_softmax_result = mv.parallel_softmax(false);
-        
-        // Verify results for first inner slice
-        double parallel_sum0 = 0.0;
-        for (size_t k = 0; k < 4; ++k) {
-            parallel_sum0 += parallel_softmax_result.at({0, 0, k});
-        }
-        ASSERT_LT(std::abs(parallel_sum0 - 1.0), 1e-10);  // Sum should be 1.0
     }
 
     void test_invariant_default_constructor() {
@@ -781,7 +755,7 @@ private:
                     ASSERT_EQ(mv3.at({i, j, k}), static_cast<int>(i * 12 + j * 4 + k));
     }
 
-    void test_parallel_sequential_equivalence() {
+    void test_reduce_sum_equivalence() {
         const unsigned seed = 42;
         std::mt19937 gen(seed);
         std::uniform_real_distribution<double> dis(0.1, 2.0);
@@ -792,17 +766,11 @@ private:
                 for (size_t k = 0; k < dims[2]; ++k)
                     mv.at({i, j, k}) = dis(gen);
 
-        auto seq_sum = mv.sum(std::execution::seq);
-        auto par_sum = mv.parallel_sum();
+        auto generic_sum = mv.reduce(std::plus<double>{}, 0.0);
+        auto convenience_sum = mv.sum();
         for (size_t i = 0; i < dims[0]; ++i)
             for (size_t j = 0; j < dims[1]; ++j)
-                ASSERT_LT(std::abs(seq_sum.at({i, j}) - par_sum.at({i, j})), 1e-9);
-
-        auto seq_logsumexp = mv.logsumexp();
-        auto par_logsumexp = mv.parallel_logsumexp();
-        for (size_t i = 0; i < dims[0]; ++i)
-            for (size_t j = 0; j < dims[1]; ++j)
-                ASSERT_LT(std::abs(seq_logsumexp.at({i, j}) - par_logsumexp.at({i, j})), 1e-9);
+                ASSERT_LT(std::abs(generic_sum.at({i, j}) - convenience_sum.at({i, j})), 1e-9);
     }
 
     void test_logsumexp_numerical_stability() {
@@ -857,6 +825,36 @@ private:
             }
     }
 
+    void test_for_each_inner_slice() {
+        std::array<size_t, 2> dims = {2, 2};
+        std::vector<size_t> ragged = {2, 3};
+        RaggedMultiVector<int, 3> rmv(dims, std::span<size_t const>(ragged));
+        size_t slice_count = 0;
+        rmv.for_each_inner_slice([&](const auto&, auto begin, auto end) {
+            ++slice_count;
+            int val = 0;
+            for (auto it = begin; it != end; ++it) {
+                *it = ++val;
+            }
+        });
+        ASSERT_EQ(slice_count, 4u);
+        ASSERT_EQ(rmv.at({0, 0, 0}), 1);
+        ASSERT_EQ(rmv.at({0, 0, 1}), 2);
+        ASSERT_EQ(rmv.at({0, 1, 0}), 1);
+        ASSERT_EQ(rmv.at({0, 1, 1}), 2);
+        ASSERT_EQ(rmv.at({0, 1, 2}), 3);
+
+        MultiVector<int, 3> mv({2, 2, 3});
+        slice_count = 0;
+        mv.for_each_inner_slice([&](const auto&, auto begin, auto end) {
+            ++slice_count;
+            std::fill(begin, end, 7);
+        });
+        ASSERT_EQ(slice_count, 4u);
+        ASSERT_EQ(mv.at({0, 0, 0}), 7);
+        ASSERT_EQ(mv.at({1, 1, 2}), 7);
+    }
+
     void test_at_bounds_check() {
         std::array<size_t, 3> dims = {2, 3, 4};
         MultiVector<int, 3> mv(dims);
@@ -864,6 +862,74 @@ private:
         ASSERT_THROWS(mv.at({0, 4, 0}));
         ASSERT_THROWS(mv.at({0, 0, 5}));
         ASSERT_NO_THROW(mv.at({1, 2, 3}));
+    }
+
+    void test_fused_transmission_loglikelihood() {
+        std::array<size_t, 3> dims = {2, 3, 4};
+        MultiVector<double, 3> tx(dims);
+        MultiVector<double, 2> coi({2, 3});
+        MultiVector<double, 1> pop_log({3});
+        for (size_t i = 0; i < dims[0]; ++i)
+            for (size_t j = 0; j < dims[1]; ++j)
+                for (size_t k = 0; k < dims[2]; ++k)
+                    tx.unchecked_at({i, j, k}) = static_cast<double>(i + j + k);
+        for (size_t i = 0; i < 2; ++i)
+            for (size_t j = 0; j < 3; ++j)
+                coi.unchecked_at({i, j}) = static_cast<double>(j);
+        for (size_t j = 0; j < 3; ++j)
+            pop_log.unchecked_at({j}) = 0.05;
+
+        const double fused = moire_fused::transmission_loglikelihood_sum(
+            tx, coi, pop_log);
+        const double reference = (tx.sum() + coi)
+            .element_add(pop_log.as_span())
+            .logsumexp()
+            .full_sum();
+        ASSERT_LT(std::abs(fused - reference), 1e-10);
+    }
+
+    void test_fused_population_assignment() {
+        std::array<size_t, 3> dims = {2, 3, 4};
+        MultiVector<double, 3> tx(dims);
+        MultiVector<double, 2> coi({2, 3});
+        MultiVector<double, 1> pop_log({3});
+        for (size_t i = 0; i < dims[0]; ++i)
+            for (size_t j = 0; j < dims[1]; ++j)
+                for (size_t k = 0; k < dims[2]; ++k)
+                    tx.unchecked_at({i, j, k}) = static_cast<double>(i + j + k) * 0.01;
+        coi.fill(0.1);
+        for (size_t j = 0; j < 3; ++j)
+            pop_log.unchecked_at({j}) = 0.05;
+
+        const auto fused = moire_fused::population_assignment_log_softmax(
+            tx, coi, pop_log);
+        const auto reference = (tx.sum() + coi)
+            .element_add(pop_log.as_span())
+            .softmax(true);
+
+        for (size_t i = 0; i < dims[0]; ++i)
+            for (size_t j = 0; j < dims[1]; ++j)
+                ASSERT_LT(std::abs(fused.unchecked_at({i, j}) - reference.unchecked_at({i, j})), 1e-10);
+    }
+
+    void test_ragged_unchecked_at() {
+        std::array<size_t, 2> dims = {2, 2};
+        std::vector<size_t> ragged = {3, 4};
+        RaggedMultiVector<int, 3> rmv(dims, std::span<size_t const>(ragged));
+        rmv.unchecked_at({0, 0, 0}) = 11;
+        rmv.unchecked_at({0, 1, 2}) = 22;
+        rmv.unchecked_at({1, 1, 3}) = 33;
+        ASSERT_EQ(rmv.at({0, 0, 0}), 11);
+        ASSERT_EQ(rmv.at({0, 1, 2}), 22);
+        ASSERT_EQ(rmv.at({1, 1, 3}), 33);
+
+        size_t sum = 0;
+        for (size_t i = 0; i < 2; ++i)
+            for (size_t j = 0; j < 2; ++j) {
+                auto [begin, end] = rmv.inner_iterators({i, j});
+                for (auto it = begin; it != end; ++it) sum += *it;
+            }
+        ASSERT_EQ(sum, 11 + 22 + 33);
     }
 };
 

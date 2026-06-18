@@ -1,3 +1,82 @@
+test_that("load_long_form_data aggregates read counts when aggregate = count", {
+  df <- data.frame(
+    sample_id = c("S1", "S1", "S1"),
+    locus = c("A", "A", "A"),
+    allele = c("1", "1", "2"),
+    reads = c(5L, 3L, 10L)
+  )
+
+  res <- moire::load_long_form_data(df, aggregate = "count")
+
+  expect_equal(res$aggregate, "count")
+  barcode <- res$data[[1]][[1]]
+  expect_equal(barcode, c(8L, 10L))
+})
+
+test_that("load_long_form_data errors on duplicate rows in binary mode", {
+  df <- data.frame(
+    sample_id = c("S1", "S1"),
+    locus = c("A", "A"),
+    allele = c("1", "1")
+  )
+
+  expect_error(
+    moire::load_long_form_data(df, aggregate = "binary"),
+    "Duplicate sample/locus/allele rows"
+  )
+})
+
+test_that("load_delimited_data forwards aggregate to long-form loader", {
+  data <- data.frame(
+    sample_id = "S1",
+    A = "1;1;2"
+  )
+
+  res <- moire::load_delimited_data(data, aggregate = "count")
+  expect_equal(res$aggregate, "count")
+  expect_equal(res$data[[1]][[1]], c(2L, 1L))
+})
+
+test_that("convert_to_long_form preserves read counts in count mode", {
+  df <- data.frame(
+    sample_id = c("S1", "S1", "S1"),
+    locus = c("A", "A", "A"),
+    allele = c("1", "1", "2"),
+    reads = c(5L, 3L, 10L)
+  )
+
+  loaded <- moire::load_long_form_data(df, aggregate = "count", warn_uninformative = FALSE)
+  long_form <- moire::convert_to_long_form(loaded)
+
+  expect_true("reads" %in% names(long_form))
+  expect_equal(nrow(long_form), 2L)
+  expect_equal(sort(long_form$reads), c(8L, 10L))
+})
+
+test_that("observed coi uses allele presence not read depth sum", {
+  skip_on_cran()
+  data <- list(
+    sample_ids = "s1",
+    loci = "L1",
+    aggregate = "count",
+    data = list(list(c(100L, 50L))),
+    is_missing = matrix(FALSE, nrow = 1, ncol = 1)
+  )
+  initial_allele_frequencies <- list(list(c(0.5, 0.5)))
+
+  res <- moire::run_mcmc(
+    data,
+    observation_model = "counts",
+    burnin = 1L,
+    samples_per_chain = 1L,
+    verbose = FALSE,
+    num_populations = 1L,
+    initial_allele_frequencies = initial_allele_frequencies
+  )
+
+  expect_equal(res$chains[[1]]$observed_coi[[1]], 2L)
+})
+
 test_that("loading long form data works", {
   data <- data.frame(
     sample_id = c("S1", "S1", "S1", "S2", "S2", "S3", "S3", "S4", "S4", "S5"),
