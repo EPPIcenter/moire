@@ -46,6 +46,12 @@ class Chain
     void restore_latent_genotype_new(std::size_t sample_idx, std::size_t locus_idx);
     std::span<const int> latent_allele_support(std::size_t sample_idx,
                                                std::size_t locus_idx) const;
+    std::span<const int> latent_allele_support_old(std::size_t sample_idx,
+                                                   std::size_t locus_idx) const;
+    bool locus_tx_inputs_unchanged(std::size_t sample_idx,
+                                   std::size_t locus_idx,
+                                   int prev_coi,
+                                   float prev_r) const;
 
     float calc_transmission_process(
         std::span<int const> allele_index_vec,
@@ -76,7 +82,9 @@ class Chain
     /// Recompute all per-sample tx logsumexp terms (coi prior and/or population log weights changed).
     void refresh_all_samples_tx_logsumexp();
     /// Incrementally update transmission cells for one sample (all pop x loci).
-    void recalculate_transmission_for_sample_incremental(std::size_t sample_idx);
+    void recalculate_transmission_for_sample_incremental(std::size_t sample_idx,
+                                                         int prev_coi,
+                                                         float prev_r);
     void restore_transmission_for_sample_incremental(std::size_t sample_idx);
 
     void calculate_observation_likelihood(std::size_t sample_idx, std::size_t locus_idx);

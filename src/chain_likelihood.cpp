@@ -207,6 +207,33 @@ std::span<const int> Chain::latent_allele_support(std::size_t sample_idx,
     return std::span<const int>(begin, k);
 }
 
+std::span<const int> Chain::latent_allele_support_old(std::size_t sample_idx,
+                                                      std::size_t locus_idx) const
+{
+    const auto [begin, end] = latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
+    std::size_t k = 0;
+    const std::size_t cap = static_cast<std::size_t>(end - begin);
+    while (k < cap && begin[k] != -1) {
+        ++k;
+    }
+    return std::span<const int>(begin, k);
+}
+
+bool Chain::locus_tx_inputs_unchanged(std::size_t sample_idx,
+                                      std::size_t locus_idx,
+                                      int prev_coi,
+                                      float prev_r) const
+{
+    if (m.at({sample_idx}) != prev_coi) {
+        return false;
+    }
+    if (r.at({sample_idx}) != prev_r) {
+        return false;
+    }
+    return support_spans_equal(latent_allele_support(sample_idx, locus_idx),
+                               latent_allele_support_old(sample_idx, locus_idx));
+}
+
 float Chain::calc_transmission_process(
     std::span<int const> allele_index_vec,
     std::span<float const> allele_frequencies, int coi, float relatedness)
@@ -518,7 +545,9 @@ void Chain::refresh_all_samples_tx_logsumexp()
     }
 }
 
-void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_idx)
+void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_idx,
+                                                          int prev_coi,
+                                                          float prev_r)
 {
     ProfileScope scope("Chain::recalculate_transmission_for_sample");
     if (!tx_llik_cache_valid_) {
@@ -572,6 +601,10 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
             for (std::size_t pop_idx = 0; pop_idx < n_pops; ++pop_idx) {
                 transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) = 0.f;
             }
+            return;
+        }
+
+        if (locus_tx_inputs_unchanged(sample_idx, locus_idx, prev_coi, prev_r)) {
             return;
         }
 

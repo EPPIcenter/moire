@@ -32,7 +32,8 @@ void Chain::update_m(int iteration)
         const std::size_t prop_m = m.at({sample_idx}) + sampler.sample_coi_delta(2);
         if (prop_m > 0 and prop_m <= params.max_coi)
         {
-            const float prev_m = m.at({sample_idx});
+            const int prev_m = m.at({sample_idx});
+            const float prev_r = r.at({sample_idx});
             m.at({sample_idx}) = prop_m;
             calculate_coi_likelihood(sample_idx);
 
@@ -59,7 +60,8 @@ void Chain::update_m(int iteration)
 
             float new_llik;
             if (pam_fast_paths::tx_opts_enabled()) {
-                recalculate_transmission_for_sample_incremental(sample_idx);
+                recalculate_transmission_for_sample_incremental(
+                    sample_idx, prev_m, prev_r);
                 new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
             } else {
                 invalidate_transmission_llik_cache();
@@ -175,7 +177,8 @@ void Chain::update_eff_coi(int iteration)
 
         float new_llik;
         if (pam_fast_paths::tx_opts_enabled()) {
-            recalculate_transmission_for_sample_incremental(sample_idx);
+            recalculate_transmission_for_sample_incremental(
+                sample_idx, prev_m, prev_r);
             new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
         } else {
             invalidate_transmission_llik_cache();
@@ -426,7 +429,8 @@ void Chain::update_m_r(int iteration)
 
         float new_llik;
         if (pam_fast_paths::tx_opts_enabled()) {
-            recalculate_transmission_for_sample_incremental(sample_idx);
+            recalculate_transmission_for_sample_incremental(
+                sample_idx, static_cast<int>(prev_m), prev_r);
             new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
         } else {
             invalidate_transmission_llik_cache();
@@ -859,7 +863,8 @@ void Chain::update_samples(int iteration)
 
             float new_llik;
             if (pam_fast_paths::tx_opts_enabled()) {
-                recalculate_transmission_for_sample_incremental(sample_idx);
+                recalculate_transmission_for_sample_incremental(
+                    sample_idx, static_cast<int>(prev_m), prev_r);
                 new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
             } else {
                 invalidate_transmission_llik_cache();
