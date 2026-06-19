@@ -220,6 +220,56 @@ struct PChangePamGroup {
     bool pam_valid{false};
 };
 
+/// Dedup (q, coi) PAM vectors across loci in one sample recalculation pass.
+struct SamplePamCache {
+    struct Entry {
+        std::vector<float> q;
+        unsigned coi{0};
+        unsigned prev_coi_u{0};
+        PamCachedVectors pam;
+        bool pam_valid{false};
+    };
+
+    std::vector<Entry> entries;
+
+    const Entry* find(std::span<const float> q,
+                      unsigned coi,
+                      unsigned prev_coi_u) const noexcept
+    {
+        for (const Entry& entry : entries) {
+            if (entry.coi == coi && entry.prev_coi_u == prev_coi_u &&
+                q_spans_equal(q, entry.q)) {
+                return &entry;
+            }
+        }
+        return nullptr;
+    }
+
+    const Entry& find_or_add(std::span<const float> q,
+                             unsigned coi,
+                             unsigned prev_coi_u,
+                             probAnyMissingFunctor& functor)
+    {
+        if (const Entry* hit = find(q, coi, prev_coi_u)) {
+            return *hit;
+        }
+        Entry entry;
+        entry.q.assign(q.begin(), q.end());
+        entry.coi = coi;
+        entry.prev_coi_u = prev_coi_u;
+        if (q.size() <= 1) {
+            entry.pam_valid = false;
+        } else {
+            const PamCachedVectors& pam_ref =
+                cached_pam_vector(functor, q, 1u, coi, prev_coi_u);
+            copy_pam_cached(pam_ref, entry.pam);
+            entry.pam_valid = true;
+        }
+        entries.push_back(std::move(entry));
+        return entries.back();
+    }
+};
+
 } // namespace
 
 void Chain::refresh_latent_support_k(std::size_t sample_idx, std::size_t locus_idx)
@@ -642,24 +692,66 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
     struct LocusPopPamGroup {
         std::vector<float> q;
         float log_sum{0.f};
-        PamCachedVectors pam;
-        bool pam_valid{false};
         std::vector<std::size_t> pops;
     };
 
-    moire_parallel::recalc_parallel_for(0, n_loci, [&](std::size_t locus_idx) {
+    const unsigned prev_coi_u =
+        (coi != prev_coi) ? static_cast<unsigned>(prev_coi) : 0u;
+    const unsigned coi_u = static_cast<unsigned>(coi);
+
+    thread_local std::vector<std::size_t> dirty_loci;
+    dirty_loci.clear();
+    dirty_loci.reserve(n_loci);
+    for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
         if (genotyping_data.is_missing(sample_idx, locus_idx)) {
             for (std::size_t pop_idx = 0; pop_idx < n_pops; ++pop_idx) {
                 transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) = 0.f;
             }
-            return;
+            continue;
         }
+        if (!locus_tx_inputs_unchanged(sample_idx, locus_idx, prev_coi, prev_r)) {
+            dirty_loci.push_back(locus_idx);
+        }
+    }
 
-        if (locus_tx_inputs_unchanged(sample_idx, locus_idx, prev_coi, prev_r)) {
-            return;
+    SamplePamCache sample_pam;
+    if (!dirty_loci.empty() && pam_fast_paths::tx_opts_enabled()) {
+        ProfileScope scope_prefill("Chain::sample_tx::pam_prefill");
+        thread_local probAnyMissingFunctor prefill_functor;
+        thread_local std::vector<float> q_prefill;
+        for (const std::size_t locus_idx : dirty_loci) {
+            const int support_group_idx = locus_support_group[locus_idx];
+            if (support_group_idx < 0) {
+                continue;
+            }
+            const PChangePamGroup& support_group =
+                support_groups[static_cast<std::size_t>(support_group_idx)];
+            const auto support = std::span<const int>(support_group.support);
+            const std::size_t total_alleles = support_group.total_alleles;
+            if (total_alleles <= 1 || total_alleles > static_cast<std::size_t>(coi)) {
+                continue;
+            }
+            for (std::size_t pop_idx = 0; pop_idx < n_pops; ++pop_idx) {
+                const auto [p_begin, p_end] = p.inner_iterators({pop_idx, locus_idx});
+                q_prefill.clear();
+                float sum = 0.f;
+                if (!transmission_incremental::build_constrained_q(
+                        support, std::span<const float>(p_begin, p_end), q_prefill, sum)) {
+                    continue;
+                }
+                sample_pam.find_or_add(q_prefill, coi_u, prev_coi_u, prefill_functor);
+            }
         }
+    }
+
+    const SamplePamCache* const pam_table = &sample_pam;
+    for (std::size_t dirty_idx = 0; dirty_idx < dirty_loci.size(); ++dirty_idx) {
+        const std::size_t locus_idx = dirty_loci[dirty_idx];
 
         const int support_group_idx = locus_support_group[locus_idx];
+        if (support_group_idx < 0) {
+            continue;
+        }
         const PChangePamGroup& support_group =
             support_groups[static_cast<std::size_t>(support_group_idx)];
         const auto support = std::span<const int>(support_group.support);
@@ -668,17 +760,16 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
             for (std::size_t pop_idx = 0; pop_idx < n_pops; ++pop_idx) {
                 transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) = kNegInf;
             }
-            return;
+            continue;
         }
 
         if (!pam_fast_paths::tx_opts_enabled()) {
             for (std::size_t pop_idx = 0; pop_idx < n_pops; ++pop_idx) {
                 calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
             }
-            return;
+            continue;
         }
 
-        thread_local probAnyMissingFunctor functor;
         thread_local std::vector<float> q_scratch;
         thread_local std::vector<LocusPopPamGroup> pop_groups;
         pop_groups.clear();
@@ -713,37 +804,25 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
             pop_groups[static_cast<std::size_t>(group_idx)].pops.push_back(pop_idx);
         }
 
-        {
-            ProfileScope scope_groups("Chain::sample_tx::pam_groups");
-            for (auto& group : pop_groups) {
-                if (total_alleles == 1) {
-                    group.pam_valid = false;
-                    continue;
-                }
-                const unsigned prev_coi_u =
-                    (coi != prev_coi) ? static_cast<unsigned>(prev_coi) : 0u;
-                const PamCachedVectors& pam_ref = cached_pam_vector(
-                    functor, group.q, 1u, static_cast<unsigned>(coi), prev_coi_u);
-                copy_pam_cached(pam_ref, group.pam);
-                group.pam_valid = true;
-            }
-        }
-
         for (const auto& group : pop_groups) {
+            const SamplePamCache::Entry* pam_entry = nullptr;
+            if (total_alleles > 1) {
+                pam_entry = pam_table->find(group.q, coi_u, prev_coi_u);
+            }
             const float tx = finish_transmission_from_group(
-                group.pam_valid ? &group.pam : nullptr,
+                (pam_entry != nullptr && pam_entry->pam_valid) ? &pam_entry->pam : nullptr,
                 sampler,
                 params.allow_relatedness,
                 coi,
                 total_alleles,
                 relatedness,
                 group.log_sum,
-                group.pam_valid);
+                pam_entry != nullptr && pam_entry->pam_valid);
             for (const std::size_t pop_idx : group.pops) {
                 transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) = tx;
             }
         }
-    });
+    }
 
     // Fold cell deltas sequentially — tx_sample_logsumexp is shared per sample.
     for (std::size_t pop_idx = 0; pop_idx < n_pops; ++pop_idx) {
