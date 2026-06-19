@@ -598,7 +598,8 @@ void Chain::update_p(int iteration)
                         recalculate_transmission_at_locus_after_p_change(
                             pop_idx, locus_idx,
                             std::span<const float>(update_p_prev_p_ws_.data(),
-                                                   update_p_prev_p_ws_.size()));
+                                                   update_p_prev_p_ws_.size()),
+                            allele_idx);
                     } else {
                         ProfileScope scope("Chain::update_p::recalc_transmission");
                         moire_parallel::recalc_parallel_for(0, n_samples, [&](std::size_t sample_idx) {
@@ -621,16 +622,8 @@ void Chain::update_p(int iteration)
                 if (!std::isfinite(new_post) or
                     sampler.sample_log_mh_acceptance() > acceptanceRatio)
                 {
-                    ProfileScope scope("Chain::update_p::reject_restore");
                     p.inner_fill({pop_idx, locus_idx}, update_p_prev_p_ws_);
-                    moire_parallel::parallel_for(0, genotyping_data.num_samples, [&](std::size_t sample_idx) {
-                        const float proposed =
-                            transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx});
-                        const float old_cell =
-                            transmission_llik_old.unchecked_at({sample_idx, pop_idx, locus_idx});
-                        apply_transmission_cell_change(sample_idx, pop_idx, proposed, old_cell);
-                        transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) = old_cell;
-                    });
+                    restore_transmission_column_change(pop_idx, locus_idx);
                 }
                 else
                 {

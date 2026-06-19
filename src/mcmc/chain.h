@@ -103,7 +103,10 @@ class Chain
     void recalculate_transmission_at_locus_after_p_change(
         std::size_t population_idx,
         std::size_t locus_idx,
-        std::span<const float> p_old);
+        std::span<const float> p_old,
+        std::size_t changed_allele_idx);
+    /// Undo one pop x locus column after a rejected update_p proposal.
+    void restore_transmission_column_change(std::size_t pop_idx, std::size_t locus_idx);
     void invalidate_update_p_locus_group_cache(std::size_t locus_idx);
     void ensure_update_p_locus_group_cache(std::size_t locus_idx);
     void calculate_eps_neg_likelihood(std::size_t sample_idx);

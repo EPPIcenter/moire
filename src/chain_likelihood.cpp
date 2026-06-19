@@ -222,6 +222,17 @@ bool support_spans_equal(std::span<const int> a, std::span<const int> b) noexcep
            std::equal(a.begin(), a.end(), b.begin());
 }
 
+bool support_contains_allele(std::span<const int> support,
+                             std::size_t allele_idx) noexcept
+{
+    for (int allele : support) {
+        if (static_cast<std::size_t>(allele) == allele_idx) {
+            return true;
+        }
+    }
+    return false;
+}
+
 struct PChangePamGroup {
     std::vector<int> support;
     int coi{0};
@@ -671,6 +682,20 @@ void Chain::apply_transmission_column_change(std::size_t pop_idx, std::size_t lo
     });
 }
 
+void Chain::restore_transmission_column_change(std::size_t pop_idx, std::size_t locus_idx)
+{
+    ProfileScope scope("Chain::update_p::reject_restore");
+    const std::size_t n_samples = genotyping_data.num_samples;
+    moire_parallel::parallel_for(0, n_samples, [&](std::size_t sample_idx) {
+        const float proposed =
+            transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx});
+        const float old_cell =
+            transmission_llik_old.unchecked_at({sample_idx, pop_idx, locus_idx});
+        apply_transmission_cell_change(sample_idx, pop_idx, proposed, old_cell);
+        transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) = old_cell;
+    });
+}
+
 void Chain::refresh_sample_tx_after_coi_change(std::size_t sample_idx)
 {
     if (!tx_llik_cache_valid_) {
@@ -1091,7 +1116,8 @@ void Chain::ensure_update_p_locus_group_cache(std::size_t locus_idx)
 void Chain::recalculate_transmission_at_locus_after_p_change(
     std::size_t pop_idx,
     std::size_t locus_idx,
-    std::span<const float> p_old_span)
+    std::span<const float> p_old_span,
+    std::size_t changed_allele_idx)
 {
     ProfileScope scope("Chain::update_p::recalc_transmission");
     const std::size_t n_samples = genotyping_data.num_samples;
@@ -1135,6 +1161,17 @@ void Chain::recalculate_transmission_at_locus_after_p_change(
         for (std::size_t gi = 0; gi < groups.size(); ++gi) {
             PChangePamGroup& group = groups[gi];
             UpdatePPamSlot& slot = pam_slots[gi];
+
+            if (changed_allele_idx < p_new_span.size() &&
+                !support_contains_allele(
+                    std::span<const int>(group.support), changed_allele_idx) &&
+                slot.pam_valid) {
+                group.log_sum = slot.log_sum;
+                group.pam_valid = true;
+                copy_pam_cached(slot.pam, group.pam);
+                continue;
+            }
+
             q.clear();
             q_prev.clear();
             float sum = 0.f;
