@@ -58,3 +58,44 @@ test_that("run_mcmc returns finite posterior with adapt_temp disabled", {
 
   expect_true(is.finite(res$chains[[1]]$posterior_sample[1]))
 })
+
+test_that("run_mcmc resolves num_threads and deprecates pt_num_threads", {
+  data <- list(
+    sample_ids = c("s1", "s2", "s3"),
+    loci = c("L1", "L2"),
+    data = list(
+      list(c(1L, 0L), c(0L, 1L), c(1L, 1L)),
+      list(c(1L, 0L), c(1L, 1L), c(0L, 1L))
+    )
+  )
+  initial_allele_frequencies <- list(
+    list(c(0.5, 0.5), c(0.5, 0.5))
+  )
+
+  expect_warning(
+    res <- moire::run_mcmc(
+      data,
+      burnin = 1L,
+      samples_per_chain = 1L,
+      verbose = FALSE,
+      num_populations = 1L,
+      adapt_temp = FALSE,
+      pt_num_threads = 2L,
+      initial_allele_frequencies = initial_allele_frequencies
+    ),
+    "deprecated"
+  )
+  expect_equal(res$args$num_threads, 2L)
+
+  res2 <- moire::run_mcmc(
+    data,
+    burnin = 1L,
+    samples_per_chain = 1L,
+    verbose = FALSE,
+    num_populations = 1L,
+    adapt_temp = FALSE,
+    num_threads = 1L,
+    initial_allele_frequencies = initial_allele_frequencies
+  )
+  expect_equal(res2$args$num_threads, 1L)
+})

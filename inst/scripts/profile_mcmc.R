@@ -14,7 +14,9 @@
 #
 # For repeatable baselines (wall-clock + profiler CSV), use:
 #   Rscript inst/scripts/bench_mcmc_baseline.R small --save
+#   Rscript inst/scripts/bench_mcmc_baseline.R vignette --pt --save
 #   Rscript inst/scripts/bench_mcmc_baseline.R small --compare
+# See inst/benchmarks/README.md for parallel modes and env vars.
 #
 # Env vars (optional): PROFILE_BURNIN, PROFILE_SAMPLES, PROFILE_SEED
 #   e.g. PROFILE_SAMPLES=500 Rscript inst/scripts/profile_mcmc.R small
@@ -37,10 +39,12 @@ set.seed(seed)
 
 loaded <- bench_load_data(preset)
 data <- loaded$data
+parallel <- bench_parallel_config()
 
 message("MCMC: burnin=", burnin, " samples_per_chain=", samples, " (verbose=FALSE)")
+message("Parallel: ", bench_format_parallel_config(parallel))
 
-result <- bench_run_once(data, burnin, samples, verbose = FALSE)
+result <- bench_run_once(data, burnin, samples, verbose = FALSE, parallel = parallel)
 
 message("\nWall-clock time:")
 print(c(elapsed = result$elapsed_s))

@@ -19,7 +19,7 @@ class Parameters
     int burnin;
     int samples;
     std::vector<float> pt_chains;
-    int pt_num_threads;
+    int num_threads;
     bool adapt_temp;
     int pre_adapt_steps;
     int temp_adapt_steps;

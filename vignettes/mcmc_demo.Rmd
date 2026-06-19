@@ -57,13 +57,12 @@ simulated_data <- moire::simulate_data(
 simulated_data <- moire::simulated_data
 ```
 
-Now that we have our data, let's go ahead and run the MCMC. Here we run 20 parallel tempered chains with a temperature gradient ranging from $[0, 1]$. We also place a weak prior on relatedness that favors low relatedness.
+Now that we have our data, let's go ahead and run the MCMC. Here we run 80 parallel-tempered chains with a temperature gradient ranging from $[0, 1]$. Thread count defaults to physical cores minus one; override with `num_threads` if needed. We also place a weak prior on relatedness that favors low relatedness.
 
 ```{r run_mcmc, eval=FALSE, include=TRUE}
-burnin <- 1e3
+burnin <- 1e2
 num_samples <- 1e3
-pt_chains <- seq(1, 0, length.out = 20)
-pt_num_threads <- 20 # number of threads to use for parallel tempering
+pt_chains <- seq(1, 0, length.out = 80)
 
 initial_freqs <- prepare_initial_allele_frequencies(
   data = simulated_data,
@@ -78,7 +77,7 @@ mcmc_results <- moire::run_mcmc(
   r_alpha = 1.5,
   r_beta = 5,
   verbose = TRUE, burnin = burnin, samples_per_chain = num_samples,
-  pt_chains = pt_chains, pt_num_threads = pt_num_threads,
+  pt_chains = pt_chains,
   adapt_temp = TRUE,
   initial_allele_frequencies = initial_freqs,
   observation_model = "binary"
@@ -97,8 +96,8 @@ coi_summary <- moire::summarize_coi(mcmc_results)
 # We can also summarize statistics about the allele frequency distribution
 he_summary <- moire::summarize_he(mcmc_results)
 allele_freq_summary <- moire::summarize_allele_freqs(mcmc_results)
-relatedness_summary <- moire::summarize_relatedness(mcmc_results)
-effective_coi_summary <- moire::summarize_effective_coi(mcmc_results)
+relatedness_summary <- moire:::summarize_relatedness(mcmc_results)
+effective_coi_summary <- moire:::summarize_effective_coi(mcmc_results)
 
 # Let's append the true values for use later
 sample_data <- data.frame(

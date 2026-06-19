@@ -118,7 +118,7 @@ namespace moire_parallel {
     template<typename InputIt, typename OutputIt, typename UnaryOp>
     inline void transform(InputIt first, InputIt last, OutputIt result, UnaryOp op) {
         const size_t size = static_cast<size_t>(std::distance(first, last));
-        if (!should_parallelize(size, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+        if (disable_nested_parallelism || !should_parallelize(size, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
             std::transform(first, last, result, op);
             return;
         }
@@ -134,7 +134,7 @@ namespace moire_parallel {
     template<typename InputIt1, typename InputIt2, typename OutputIt, typename BinaryOp>
     inline void transform(InputIt1 first1, InputIt1 last1, InputIt2 first2, OutputIt result, BinaryOp op) {
         const size_t size = static_cast<size_t>(std::distance(first1, last1));
-        if (!should_parallelize(size, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+        if (disable_nested_parallelism || !should_parallelize(size, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
             std::transform(first1, last1, first2, result, op);
             return;
         }
@@ -151,7 +151,7 @@ namespace moire_parallel {
     template<typename InputIt, typename T, typename BinaryOp>
     inline T reduce(InputIt first, InputIt last, T init, BinaryOp op) {
         const size_t size = static_cast<size_t>(std::distance(first, last));
-        if (!should_parallelize(size, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+        if (disable_nested_parallelism || !should_parallelize(size, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
             return std::reduce(first, last, init, op);
         }
         return tbb::parallel_reduce(
@@ -166,7 +166,7 @@ namespace moire_parallel {
     template<typename InputIt, typename T, typename BinaryOp, typename UnaryOp>
     inline T transform_reduce(InputIt first, InputIt last, T init, BinaryOp reduce_op, UnaryOp transform_op) {
         const size_t size = static_cast<size_t>(std::distance(first, last));
-        if (!should_parallelize(size, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
+        if (disable_nested_parallelism || !should_parallelize(size, MOIRE_PARALLEL_ELEMENT_THRESHOLD)) {
             return std::transform_reduce(first, last, init, reduce_op, transform_op);
         }
         return tbb::parallel_reduce(

@@ -36,7 +36,8 @@ run_mcmc(
   num_cores = 1,
   pt_chains = 1,
   pt_grad = 1,
-  pt_num_threads = 1,
+  num_threads = NULL,
+  pt_num_threads = NULL,
   adapt_temp = TRUE,
   pre_adapt_steps = 25,
   temp_adapt_steps = 25,
@@ -118,24 +119,29 @@ For Poisson model, accepts: "pois", "poisson".}
 the latent genotypes at each step of the MCMC. WARNING: This will increase
 the size of the output object significantly.}
 
-\item{num_chains}{Total number of chains to run, possibly simultaneously}
+\item{num_chains}{Number of independent MCMC replicates to run. When greater
+than 1, replicates are run in parallel R worker processes (see \code{num_cores}).}
 
-\item{num_cores}{Total OMP parallel threads to use to run chains.
-num_cores * pt_num_threads should not exceed the number of cores available
-on your system.}
+\item{num_cores}{Number of R worker processes when \code{num_chains > 1}
+(\code{parallel::mclapply}). Each worker runs its own C++ MCMC and may use up to
+\code{num_threads} compute threads.}
 
-\item{pt_chains}{Total number of chains to run with parallel tempering or a
-vector containing the temperatures that should be used for parallel tempering.}
+\item{pt_chains}{Number of parallel-tempering chains, or a numeric vector of
+temperatures. When greater than 1, tempered chains run concurrently within
+each MCMC replicate, sharing the \code{num_threads} thread pool.}
 
 \item{pt_grad}{Power to raise parallel tempering chains to. A value of 1
 results in evenly distributed temperatures between [0,1], below 1 will bias
-towards 1 and above 1 will bias towards 0. Only used if pt_chains is a
+towards 1 and above 1 will bias towards 0. Only used if \code{pt_chains} is a
 single value (i.e. not a vector).}
 
-\item{pt_num_threads}{Total number of OMP parallel threads to be used to
-process parallel tempered chains
-num_cores * pt_num_threads should not exceed the number of cores available
-on your system.}
+\item{num_threads}{Maximum number of TBB worker threads for one \code{run_mcmc()}
+call. Defaults to physical cores minus one. With multiple parallel-tempering
+chains, chain updates share this pool; inner parallelism is disabled to avoid
+oversubscription. With a single chain, inner likelihood work may use the
+pool instead.}
+
+\item{pt_num_threads}{Deprecated alias for \code{num_threads}.}
 
 \item{adapt_temp}{Logical indicating whether or not to adapt the parallel
 tempering temperatures. If TRUE, the temperatures will be adapted during the
@@ -168,3 +174,17 @@ process, or \code{"counts"} for Poisson count emissions.}
 \description{
 Sample from the target distribution using MCMC
 }
+\section{Parallelism}{
+
+\code{run_mcmc()} uses Intel TBB (via RcppParallel) for C++ parallelism.
+\itemize{
+\item \strong{\code{num_threads}}: thread budget for one replicate. Leave unset for a
+sensible default (\verb{physical cores - 1}).
+\item \strong{\code{pt_chains}}: parallel-tempering replicas within one MCMC run. These are
+statistical chains, not hardware threads; they share \code{num_threads}.
+\item \strong{\code{num_chains} / \code{num_cores}}: optional independent MCMC replicates in
+separate R processes. Keep \code{num_cores * num_threads} at or below your
+physical core count.
+}
+}
+

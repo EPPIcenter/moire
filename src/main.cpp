@@ -8,6 +8,8 @@
 #include "pam_fast_paths.h"
 
 #include <progress.hpp>
+#include <memory>
+#include <tbb/global_control.h>
 
 //----------------------------------------------
 // [[Rcpp::export(name='run_mcmc_rcpp')]]
@@ -19,6 +21,15 @@ Rcpp::List run_mcmc(Rcpp::List args)
 
     Parameters params(args);
     GenotypingData genotyping_data(args);
+
+    // Cap the global TBB pool for this run. With multiple PT chains, chain-level
+    // parallelism uses this pool; inner ops stay serial via disable_nested_parallelism.
+    std::unique_ptr<tbb::global_control> thread_limit;
+    if (params.num_threads > 0) {
+        thread_limit = std::make_unique<tbb::global_control>(
+            tbb::global_control::max_allowed_parallelism,
+            static_cast<std::size_t>(params.num_threads));
+    }
 
     if (params.verbose && !params.simple_verbose)
     {

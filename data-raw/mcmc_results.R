@@ -27,12 +27,11 @@ simulated_data <- moire::simulate_data(
 burnin <- 1e3
 num_samples <- 1e3
 pt_chains <- seq(1, 0, length.out = 80)
-pt_num_threads <- 20 # number of threads to use for parallel tempering
 
 mcmc_results <- moire::run_mcmc(
   simulated_data,
   verbose = TRUE, burnin = burnin, samples_per_chain = num_samples,
-  pt_chains = pt_chains, pt_num_threads = pt_num_threads,
+  pt_chains = pt_chains,
   adapt_temp = TRUE
 )
 

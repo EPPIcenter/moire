@@ -330,9 +330,9 @@ void MCMC::sample(int step)
             population_coi_p_store.push_back(chain.population_coi_p);
             population_coi_r_store.push_back(chain.population_coi_r);
             population_responsibility_store.push_back(chain.population_responsibility_vector.data());
+        }
             // Reset flag for this thread (though not strictly necessary since lambda ends)
             moire_parallel::disable_nested_parallelism = false;
-        }
         });
     } else {
         // Single chain: sequential at top level, inner operations can parallelize

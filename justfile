@@ -256,6 +256,18 @@ bench-mcmc preset="vignette":
     Rscript -e "devtools::load_all(quiet=TRUE)"
     Rscript inst/scripts/bench_mcmc_baseline.R {{preset}}
 
+# Parallel-tempering benchmark track (preset_pt in CSV)
+bench-mcmc-pt preset="vignette":
+    @echo "⚡ Running MCMC PT benchmark ({{preset}})..."
+    Rscript -e "devtools::load_all(quiet=TRUE)"
+    Rscript inst/scripts/bench_mcmc_baseline.R {{preset}} --pt
+
+# Single-thread algorithmic benchmark track (preset_serial in CSV)
+bench-mcmc-serial preset="small":
+    @echo "⚡ Running serial MCMC benchmark ({{preset}})..."
+    Rscript -e "devtools::load_all(quiet=TRUE)"
+    Rscript inst/scripts/bench_mcmc_baseline.R {{preset}} --serial
+
 # Save MCMC baseline to inst/benchmarks/mcmc_baseline.csv
 bench-mcmc-save preset="vignette":
     @echo "💾 Saving MCMC baseline ({{preset}})..."

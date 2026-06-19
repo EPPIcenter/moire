@@ -5,7 +5,7 @@ vignette: >
   %\VignetteIndexEntry{Application to Namibia (multi-population)}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
-  %\VignetteDepends{parallelly, dplyr}
+  %\VignetteDepends{dplyr}
 ---
 
 ```{r setup, include=FALSE}
@@ -715,7 +715,7 @@ for (hf in all_hfs) {
     hf_dat, hf_dat$is_missing,
     allow_relatedness = allow_relatedness,
     burnin = burnin, samples_per_chain = num_samples,
-    pt_chains = 40, pt_num_threads = num_threads, thin = 10,
+    pt_chains = 40, thin = 10,
     verbose = verbose, adapt_temp = TRUE, r_alpha = r_alpha, r_beta = r_beta,
     eps_pos_alpha = eps_pos_alpha, eps_pos_beta = eps_pos_beta,
     eps_neg_alpha = eps_neg_alpha, eps_neg_beta = eps_neg_beta

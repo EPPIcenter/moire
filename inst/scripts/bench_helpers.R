@@ -8,6 +8,75 @@ bench_git_sha <- function() {
   if (length(out) == 0 || !nzchar(out[[1]])) "unknown" else out[[1]]
 }
 
+bench_physical_cores <- function() {
+  as.integer(parallel::detectCores(logical = FALSE))
+}
+
+#' Parallelism configuration for repeatable MCMC benchmarks.
+#'
+#' Modes (`BENCH_PARALLEL_MODE`):
+#' * `single` (default): one MCMC chain; inner C++ work may use `num_threads`.
+#' * `pt`: parallel tempering with `BENCH_PT_CHAINS` replicas sharing `num_threads`.
+#' * `serial`: one chain, `num_threads = 1` (algorithmic baseline, no TBB noise).
+#'
+#' Set `BENCH_NUM_THREADS` to pin the thread budget; otherwise uses physical cores - 1
+#' (except `serial`, which always uses 1).
+bench_parallel_config <- function(mode = NULL) {
+  if (is.null(mode) || !nzchar(mode)) {
+    mode <- Sys.getenv("BENCH_PARALLEL_MODE", "single")
+  }
+  mode <- tolower(mode)
+  if (!mode %in% c("single", "pt", "serial")) {
+    stop(
+      "Unknown parallel mode: ", mode,
+      ". Choose one of: single, pt, serial (or set BENCH_PARALLEL_MODE)."
+    )
+  }
+
+  physical_cores <- bench_physical_cores()
+  num_threads_env <- Sys.getenv("BENCH_NUM_THREADS", "")
+  num_threads <- if (mode == "serial") {
+    1L
+  } else if (nzchar(num_threads_env)) {
+    as.integer(num_threads_env)
+  } else {
+    max(1L, physical_cores - 1L)
+  }
+
+  pt_chains <- if (mode == "pt") {
+    as.integer(Sys.getenv("BENCH_PT_CHAINS", "20"))
+  } else {
+    1L
+  }
+  if (pt_chains < 1L) {
+    stop("BENCH_PT_CHAINS must be at least 1.")
+  }
+  if (num_threads < 1L) {
+    stop("BENCH_NUM_THREADS must be at least 1.")
+  }
+
+  list(
+    mode = mode,
+    num_threads = num_threads,
+    pt_chains = pt_chains,
+    physical_cores = physical_cores
+  )
+}
+
+#' Preset key stored in baseline CSV (suffix for non-default parallel modes).
+bench_effective_preset <- function(preset, parallel) {
+  if (parallel$mode == "single") preset else paste0(preset, "_", parallel$mode)
+}
+
+bench_format_parallel_config <- function(parallel) {
+  paste0(
+    "mode=", parallel$mode,
+    " num_threads=", parallel$num_threads,
+    " pt_chains=", parallel$pt_chains,
+    " physical_cores=", parallel$physical_cores
+  )
+}
+
 bench_preset_specs <- function() {
   list(
     minimal = list(
@@ -49,11 +118,12 @@ bench_default_preset <- function() {
 }
 
 bench_load_data <- function(preset) {
+  base_preset <- sub("_(pt|serial)$", "", preset)
   specs <- bench_preset_specs()
-  if (!preset %in% names(specs)) {
+  if (!base_preset %in% names(specs)) {
     stop("Unknown preset: ", preset, ". Choose one of: ", paste(names(specs), collapse = ", "))
   }
-  spec <- specs[[preset]]
+  spec <- specs[[base_preset]]
   message("Data: ", spec$label)
 
   if (spec$kind == "long_form") {
@@ -84,7 +154,7 @@ bench_load_data <- function(preset) {
     )
   }
 
-  list(data = data, spec = spec)
+  list(data = data, spec = spec, base_preset = base_preset)
 }
 
 bench_profiler_fractions <- function(stats) {
@@ -98,10 +168,26 @@ bench_profiler_fractions <- function(stats) {
   stats[order(-stats$total_ms), ]
 }
 
-bench_run_once <- function(data, burnin, samples, verbose = FALSE) {
+bench_run_once <- function(data,
+                           burnin,
+                           samples,
+                           verbose = FALSE,
+                           parallel = bench_parallel_config()) {
+  mcmc_args <- list(
+    data = data,
+    burnin = burnin,
+    samples_per_chain = samples,
+    verbose = verbose,
+    num_threads = parallel$num_threads,
+    adapt_temp = parallel$pt_chains > 1L
+  )
+  if (parallel$pt_chains > 1L) {
+    mcmc_args$pt_chains <- parallel$pt_chains
+  }
+
   moire::moire_prof_reset()
   timing <- system.time(
-    invisible(moire::run_mcmc(data, burnin = burnin, samples_per_chain = samples, verbose = verbose))
+    invisible(do.call(moire::run_mcmc, mcmc_args))
   )
   stats <- tryCatch(
     moire::moire_prof_stats(),
@@ -110,7 +196,19 @@ bench_run_once <- function(data, burnin, samples, verbose = FALSE) {
   list(elapsed_s = timing[["elapsed"]], stats = stats)
 }
 
-bench_summary_rows <- function(preset, burnin, samples, seed, reps, elapsed, git_sha) {
+bench_meta_rows <- function(preset, parallel, git_sha) {
+  data.frame(
+    section = "meta",
+    preset = preset,
+    metric = c("git_sha", "parallel_mode", "num_threads", "pt_chains", "physical_cores"),
+    value = c(NA_real_, NA_real_, parallel$num_threads, parallel$pt_chains, parallel$physical_cores),
+    unit = c(git_sha, parallel$mode, "threads", "chains", "cores"),
+    calls = NA_integer_,
+    stringsAsFactors = FALSE
+  )
+}
+
+bench_summary_rows <- function(preset, burnin, samples, seed, reps, elapsed, git_sha, parallel) {
   rbind(
     data.frame(
       section = "summary",
@@ -121,15 +219,7 @@ bench_summary_rows <- function(preset, burnin, samples, seed, reps, elapsed, git
       calls = rep(NA_integer_, 6L),
       stringsAsFactors = FALSE
     ),
-    data.frame(
-      section = "meta",
-      preset = preset,
-      metric = "git_sha",
-      value = NA_real_,
-      unit = git_sha,
-      calls = NA_integer_,
-      stringsAsFactors = FALSE
-    )
+    bench_meta_rows(preset, parallel, git_sha)
   )
 }
 
@@ -164,6 +254,42 @@ bench_read_baseline <- function(path) {
     stop("Baseline file missing columns: ", paste(missing, collapse = ", "))
   }
   df
+}
+
+bench_meta_value <- function(df, preset, metric, field = c("unit", "value")) {
+  field <- match.arg(field)
+  rows <- df[df$section == "meta" & df$preset == preset & df$metric == metric, , drop = FALSE]
+  if (nrow(rows) == 0) return(NA_character_)
+  val <- rows[[field]][1]
+  if (is.na(val)) NA_character_ else as.character(val)
+}
+
+bench_check_parallel_compat <- function(current, baseline, presets) {
+  warnings <- character(0)
+  for (preset in presets) {
+    cur_mode <- bench_meta_value(current, preset, "parallel_mode")
+    base_mode <- bench_meta_value(baseline, preset, "parallel_mode")
+    if (is.na(base_mode)) base_mode <- "single"
+    if (is.na(cur_mode)) cur_mode <- "single"
+    if (!identical(cur_mode, base_mode)) {
+      warnings <- c(
+        warnings,
+        paste0(preset, ": parallel mode ", cur_mode, " vs baseline ", base_mode)
+      )
+    }
+
+    for (metric in c("num_threads", "pt_chains")) {
+      cur_val <- bench_meta_value(current, preset, metric, "value")
+      base_val <- bench_meta_value(baseline, preset, metric, "value")
+      if (!is.na(cur_val) && !is.na(base_val) && cur_val != base_val) {
+        warnings <- c(
+          warnings,
+          paste0(preset, ": ", metric, " ", cur_val, " vs baseline ", base_val)
+        )
+      }
+    }
+  }
+  warnings
 }
 
 bench_compare <- function(current, baseline, threshold_pct = 5, presets = NULL) {
@@ -211,10 +337,21 @@ bench_compare <- function(current, baseline, threshold_pct = 5, presets = NULL) 
   )
   prof_merged <- prof_merged[order(-abs(prof_merged$pct_change)), ]
 
-  list(summary = merged, profiler = prof_merged, threshold_pct = threshold_pct)
+  list(
+    summary = merged,
+    profiler = prof_merged,
+    threshold_pct = threshold_pct,
+    parallel_warnings = bench_check_parallel_compat(current, baseline, unique(merged$preset))
+  )
 }
 
 bench_print_comparison <- function(comp) {
+  if (length(comp$parallel_warnings) > 0) {
+    message("\n=== Parallelism config differs from baseline ===")
+    for (w in comp$parallel_warnings) message("  ", w)
+    message("Compare wall-clock only when mode and thread counts match.")
+  }
+
   message("\n=== Wall-clock comparison (threshold: ", comp$threshold_pct, "%) ===")
   print(comp$summary[, c("preset", "current_s", "baseline_s", "pct_change", "status")], row.names = FALSE)
 
