@@ -104,6 +104,7 @@ Rcpp::List moire_pam_cache_stats() {
         Rcpp::Named("quant_hits") = static_cast<double>(s.quant_hits),
         Rcpp::Named("misses") = static_cast<double>(s.misses),
         Rcpp::Named("low_k_inline") = static_cast<double>(s.low_k_inline),
+        Rcpp::Named("coi_extend") = static_cast<double>(s.coi_extend),
         Rcpp::Named("verify_checks") = static_cast<double>(s.verify_checks),
         Rcpp::Named("verify_over_tol") = static_cast<double>(s.verify_over_tol),
         Rcpp::Named("verify_max_pam_diff") = s.verify_max_pam_diff,

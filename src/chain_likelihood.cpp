@@ -53,13 +53,42 @@ const PamCachedVectors& compute_and_cache_pam_vector(
         q, min_events, max_events, std::span<const double>(gray_scratch));
 }
 
+const PamCachedVectors& compute_pam_from_vector(std::span<const double> pam_vec)
+{
+    thread_local PamCachedVectors scratch;
+    scratch.pam.assign(pam_vec.begin(), pam_vec.end());
+    fill_log_one_minus_pam(scratch.pam, scratch.log_one_minus_pam);
+    return scratch;
+}
+
 const PamCachedVectors& cached_pam_vector(
     probAnyMissingFunctor& functor,
     std::span<const float> q,
     unsigned min_events,
-    unsigned max_events)
+    unsigned max_events,
+    unsigned prev_max_events = 0)
 {
     auto& cache = pam_vector_cache();
+    if (prev_max_events > 0 && prev_max_events != max_events &&
+        pam_fast_paths::tx_opts_enabled() &&
+        q.size() <= pam_fast_paths::kLowKMaxSupport) {
+        const int delta =
+            static_cast<int>(max_events) - static_cast<int>(prev_max_events);
+        if (delta > 0 && delta <= 2) {
+            thread_local std::vector<double> prev_pam;
+            pam_fast_paths::fill_pam_vector_low_k(
+                q, min_events, prev_max_events, prev_pam);
+            thread_local std::vector<double> extended;
+            if (pam_fast_paths::extend_pam_vector_low_k(
+                    q, min_events, prev_max_events, max_events, prev_pam, extended)) {
+                ProfileScope scope("Chain::pam_vec_coi_extend");
+                ++pam_cache::stats().coi_extend;
+                return compute_pam_from_vector(
+                    std::span<const double>(extended.data(), extended.size()));
+            }
+        }
+    }
+
     if (const PamCachedVectors* hit = cache.lookup(q, min_events, max_events)) {
         ProfileScope scope("Chain::pam_vec_cache_hit");
         if (pam_cache::Config::instance().verify) {
@@ -669,8 +698,10 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
                     group.pam_valid = false;
                     continue;
                 }
+                const unsigned prev_coi_u =
+                    (coi != prev_coi) ? static_cast<unsigned>(prev_coi) : 0u;
                 const PamCachedVectors& pam_ref = cached_pam_vector(
-                    functor, group.q, 1u, static_cast<unsigned>(coi));
+                    functor, group.q, 1u, static_cast<unsigned>(coi), prev_coi_u);
                 copy_pam_cached(pam_ref, group.pam);
                 group.pam_valid = true;
             }

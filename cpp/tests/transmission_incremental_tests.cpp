@@ -23,6 +23,9 @@ public:
         add_test("low-k pam matches gray-code vectorized", [this]() {
             test_low_k_pam_matches_gray();
         });
+        add_test("low-k pam extends when COI changes by one", [this]() {
+            test_low_k_pam_coi_extend();
+        });
     }
 
 private:
@@ -139,6 +142,40 @@ private:
         for (std::size_t i = 0; i < fast8.size(); ++i) {
             assert_near(static_cast<float>(fast8[i]), static_cast<float>(gray8[i]),
                         "K=8 low-k vs gray");
+        }
+    }
+
+    void test_low_k_pam_coi_extend()
+    {
+        const std::vector<float> q3 = {0.2f, 0.3f, 0.5f};
+        std::vector<double> pam3;
+        pam_fast_paths::fill_pam_vector_low_k(q3, 1u, 4u, pam3);
+
+        std::vector<double> extended;
+        if (!pam_fast_paths::extend_pam_vector_low_k(q3, 1u, 4u, 5u, pam3, extended)) {
+            throw std::runtime_error("expected COI extend for +1");
+        }
+
+        std::vector<double> full5;
+        pam_fast_paths::fill_pam_vector_low_k(q3, 1u, 5u, full5);
+        if (extended.size() != full5.size()) {
+            throw std::runtime_error("extended pam size mismatch");
+        }
+        for (std::size_t i = 0; i < extended.size(); ++i) {
+            assert_near(static_cast<float>(extended[i]), static_cast<float>(full5[i]),
+                        "coi extend +1");
+        }
+
+        std::vector<double> truncated;
+        if (!pam_fast_paths::extend_pam_vector_low_k(q3, 1u, 5u, 4u, full5, truncated)) {
+            throw std::runtime_error("expected COI extend for -1");
+        }
+        if (truncated.size() != pam3.size()) {
+            throw std::runtime_error("truncated pam size mismatch");
+        }
+        for (std::size_t i = 0; i < truncated.size(); ++i) {
+            assert_near(static_cast<float>(truncated[i]), static_cast<float>(pam3[i]),
+                        "coi extend -1");
         }
     }
 };

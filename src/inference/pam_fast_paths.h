@@ -116,4 +116,49 @@ inline bool try_fill_pam_vector(std::span<const float> q,
     return true;
 }
 
+/// Extend or truncate a low-k PAM vector when only max_events (COI) changes.
+/// Returns false if a full recompute is required.
+inline bool extend_pam_vector_low_k(std::span<const float> q,
+                                    unsigned min_events,
+                                    unsigned old_max_events,
+                                    unsigned new_max_events,
+                                    std::span<const double> old_pam,
+                                    std::vector<double>& out)
+{
+    if (!tx_opts_enabled() || q.size() > kLowKMaxSupport) {
+        return false;
+    }
+    if (old_max_events == new_max_events) {
+        out.assign(old_pam.begin(), old_pam.end());
+        return true;
+    }
+    const unsigned k = static_cast<unsigned>(q.size());
+    if (k == 0 || old_max_events < k || new_max_events < k) {
+        return false;
+    }
+    const int delta = static_cast<int>(new_max_events) - static_cast<int>(old_max_events);
+    if (delta > 2 || delta < -2) {
+        return false;
+    }
+
+    const std::size_t old_len = static_cast<std::size_t>(old_max_events - min_events + 1);
+    const std::size_t new_len = static_cast<std::size_t>(new_max_events - min_events + 1);
+    if (old_pam.size() != old_len) {
+        return false;
+    }
+
+    out.resize(new_len);
+    if (new_max_events > old_max_events) {
+        std::copy(old_pam.begin(), old_pam.end(), out.begin());
+        for (unsigned n = old_max_events + 1; n <= new_max_events; ++n) {
+            const std::size_t idx = static_cast<std::size_t>(n - min_events);
+            out[idx] = 1.0 - prob_all_seen_after_n(q, n);
+        }
+    } else {
+        std::copy(old_pam.begin(), old_pam.begin() + static_cast<std::ptrdiff_t>(new_len),
+                  out.begin());
+    }
+    return true;
+}
+
 } // namespace pam_fast_paths
