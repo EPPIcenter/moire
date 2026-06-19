@@ -11,6 +11,7 @@
 #include "parameters.h"
 #include "sampler.h"
 #include "multivector.h"
+#include "prob_any_missing_cache.h"
 
 #include <Rcpp.h>
 
@@ -103,6 +104,8 @@ class Chain
         std::size_t population_idx,
         std::size_t locus_idx,
         std::span<const float> p_old);
+    void invalidate_update_p_locus_group_cache(std::size_t locus_idx);
+    void ensure_update_p_locus_group_cache(std::size_t locus_idx);
     void calculate_eps_neg_likelihood(std::size_t sample_idx);
     void calculate_eps_pos_likelihood(std::size_t sample_idx);
     void calculate_coi_likelihood(std::size_t sample_idx);
@@ -253,6 +256,30 @@ class Chain
 
     // Reused buffers for update_p SALT proposals (sized to max alleles per locus).
     std::vector<float> update_p_prev_p_ws_{};
+
+    /// Cached (support, COI) grouping per locus for update_p; stable until latent genotypes change.
+    struct UpdatePLocusGroupCache {
+        struct Group {
+            std::vector<int> support;
+            int coi{0};
+            std::size_t total_alleles{0};
+        };
+        static constexpr int kSampleMissing = -1;
+        static constexpr int kSampleInvalid = -2;
+        std::vector<Group> groups;
+        std::vector<int> sample_group;
+        bool valid{false};
+    };
+    std::vector<UpdatePLocusGroupCache> update_p_locus_group_cache_{};
+
+    /// Per (pop, locus, group) PAM state reused when constrained q is unchanged across proposals.
+    struct UpdatePPamSlot {
+        std::vector<float> q;
+        PamCachedVectors pam;
+        float log_sum{0.f};
+        bool pam_valid{false};
+    };
+    std::vector<std::vector<std::vector<UpdatePPamSlot>>> update_p_pam_slots_{};
 
     // Population responsibility vector proposal variance
     // indexed by population

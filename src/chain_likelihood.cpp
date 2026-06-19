@@ -320,6 +320,7 @@ void Chain::assign_latent_genotype_new(std::size_t sample_idx, std::size_t locus
     latent_genotypes_new.inner_fill({sample_idx, locus_idx}, -1);
     latent_genotypes_new.inner_fill({sample_idx, locus_idx}, value);
     refresh_latent_support_k(sample_idx, locus_idx);
+    invalidate_update_p_locus_group_cache(locus_idx);
 }
 
 void Chain::restore_latent_genotype_new(std::size_t sample_idx, std::size_t locus_idx)
@@ -328,6 +329,7 @@ void Chain::restore_latent_genotype_new(std::size_t sample_idx, std::size_t locu
         latent_genotypes_old.inner_iterators({sample_idx, locus_idx});
     std::copy(begin, end, latent_genotypes_new.inner_begin({sample_idx, locus_idx}));
     refresh_latent_support_k(sample_idx, locus_idx);
+    invalidate_update_p_locus_group_cache(locus_idx);
 }
 
 std::span<const int> Chain::latent_allele_support(std::size_t sample_idx,
@@ -1031,6 +1033,61 @@ void Chain::calculate_transmission_likelihood_after_r_change(
     }
 }
 
+void Chain::invalidate_update_p_locus_group_cache(std::size_t locus_idx)
+{
+    if (locus_idx < update_p_locus_group_cache_.size()) {
+        update_p_locus_group_cache_[locus_idx].valid = false;
+        for (std::size_t pop_idx = 0; pop_idx < update_p_pam_slots_.size(); ++pop_idx) {
+            update_p_pam_slots_[pop_idx][locus_idx].clear();
+        }
+    }
+}
+
+void Chain::ensure_update_p_locus_group_cache(std::size_t locus_idx)
+{
+    UpdatePLocusGroupCache& cache = update_p_locus_group_cache_[locus_idx];
+    if (cache.valid) {
+        return;
+    }
+
+    ProfileScope scope("Chain::update_p::build_group_cache");
+    const std::size_t n_samples = genotyping_data.num_samples;
+    cache.groups.clear();
+    cache.sample_group.assign(n_samples, UpdatePLocusGroupCache::kSampleMissing);
+
+    for (std::size_t s = 0; s < n_samples; ++s) {
+        if (genotyping_data.is_missing(s, locus_idx)) {
+            continue;
+        }
+
+        const auto support = latent_allele_support(s, locus_idx);
+        const int coi = m.at({s});
+        if (support.empty() || support.size() > static_cast<std::size_t>(coi)) {
+            cache.sample_group[s] = UpdatePLocusGroupCache::kSampleInvalid;
+            continue;
+        }
+
+        int group_idx = -1;
+        for (std::size_t g = 0; g < cache.groups.size(); ++g) {
+            if (cache.groups[g].coi == coi &&
+                support_spans_equal(support, cache.groups[g].support)) {
+                group_idx = static_cast<int>(g);
+                break;
+            }
+        }
+        if (group_idx < 0) {
+            UpdatePLocusGroupCache::Group group;
+            group.support.assign(support.begin(), support.end());
+            group.coi = coi;
+            group.total_alleles = group.support.size();
+            cache.groups.push_back(std::move(group));
+            group_idx = static_cast<int>(cache.groups.size() - 1);
+        }
+        cache.sample_group[s] = group_idx;
+    }
+    cache.valid = true;
+}
+
 void Chain::recalculate_transmission_at_locus_after_p_change(
     std::size_t pop_idx,
     std::size_t locus_idx,
@@ -1041,41 +1098,33 @@ void Chain::recalculate_transmission_at_locus_after_p_change(
     const auto [p_begin, p_end] = p.inner_iterators({pop_idx, locus_idx});
     const std::span<const float> p_new_span(p_begin, p_end);
 
-    std::vector<PChangePamGroup> groups;
-    std::vector<int> sample_group;
-    groups.clear();
-    sample_group.assign(n_samples, -1);
+    ensure_update_p_locus_group_cache(locus_idx);
+    const UpdatePLocusGroupCache& locus_cache = update_p_locus_group_cache_[locus_idx];
+    const std::vector<int>& sample_group = locus_cache.sample_group;
 
+    constexpr float kNegInf = -std::numeric_limits<float>::infinity();
     for (std::size_t s = 0; s < n_samples; ++s) {
-        if (genotyping_data.is_missing(s, locus_idx)) {
+        const int group_idx = sample_group[s];
+        if (group_idx == UpdatePLocusGroupCache::kSampleMissing) {
             transmission_llik_new.unchecked_at({s, pop_idx, locus_idx}) = 0.f;
-            continue;
+        } else if (group_idx == UpdatePLocusGroupCache::kSampleInvalid) {
+            transmission_llik_new.unchecked_at({s, pop_idx, locus_idx}) = kNegInf;
         }
+    }
 
-        const auto support = latent_allele_support(s, locus_idx);
-        const int coi = m.at({s});
-        if (support.empty() || support.size() > static_cast<std::size_t>(coi)) {
-            transmission_llik_new.unchecked_at({s, pop_idx, locus_idx}) =
-                -std::numeric_limits<float>::infinity();
-            continue;
-        }
+    std::vector<PChangePamGroup> groups;
+    groups.reserve(locus_cache.groups.size());
+    for (const UpdatePLocusGroupCache::Group& cached : locus_cache.groups) {
+        PChangePamGroup group;
+        group.support = cached.support;
+        group.coi = cached.coi;
+        group.total_alleles = cached.total_alleles;
+        groups.push_back(std::move(group));
+    }
 
-        int group_idx = -1;
-        for (std::size_t g = 0; g < groups.size(); ++g) {
-            if (groups[g].coi == coi && support_spans_equal(support, groups[g].support)) {
-                group_idx = static_cast<int>(g);
-                break;
-            }
-        }
-        if (group_idx < 0) {
-            PChangePamGroup group;
-            group.support.assign(support.begin(), support.end());
-            group.coi = coi;
-            group.total_alleles = group.support.size();
-            groups.push_back(std::move(group));
-            group_idx = static_cast<int>(groups.size() - 1);
-        }
-        sample_group[s] = group_idx;
+    std::vector<UpdatePPamSlot>& pam_slots = update_p_pam_slots_[pop_idx][locus_idx];
+    if (pam_slots.size() < groups.size()) {
+        pam_slots.resize(groups.size());
     }
 
     {
@@ -1083,7 +1132,9 @@ void Chain::recalculate_transmission_at_locus_after_p_change(
         thread_local probAnyMissingFunctor functor;
         thread_local std::vector<float> q;
         thread_local std::vector<float> q_prev;
-        for (auto& group : groups) {
+        for (std::size_t gi = 0; gi < groups.size(); ++gi) {
+            PChangePamGroup& group = groups[gi];
+            UpdatePPamSlot& slot = pam_slots[gi];
             q.clear();
             q_prev.clear();
             float sum = 0.f;
@@ -1092,8 +1143,9 @@ void Chain::recalculate_transmission_at_locus_after_p_change(
                     std::span<const int>(group.support), p_new_span, q, sum) ||
                 !transmission_incremental::build_constrained_q(
                     std::span<const int>(group.support), p_old_span, q_prev, sum_prev)) {
-                group.log_sum = -std::numeric_limits<float>::infinity();
+                group.log_sum = kNegInf;
                 group.pam_valid = false;
+                slot.pam_valid = false;
                 continue;
             }
             group.log_sum = std::log(sum);
@@ -1101,6 +1153,20 @@ void Chain::recalculate_transmission_at_locus_after_p_change(
 
             if (group.total_alleles == 1 && pam_fast_paths::tx_opts_enabled()) {
                 group.pam_valid = false;
+                slot.pam_valid = false;
+                continue;
+            }
+
+            if (q_spans_equal(q, q_prev) && slot.pam_valid && q_spans_equal(q, slot.q)) {
+                group.pam_valid = true;
+                copy_pam_cached(slot.pam, group.pam);
+                continue;
+            }
+
+            if (q_spans_equal(q, slot.q) && slot.pam_valid) {
+                group.pam_valid = true;
+                copy_pam_cached(slot.pam, group.pam);
+                slot.log_sum = group.log_sum;
                 continue;
             }
 
@@ -1109,6 +1175,10 @@ void Chain::recalculate_transmission_at_locus_after_p_change(
                 std::span<const float>(q_prev));
             copy_pam_cached(pam_ref, group.pam);
             group.pam_valid = true;
+            slot.q.assign(q.begin(), q.end());
+            copy_pam_cached(group.pam, slot.pam);
+            slot.log_sum = group.log_sum;
+            slot.pam_valid = true;
         }
     }
 
@@ -1285,6 +1355,11 @@ void Chain::initialize_likelihood()
 
     llik = calc_new_likelihood();
     prior = calc_new_prior();
+
+    update_p_locus_group_cache_.assign(num_loci, UpdatePLocusGroupCache{});
+    update_p_pam_slots_.assign(
+        num_populations,
+        std::vector<std::vector<UpdatePPamSlot>>(num_loci));
 }
 
 void Chain::save_observation_likelihood(std::size_t sample_idx, std::size_t locus_idx)
