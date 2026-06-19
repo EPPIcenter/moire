@@ -26,6 +26,9 @@ public:
         add_test("low-k pam extends when COI changes by one", [this]() {
             test_low_k_pam_coi_extend();
         });
+        add_test("low-k pam refills from single q component change", [this]() {
+            test_low_k_pam_q_one_step();
+        });
     }
 
 private:
@@ -176,6 +179,48 @@ private:
         for (std::size_t i = 0; i < truncated.size(); ++i) {
             assert_near(static_cast<float>(truncated[i]), static_cast<float>(pam3[i]),
                         "coi extend -1");
+        }
+    }
+
+    void test_low_k_pam_q_one_step()
+    {
+        const std::vector<float> q_old = {0.2f, 0.3f, 0.5f};
+        std::vector<float> q_new = {0.25f, 0.3f, 0.5f};
+
+        std::vector<double> stepped;
+        if (!pam_fast_paths::try_fill_pam_vector_from_q_change(
+                q_old, q_new, 1u, 5u, stepped)) {
+            throw std::runtime_error("expected q one-step fill");
+        }
+
+        std::vector<double> full;
+        pam_fast_paths::fill_pam_vector_low_k(q_new, 1u, 5u, full);
+        if (stepped.size() != full.size()) {
+            throw std::runtime_error("q one-step pam size mismatch");
+        }
+        for (std::size_t i = 0; i < stepped.size(); ++i) {
+            assert_near(static_cast<float>(stepped[i]), static_cast<float>(full[i]),
+                        "q one-step vs full");
+        }
+
+        const std::vector<float> q_two_step = {0.25f, 0.35f, 0.5f};
+        std::vector<double> fallback;
+        if (pam_fast_paths::try_fill_pam_vector_from_q_change(
+                q_old, q_two_step, 1u, 5u, fallback)) {
+            throw std::runtime_error("expected false for two q diffs");
+        }
+
+        const std::vector<float> q_unchanged = q_old;
+        std::vector<double> unchanged;
+        if (!pam_fast_paths::try_fill_pam_vector_from_q_change(
+                q_old, q_unchanged, 1u, 4u, unchanged)) {
+            throw std::runtime_error("expected q unchanged fill");
+        }
+        std::vector<double> full_old;
+        pam_fast_paths::fill_pam_vector_low_k(q_old, 1u, 4u, full_old);
+        for (std::size_t i = 0; i < unchanged.size(); ++i) {
+            assert_near(static_cast<float>(unchanged[i]), static_cast<float>(full_old[i]),
+                        "q unchanged vs full");
         }
     }
 };

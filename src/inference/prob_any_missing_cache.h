@@ -56,6 +56,10 @@ struct Stats {
     std::uint64_t low_k_inline{0};
     /// low-k PAM extended from cached vector when COI changes by at most 2.
     std::uint64_t coi_extend{0};
+    /// update_p: constrained q unchanged (changed allele not in latent support).
+    std::uint64_t p_q_unchanged{0};
+    /// update_p: PAM refilled via single-component q delta on low-k path.
+    std::uint64_t p_q_one_step{0};
     std::uint64_t verify_checks{0};
     std::uint64_t verify_over_tol{0};
     double verify_max_pam_diff{0.0};

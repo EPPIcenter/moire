@@ -45,6 +45,45 @@ inline bool tx_opts_enabled() noexcept
     return detail::tx_opts_flag();
 }
 
+/// Gray-code subset sums for inclusion-exclusion (index = excluded mask).
+inline void compute_subset_sums(std::span<const float> q, std::vector<double>& out)
+{
+    const std::size_t k = q.size();
+    const std::size_t num_masks = static_cast<std::size_t>(1) << k;
+    out.resize(num_masks);
+    for (std::size_t excluded = 0; excluded < num_masks; ++excluded) {
+        double subset_sum = 0.0;
+        for (std::size_t i = 0; i < k; ++i) {
+            if ((excluded & (static_cast<std::size_t>(1) << i)) == 0) {
+                subset_sum += static_cast<double>(q[i]);
+            }
+        }
+        out[excluded] = subset_sum;
+    }
+}
+
+inline double prob_all_seen_from_subset_sums(std::span<const double> subset_sums, unsigned n)
+{
+    if (subset_sums.empty() || n == 0) {
+        return 0.0;
+    }
+    if (subset_sums.size() == 1) {
+        return 1.0;
+    }
+
+    double prob_all_seen = 0.0;
+    for (std::size_t excluded = 0; excluded < subset_sums.size(); ++excluded) {
+        const double term = std::pow(subset_sums[excluded], static_cast<double>(n));
+        const int popcount = std::popcount(static_cast<unsigned>(excluded));
+        if (popcount & 1) {
+            prob_all_seen -= term;
+        } else {
+            prob_all_seen += term;
+        }
+    }
+    return prob_all_seen;
+}
+
 /// P(all categories in support seen at least once in exactly n draws), q normalized on support.
 inline double prob_all_seen_after_n(std::span<const float> q, unsigned n)
 {
@@ -56,32 +95,17 @@ inline double prob_all_seen_after_n(std::span<const float> q, unsigned n)
         return 1.0;
     }
 
-    double prob_all_seen = 0.0;
-    const std::size_t num_masks = static_cast<std::size_t>(1) << k;
-    for (std::size_t excluded = 0; excluded < num_masks; ++excluded) {
-        double subset_sum = 0.0;
-        for (std::size_t i = 0; i < k; ++i) {
-            if ((excluded & (static_cast<std::size_t>(1) << i)) == 0) {
-                subset_sum += static_cast<double>(q[i]);
-            }
-        }
-        const double term = std::pow(subset_sum, static_cast<double>(n));
-        const int popcount = std::popcount(static_cast<unsigned>(excluded));
-        if (popcount & 1) {
-            prob_all_seen -= term;
-        } else {
-            prob_all_seen += term;
-        }
-    }
-    return prob_all_seen;
+    thread_local std::vector<double> subset_sums;
+    compute_subset_sums(q, subset_sums);
+    return prob_all_seen_from_subset_sums(subset_sums, n);
 }
 
-inline void fill_pam_vector_low_k(std::span<const float> q,
-                                  unsigned min_events,
-                                  unsigned max_events,
-                                  std::vector<double>& out)
+inline void fill_pam_from_subset_sums(std::span<const double> subset_sums,
+                                      unsigned min_events,
+                                      unsigned max_events,
+                                      std::size_t k,
+                                      std::vector<double>& out)
 {
-    const std::size_t k = q.size();
     const std::size_t len = static_cast<std::size_t>(max_events - min_events + 1);
     out.assign(len, 0.0);
 
@@ -99,9 +123,67 @@ inline void fill_pam_vector_low_k(std::span<const float> q,
         if (idx >= len) {
             break;
         }
-        const double all_seen = prob_all_seen_after_n(q, n);
+        const double all_seen = prob_all_seen_from_subset_sums(subset_sums, n);
         out[idx] = 1.0 - all_seen;
     }
+}
+
+inline void fill_pam_vector_low_k(std::span<const float> q,
+                                  unsigned min_events,
+                                  unsigned max_events,
+                                  std::vector<double>& out)
+{
+    const std::size_t k = q.size();
+    thread_local std::vector<double> subset_sums;
+    compute_subset_sums(q, subset_sums);
+    fill_pam_from_subset_sums(subset_sums, min_events, max_events, k, out);
+}
+
+/// When q changes by one component, update subset sums in O(2^{k-1}) and fill PAM.
+inline bool try_fill_pam_vector_from_q_change(std::span<const float> q_old,
+                                              std::span<const float> q_new,
+                                              unsigned min_events,
+                                              unsigned max_events,
+                                              std::vector<double>& out)
+{
+    if (!tx_opts_enabled() || q_old.size() > kLowKMaxSupport ||
+        q_old.size() != q_new.size()) {
+        return false;
+    }
+    const std::size_t k = q_old.size();
+    if (k == 0) {
+        return false;
+    }
+
+    int diff_idx = -1;
+    int diff_count = 0;
+    for (std::size_t i = 0; i < k; ++i) {
+        if (q_old[i] != q_new[i]) {
+            ++diff_count;
+            diff_idx = static_cast<int>(i);
+        }
+    }
+    if (diff_count == 0) {
+        fill_pam_vector_low_k(q_new, min_events, max_events, out);
+        return true;
+    }
+    if (diff_count != 1) {
+        return false;
+    }
+
+    thread_local std::vector<double> subset_sums;
+    compute_subset_sums(q_old, subset_sums);
+    const double delta =
+        static_cast<double>(q_new[static_cast<std::size_t>(diff_idx)]) -
+        static_cast<double>(q_old[static_cast<std::size_t>(diff_idx)]);
+    const std::size_t bit = static_cast<std::size_t>(1) << static_cast<unsigned>(diff_idx);
+    for (std::size_t excluded = 0; excluded < subset_sums.size(); ++excluded) {
+        if ((excluded & bit) == 0) {
+            subset_sums[excluded] += delta;
+        }
+    }
+    fill_pam_from_subset_sums(subset_sums, min_events, max_events, k, out);
+    return true;
 }
 
 inline bool try_fill_pam_vector(std::span<const float> q,

@@ -97,7 +97,8 @@ class Chain
     /// Recompute transmission_llik_new[:, pop, locus] after a p proposal (grouped PAM).
     void recalculate_transmission_at_locus_after_p_change(
         std::size_t population_idx,
-        std::size_t locus_idx);
+        std::size_t locus_idx,
+        std::span<const float> p_old);
     void calculate_eps_neg_likelihood(std::size_t sample_idx);
     void calculate_eps_pos_likelihood(std::size_t sample_idx);
     void calculate_coi_likelihood(std::size_t sample_idx);

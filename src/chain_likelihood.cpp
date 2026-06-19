@@ -61,12 +61,19 @@ const PamCachedVectors& compute_pam_from_vector(std::span<const double> pam_vec)
     return scratch;
 }
 
+bool q_spans_equal(std::span<const float> a, std::span<const float> b) noexcept
+{
+    return a.size() == b.size() &&
+           std::equal(a.begin(), a.end(), b.begin());
+}
+
 const PamCachedVectors& cached_pam_vector(
     probAnyMissingFunctor& functor,
     std::span<const float> q,
     unsigned min_events,
     unsigned max_events,
-    unsigned prev_max_events = 0)
+    unsigned prev_max_events = 0,
+    std::span<const float> q_prev = {})
 {
     auto& cache = pam_vector_cache();
     if (prev_max_events > 0 && prev_max_events != max_events &&
@@ -85,6 +92,27 @@ const PamCachedVectors& cached_pam_vector(
                 ++pam_cache::stats().coi_extend;
                 return compute_pam_from_vector(
                     std::span<const double>(extended.data(), extended.size()));
+            }
+        }
+    }
+
+    if (!q_prev.empty() && q_prev.size() == q.size() &&
+        pam_fast_paths::tx_opts_enabled() &&
+        q.size() <= pam_fast_paths::kLowKMaxSupport) {
+        if (q_spans_equal(q, q_prev)) {
+            if (const PamCachedVectors* hit = cache.lookup(q, min_events, max_events)) {
+                ProfileScope scope("Chain::pam_vec_p_q_unchanged");
+                ++pam_cache::stats().p_q_unchanged;
+                return *hit;
+            }
+        } else {
+            thread_local std::vector<double> pam_buf;
+            if (pam_fast_paths::try_fill_pam_vector_from_q_change(
+                    q_prev, q, min_events, max_events, pam_buf)) {
+                ProfileScope scope("Chain::pam_vec_p_q_one_step");
+                ++pam_cache::stats().p_q_one_step;
+                return compute_pam_from_vector(
+                    std::span<const double>(pam_buf.data(), pam_buf.size()));
             }
         }
     }
@@ -178,12 +206,6 @@ void copy_pam_cached(const PamCachedVectors& src, PamCachedVectors& dst)
 }
 
 bool support_spans_equal(std::span<const int> a, std::span<const int> b) noexcept
-{
-    return a.size() == b.size() &&
-           std::equal(a.begin(), a.end(), b.begin());
-}
-
-bool q_spans_equal(std::span<const float> a, std::span<const float> b) noexcept
 {
     return a.size() == b.size() &&
            std::equal(a.begin(), a.end(), b.begin());
@@ -853,12 +875,13 @@ void Chain::calculate_transmission_likelihood_after_r_change(
 
 void Chain::recalculate_transmission_at_locus_after_p_change(
     std::size_t pop_idx,
-    std::size_t locus_idx)
+    std::size_t locus_idx,
+    std::span<const float> p_old_span)
 {
     ProfileScope scope("Chain::update_p::recalc_transmission");
     const std::size_t n_samples = genotyping_data.num_samples;
     const auto [p_begin, p_end] = p.inner_iterators({pop_idx, locus_idx});
-    const std::span<const float> p_span(p_begin, p_end);
+    const std::span<const float> p_new_span(p_begin, p_end);
 
     std::vector<PChangePamGroup> groups;
     std::vector<int> sample_group;
@@ -901,11 +924,16 @@ void Chain::recalculate_transmission_at_locus_after_p_change(
         ProfileScope scope_groups("Chain::update_p::pam_groups");
         thread_local probAnyMissingFunctor functor;
         thread_local std::vector<float> q;
+        thread_local std::vector<float> q_prev;
         for (auto& group : groups) {
             q.clear();
+            q_prev.clear();
             float sum = 0.f;
+            float sum_prev = 0.f;
             if (!transmission_incremental::build_constrained_q(
-                    std::span<const int>(group.support), p_span, q, sum)) {
+                    std::span<const int>(group.support), p_new_span, q, sum) ||
+                !transmission_incremental::build_constrained_q(
+                    std::span<const int>(group.support), p_old_span, q_prev, sum_prev)) {
                 group.log_sum = -std::numeric_limits<float>::infinity();
                 group.pam_valid = false;
                 continue;
@@ -918,8 +946,9 @@ void Chain::recalculate_transmission_at_locus_after_p_change(
                 continue;
             }
 
-            const PamCachedVectors& pam_ref =
-                cached_pam_vector(functor, q, 1u, static_cast<unsigned>(group.coi));
+            const PamCachedVectors& pam_ref = cached_pam_vector(
+                functor, q, 1u, static_cast<unsigned>(group.coi), 0u,
+                std::span<const float>(q_prev));
             copy_pam_cached(pam_ref, group.pam);
             group.pam_valid = true;
         }

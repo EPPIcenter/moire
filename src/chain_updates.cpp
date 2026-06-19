@@ -595,7 +595,10 @@ void Chain::update_p(int iteration)
                 {
                     const std::size_t n_samples = genotyping_data.num_samples;
                     if (pam_fast_paths::tx_opts_enabled()) {
-                        recalculate_transmission_at_locus_after_p_change(pop_idx, locus_idx);
+                        recalculate_transmission_at_locus_after_p_change(
+                            pop_idx, locus_idx,
+                            std::span<const float>(update_p_prev_p_ws_.data(),
+                                                   update_p_prev_p_ws_.size()));
                     } else {
                         ProfileScope scope("Chain::update_p::recalc_transmission");
                         moire_parallel::recalc_parallel_for(0, n_samples, [&](std::size_t sample_idx) {
