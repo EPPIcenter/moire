@@ -77,6 +77,10 @@ class Chain
     void rebuild_transmission_llik_cache();
     float apply_transmission_cell_change(
         std::size_t sample_idx, std::size_t pop_idx, float old_val, float new_val);
+    /// Re-sum loci columns and fold mixture logsumexp for one sample.
+    void fold_sample_tx_after_cell_updates(std::size_t sample_idx);
+    /// Fold incremental cache after one pop x locus column changes (update_p).
+    void apply_transmission_column_change(std::size_t pop_idx, std::size_t locus_idx);
     /// Recompute tx_sample_logsumexp[sample] after coi_prior_new changed (loci sums unchanged).
     void refresh_sample_tx_after_coi_change(std::size_t sample_idx);
     /// Recompute all per-sample tx logsumexp terms (coi prior and/or population log weights changed).

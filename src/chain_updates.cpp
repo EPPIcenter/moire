@@ -605,13 +605,7 @@ void Chain::update_p(int iteration)
                             calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
                         });
                     }
-                    for (std::size_t sample_idx = 0; sample_idx < n_samples; ++sample_idx) {
-                        const float old_cell =
-                            transmission_llik_old.unchecked_at({sample_idx, pop_idx, locus_idx});
-                        const float new_cell =
-                            transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx});
-                        apply_transmission_cell_change(sample_idx, pop_idx, old_cell, new_cell);
-                    }
+                    apply_transmission_column_change(pop_idx, locus_idx);
                 }
 
                 float new_llik;

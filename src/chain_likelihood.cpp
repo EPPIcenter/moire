@@ -605,6 +605,39 @@ float Chain::apply_transmission_cell_change(
     return delta;
 }
 
+void Chain::fold_sample_tx_after_cell_updates(std::size_t sample_idx)
+{
+    ProfileScope scope("Chain::fold_sample_tx");
+    if (!tx_llik_cache_valid_) {
+        rebuild_transmission_llik_cache();
+        return;
+    }
+    const std::size_t n_pops = params.num_populations;
+    const std::size_t n_loci = genotyping_data.num_loci;
+    const std::size_t tx_stride0 = transmission_llik_new.strides()[0];
+    const std::size_t tx_stride1 = transmission_llik_new.strides()[1];
+    const float* tx_data = transmission_llik_new.data().data();
+    for (std::size_t pop_idx = 0; pop_idx < n_pops; ++pop_idx) {
+        const std::size_t start_idx = sample_idx * tx_stride0 + pop_idx * tx_stride1;
+        tx_loci_sum_new.at({sample_idx, pop_idx}) =
+            moire_fused::detail::sum_loci_slice<float>(tx_data, start_idx, n_loci);
+    }
+    refresh_sample_tx_after_coi_change(sample_idx);
+}
+
+void Chain::apply_transmission_column_change(std::size_t pop_idx, std::size_t locus_idx)
+{
+    ProfileScope scope("Chain::apply_transmission_column_change");
+    const std::size_t n_samples = genotyping_data.num_samples;
+    moire_parallel::parallel_for(0, n_samples, [&](std::size_t sample_idx) {
+        const float old_cell =
+            transmission_llik_old.unchecked_at({sample_idx, pop_idx, locus_idx});
+        const float new_cell =
+            transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx});
+        apply_transmission_cell_change(sample_idx, pop_idx, old_cell, new_cell);
+    });
+}
+
 void Chain::refresh_sample_tx_after_coi_change(std::size_t sample_idx)
 {
     if (!tx_llik_cache_valid_) {
@@ -654,7 +687,6 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
     if (!tx_llik_cache_valid_) {
         rebuild_transmission_llik_cache();
     }
-    refresh_sample_tx_after_coi_change(sample_idx);
 
     const int coi = m.at({sample_idx});
     const float relatedness = r.at({sample_idx});
@@ -712,6 +744,10 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
         if (!locus_tx_inputs_unchanged(sample_idx, locus_idx, prev_coi, prev_r)) {
             dirty_loci.push_back(locus_idx);
         }
+    }
+
+    if (dirty_loci.empty()) {
+        return;
     }
 
     SamplePamCache sample_pam;
@@ -824,16 +860,7 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
         }
     }
 
-    // Fold cell deltas sequentially — tx_sample_logsumexp is shared per sample.
-    for (std::size_t pop_idx = 0; pop_idx < n_pops; ++pop_idx) {
-        for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
-            const float old_cell =
-                transmission_llik_old.unchecked_at({sample_idx, pop_idx, locus_idx});
-            const float new_cell =
-                transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx});
-            apply_transmission_cell_change(sample_idx, pop_idx, old_cell, new_cell);
-        }
-    }
+    fold_sample_tx_after_cell_updates(sample_idx);
 }
 
 void Chain::restore_transmission_for_sample_incremental(std::size_t sample_idx)
