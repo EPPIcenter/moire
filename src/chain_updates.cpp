@@ -940,12 +940,12 @@ void Chain::update_population_coi_p(int iteration)
     const float prev_p = population_coi_p;
     population_coi_p = prop_p;
     calculate_population_coi_p_likelihood();
-    invalidate_transmission_llik_cache();
     for (std::size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
     {
         calculate_coi_likelihood(sample_idx);
     }
-    const float new_llik = calc_new_likelihood();
+    refresh_all_samples_tx_logsumexp();
+    const float new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
     const float new_prior = calc_new_prior();
     const float new_post = new_llik * temp + new_prior;
 
@@ -969,7 +969,7 @@ void Chain::update_population_coi_p(int iteration)
         {
             restore_coi_likelihood(sample_idx);
         }
-        invalidate_transmission_llik_cache();
+        refresh_all_samples_tx_logsumexp();
     }
 
     if (iteration < params.burnin and iteration > 15)
@@ -991,12 +991,12 @@ void Chain::update_population_coi_r(int iteration)
     const float prev_r = population_coi_r;
     population_coi_r = prop_r;
     calculate_population_coi_r_likelihood();
-    invalidate_transmission_llik_cache();
     for (std::size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
     {
         calculate_coi_likelihood(sample_idx);
     }
-    const float new_llik = calc_new_likelihood();
+    refresh_all_samples_tx_logsumexp();
+    const float new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
     const float new_prior = calc_new_prior();
     const float new_post = new_llik * temp + new_prior;
 
@@ -1021,7 +1021,7 @@ void Chain::update_population_coi_r(int iteration)
         {
             restore_coi_likelihood(sample_idx);
         }
-        invalidate_transmission_llik_cache();
+        refresh_all_samples_tx_logsumexp();
     }
 
     if (iteration < params.burnin and iteration > 15)
@@ -1097,10 +1097,9 @@ void Chain::update_population_responsibility_vector(int iteration)
         population_responsibility_vector.inner_fill(sorted_resp);
         // Invalidate cached log when vector changes
         population_responsibility_vector_log_valid_ = false;
-        invalidate_transmission_llik_cache();
         calculate_population_responsibility_vector_likelihood();
-
-        const float new_llik = calc_new_likelihood();
+        refresh_all_samples_tx_logsumexp();
+        const float new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
         const float new_prior = calc_new_prior();
         const float new_post = new_llik * temp + new_prior;
 
@@ -1113,8 +1112,8 @@ void Chain::update_population_responsibility_vector(int iteration)
             population_responsibility_vector.inner_fill(prev_p);
             // Invalidate cached log when reverting
             population_responsibility_vector_log_valid_ = false;
-            invalidate_transmission_llik_cache();
             restore_population_responsibility_vector_likelihood();
+            refresh_all_samples_tx_logsumexp();
         }
         else
         {

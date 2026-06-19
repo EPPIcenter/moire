@@ -505,6 +505,19 @@ void Chain::refresh_sample_tx_after_coi_change(std::size_t sample_idx)
     tx_llik_sum_new += new_L - old_L;
 }
 
+void Chain::refresh_all_samples_tx_logsumexp()
+{
+    ProfileScope scope("Chain::refresh_all_samples_tx_logsumexp");
+    if (!tx_llik_cache_valid_) {
+        rebuild_transmission_llik_cache();
+        return;
+    }
+    const std::size_t num_samples = genotyping_data.num_samples;
+    for (std::size_t sample_idx = 0; sample_idx < num_samples; ++sample_idx) {
+        refresh_sample_tx_after_coi_change(sample_idx);
+    }
+}
+
 void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_idx)
 {
     ProfileScope scope("Chain::recalculate_transmission_for_sample");

@@ -73,6 +73,8 @@ class Chain
         std::size_t sample_idx, std::size_t pop_idx, float old_val, float new_val);
     /// Recompute tx_sample_logsumexp[sample] after coi_prior_new changed (loci sums unchanged).
     void refresh_sample_tx_after_coi_change(std::size_t sample_idx);
+    /// Recompute all per-sample tx logsumexp terms (coi prior and/or population log weights changed).
+    void refresh_all_samples_tx_logsumexp();
     /// Incrementally update transmission cells for one sample (all pop x loci).
     void recalculate_transmission_for_sample_incremental(std::size_t sample_idx);
     void restore_transmission_for_sample_incremental(std::size_t sample_idx);
