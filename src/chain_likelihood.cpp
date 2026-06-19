@@ -171,7 +171,8 @@ float finish_transmission_from_group(const PamCachedVectors* pam,
                                      std::size_t total_alleles,
                                      float relatedness,
                                      float log_sum,
-                                     bool pam_valid)
+                                     bool pam_valid,
+                                     std::span<const float> log_binom_w = {})
 {
     constexpr float kNegInf = -std::numeric_limits<float>::infinity();
     if (total_alleles == 0 || !std::isfinite(log_sum)) {
@@ -184,6 +185,10 @@ float finish_transmission_from_group(const PamCachedVectors* pam,
         if (!allow_relatedness) {
             return log_sum * static_cast<float>(coi);
         }
+        if (!log_binom_w.empty()) {
+            return transmission_incremental::transmission_log_with_relatedness_k1(
+                log_binom_w, coi, log_sum);
+        }
         return transmission_incremental::transmission_log_with_relatedness_k1(
             sampler, coi, relatedness, log_sum);
     }
@@ -193,6 +198,12 @@ float finish_transmission_from_group(const PamCachedVectors* pam,
     if (!allow_relatedness) {
         return transmission_incremental::transmission_log_no_relatedness(
             std::span<const float>(pam->log_one_minus_pam), coi, log_sum);
+    }
+    if (!log_binom_w.empty()) {
+        return transmission_incremental::transmission_log_with_relatedness(
+            std::span<const double>(pam->pam),
+            std::span<const float>(pam->log_one_minus_pam),
+            log_binom_w, coi, total_alleles, log_sum);
     }
     return transmission_incremental::transmission_log_with_relatedness(
         std::span<const double>(pam->pam), std::span<const float>(pam->log_one_minus_pam),
@@ -243,6 +254,20 @@ struct SamplePamCache {
             }
         }
         return nullptr;
+    }
+
+    int find_index(std::span<const float> q,
+                   unsigned coi,
+                   unsigned prev_coi_u) const noexcept
+    {
+        for (std::size_t i = 0; i < entries.size(); ++i) {
+            const Entry& entry = entries[i];
+            if (entry.coi == coi && entry.prev_coi_u == prev_coi_u &&
+                q_spans_equal(q, entry.q)) {
+                return static_cast<int>(i);
+            }
+        }
+        return -1;
     }
 
     const Entry& find_or_add(std::span<const float> q,
@@ -780,6 +805,16 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
         }
     }
 
+    std::vector<float> log_binom_w;
+    if (params.allow_relatedness && coi >= 1) {
+        log_binom_w.resize(static_cast<std::size_t>(coi));
+        for (std::size_t i = 0; i < log_binom_w.size(); ++i) {
+            log_binom_w[i] =
+                sampler.dbinom(static_cast<int>(i), coi - 1, relatedness);
+        }
+    }
+    const std::span<const float> log_binom_w_span(log_binom_w);
+
     const SamplePamCache* const pam_table = &sample_pam;
     for (std::size_t dirty_idx = 0; dirty_idx < dirty_loci.size(); ++dirty_idx) {
         const std::size_t locus_idx = dirty_loci[dirty_idx];
@@ -841,19 +876,32 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
         }
 
         for (const auto& group : pop_groups) {
-            const SamplePamCache::Entry* pam_entry = nullptr;
+            thread_local PamCachedVectors pam_local;
+            const PamCachedVectors* pam_ptr = nullptr;
+            bool pam_valid = false;
             if (total_alleles > 1) {
-                pam_entry = pam_table->find(group.q, coi_u, prev_coi_u);
+                const int pam_idx =
+                    pam_table->find_index(group.q, coi_u, prev_coi_u);
+                if (pam_idx >= 0) {
+                    const SamplePamCache::Entry& entry =
+                        pam_table->entries[static_cast<std::size_t>(pam_idx)];
+                    if (entry.pam_valid) {
+                        copy_pam_cached(entry.pam, pam_local);
+                        pam_ptr = &pam_local;
+                        pam_valid = true;
+                    }
+                }
             }
             const float tx = finish_transmission_from_group(
-                (pam_entry != nullptr && pam_entry->pam_valid) ? &pam_entry->pam : nullptr,
+                pam_ptr,
                 sampler,
                 params.allow_relatedness,
                 coi,
                 total_alleles,
                 relatedness,
                 group.log_sum,
-                pam_entry != nullptr && pam_entry->pam_valid);
+                pam_valid,
+                log_binom_w_span);
             for (const std::size_t pop_idx : group.pops) {
                 transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) = tx;
             }
@@ -868,14 +916,10 @@ void Chain::restore_transmission_for_sample_incremental(std::size_t sample_idx)
     moire_parallel::parallel_for_2d(
         0, params.num_populations, 0, genotyping_data.num_loci,
         [&](std::size_t pop_idx, std::size_t locus_idx) {
-            const float proposed =
-                transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx});
-            const float old_cell =
+            transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) =
                 transmission_llik_old.unchecked_at({sample_idx, pop_idx, locus_idx});
-            apply_transmission_cell_change(sample_idx, pop_idx, proposed, old_cell);
-            transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) = old_cell;
         });
-    refresh_sample_tx_after_coi_change(sample_idx);
+    fold_sample_tx_after_cell_updates(sample_idx);
 }
 
 float Chain::calc_transmission_llik_sum() {

@@ -119,6 +119,29 @@ inline float transmission_log_no_relatedness(const std::vector<double>& pam_vec,
 }
 
 /// K=1 on latent support: P(any missing)=0 for n>=1, so log(1-PAM)=0.
+inline float transmission_log_with_relatedness_k1(std::span<const float> log_w,
+                                                  int coi,
+                                                  float log_sum)
+{
+    constexpr float kNegInf = -std::numeric_limits<float>::infinity();
+    if (coi < 1) {
+        return kNegInf;
+    }
+
+    const std::size_t loop_upper = static_cast<std::size_t>(coi - 1);
+    constexpr std::size_t kMaxTerms = 128;
+    float terms[kMaxTerms];
+    const std::size_t n_terms = loop_upper + 1;
+    if (n_terms > kMaxTerms || log_w.size() < n_terms) {
+        return kNegInf;
+    }
+
+    for (std::size_t i = 0; i < n_terms; ++i) {
+        terms[i] = log_w[i] + log_sum * static_cast<float>(coi - static_cast<int>(i));
+    }
+    return log_sum_exp(std::span<const float>(terms, n_terms));
+}
+
 inline float transmission_log_with_relatedness_k1(Sampler& sampler,
                                                   int coi,
                                                   float relatedness,
@@ -132,17 +155,67 @@ inline float transmission_log_with_relatedness_k1(Sampler& sampler,
     const std::size_t loop_upper = static_cast<std::size_t>(coi - 1);
     const auto log_w =
         cached_log_binomial_weights(sampler, coi, relatedness, loop_upper + 1);
+    return transmission_log_with_relatedness_k1(log_w, coi, log_sum);
+}
+
+inline float transmission_log_with_relatedness(std::span<const double> pam_vec,
+                                               std::span<const float> log_one_minus_pam,
+                                               std::span<const float> log_binom_w,
+                                               int coi,
+                                               std::size_t total_alleles,
+                                               float log_sum)
+{
+    constexpr float kNegInf = -std::numeric_limits<float>::infinity();
+
+    if (static_cast<int>(coi) < static_cast<int>(total_alleles)) {
+        return kNegInf;
+    }
+    if (coi > 100 || total_alleles > 30 || (coi > 50 && total_alleles > 20)) {
+        return kNegInf;
+    }
+
+    if (total_alleles == 1 && pam_fast_paths::tx_opts_enabled()) {
+        return transmission_log_with_relatedness_k1(log_binom_w, coi, log_sum);
+    }
+
+    const std::size_t pam_idx = static_cast<std::size_t>(coi - 1);
+    if (pam_idx >= pam_vec.size() || pam_idx >= log_one_minus_pam.size()) {
+        return kNegInf;
+    }
+
+    const float log_one_minus_pam_at_coi = log_one_minus_pam[pam_idx];
+    const float log_sum_scaled = log_sum * static_cast<float>(coi);
+
+    if (static_cast<int>(total_alleles) == coi && pam_fast_paths::tx_opts_enabled()) {
+        if (log_binom_w.empty()) {
+            return kNegInf;
+        }
+        return log_binom_w[0] + log_one_minus_pam_at_coi + log_sum_scaled;
+    }
+
+    const std::size_t loop_upper = static_cast<std::size_t>(coi - total_alleles);
+    const std::size_t n_terms = loop_upper + 1;
+    if (log_binom_w.size() < n_terms) {
+        return kNegInf;
+    }
 
     constexpr std::size_t kMaxTerms = 128;
     float terms[kMaxTerms];
-    const std::size_t n_terms = loop_upper + 1;
     if (n_terms > kMaxTerms) {
         return kNegInf;
     }
 
     for (std::size_t i = 0; i < n_terms; ++i) {
-        terms[i] = log_w[i] + log_sum * static_cast<float>(coi - static_cast<int>(i));
+        const std::size_t idx = static_cast<std::size_t>(coi - i - 1);
+        if (idx >= log_one_minus_pam.size()) {
+            terms[i] = kNegInf;
+            continue;
+        }
+        terms[i] =
+            log_binom_w[i] + log_one_minus_pam[idx] +
+            log_sum * static_cast<float>(coi - static_cast<int>(i));
     }
+
     return log_sum_exp(std::span<const float>(terms, n_terms));
 }
 
