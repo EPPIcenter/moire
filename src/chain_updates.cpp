@@ -315,14 +315,19 @@ void Chain::update_r(int iteration)
             moire_parallel::parallel_for_2d(
                 0, params.num_populations, 0, genotyping_data.num_loci,
                 [&](std::size_t pop_idx, std::size_t locus_idx) {
-                    const float old_cell =
-                        transmission_llik_old.unchecked_at({sample_idx, pop_idx, locus_idx});
                     calculate_transmission_likelihood_after_r_change(
                         pop_idx, sample_idx, locus_idx);
+                });
+            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci;
+                     ++locus_idx) {
+                    const float old_cell =
+                        transmission_llik_old.unchecked_at({sample_idx, pop_idx, locus_idx});
                     const float new_cell =
                         transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx});
                     apply_transmission_cell_change(sample_idx, pop_idx, old_cell, new_cell);
-                });
+                }
+            }
 
             float new_llik;
             float new_prior;
@@ -340,17 +345,19 @@ void Chain::update_r(int iteration)
                 ProfileScope scope("Chain::update_r::reject_restore");
                 r.at({sample_idx}) = prev_r;
                 restore_relatedness_likelihood(sample_idx);
-                moire_parallel::parallel_for_2d(
-                    0, params.num_populations, 0, genotyping_data.num_loci,
-                    [&](std::size_t pop_idx, std::size_t locus_idx) {
+                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci;
+                         ++locus_idx) {
                         const float proposed =
                             transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx});
                         const float old_cell =
                             transmission_llik_old.unchecked_at({sample_idx, pop_idx, locus_idx});
-                        apply_transmission_cell_change(sample_idx, pop_idx, proposed, old_cell);
+                        apply_transmission_cell_change(
+                            sample_idx, pop_idx, proposed, old_cell);
                         transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) =
                             old_cell;
-                    });
+                    }
+                }
             }
             else
             {
