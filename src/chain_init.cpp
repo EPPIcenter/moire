@@ -29,6 +29,8 @@ void Chain::initialize_latent_genotypes()
     lg_adj_old.resize(std::array{genotyping_data.num_samples, genotyping_data.num_loci});
     lg_adj_new.clear();
     lg_adj_new.resize(std::array{genotyping_data.num_samples, genotyping_data.num_loci});
+    latent_support_k_.clear();
+    latent_support_k_.resize(std::array{genotyping_data.num_samples, genotyping_data.num_loci});
     for (std::size_t sample_idx = 0; sample_idx < genotyping_data.num_samples; ++sample_idx)
     {
         for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
@@ -38,8 +40,7 @@ void Chain::initialize_latent_genotypes()
             const auto lg = observation_model_->sample_latent_genotype(
                 sampler, obs_alleles, m.at({sample_idx}), .1f, .1f);
 
-            latent_genotypes_new.inner_fill({sample_idx, locus_idx}, -1);
-            latent_genotypes_new.inner_fill({sample_idx, locus_idx}, lg.value);
+            assign_latent_genotype_new(sample_idx, locus_idx, lg.value);
             lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
 
             latent_genotypes_old.inner_fill({sample_idx, locus_idx}, -1);

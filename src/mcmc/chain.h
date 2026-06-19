@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string>
 #include "combination_indices_generator.h"
 #include "genotyping_data.h"
@@ -38,13 +39,27 @@ class Chain
     void initialize_population_coi();
     void initialize_likelihood();
 
+    /// Number of non-padding alleles in latent_genotypes_new[sample, locus].
+    void refresh_latent_support_k(std::size_t sample_idx, std::size_t locus_idx);
+    void assign_latent_genotype_new(std::size_t sample_idx, std::size_t locus_idx,
+                                    std::span<const int> value);
+    void restore_latent_genotype_new(std::size_t sample_idx, std::size_t locus_idx);
+    std::span<const int> latent_allele_support(std::size_t sample_idx,
+                                               std::size_t locus_idx) const;
+
     float calc_transmission_process(
         std::span<int const> allele_index_vec,
         std::span<float const> allele_frequencies, int coi,
         float relatedness);
 
     float calc_transmission_process_after_r_change(
-        std::span<int const> full_allele_index_vec,
+        std::span<int const> allele_index_vec,
+        std::span<float const> allele_frequencies,
+        int coi,
+        float relatedness);
+
+    float calc_transmission_process_after_p_change(
+        std::span<int const> allele_index_vec,
         std::span<float const> allele_frequencies,
         int coi,
         float relatedness);
@@ -56,6 +71,11 @@ class Chain
     void rebuild_transmission_llik_cache();
     float apply_transmission_cell_change(
         std::size_t sample_idx, std::size_t pop_idx, float old_val, float new_val);
+    /// Recompute tx_sample_logsumexp[sample] after coi_prior_new changed (loci sums unchanged).
+    void refresh_sample_tx_after_coi_change(std::size_t sample_idx);
+    /// Incrementally update transmission cells for one sample (all pop x loci).
+    void recalculate_transmission_for_sample_incremental(std::size_t sample_idx);
+    void restore_transmission_for_sample_incremental(std::size_t sample_idx);
 
     void calculate_observation_likelihood(std::size_t sample_idx, std::size_t locus_idx);
     void sync_obs_sum_for_sample(std::size_t sample_idx);
@@ -63,6 +83,10 @@ class Chain
     void calculate_transmission_likelihood_after_r_change(
         std::size_t population_idx,
         std::size_t sample_idx,
+        std::size_t locus_idx);
+    /// Recompute transmission_llik_new[:, pop, locus] after a p proposal (grouped PAM).
+    void recalculate_transmission_at_locus_after_p_change(
+        std::size_t population_idx,
         std::size_t locus_idx);
     void calculate_eps_neg_likelihood(std::size_t sample_idx);
     void calculate_eps_pos_likelihood(std::size_t sample_idx);
@@ -150,6 +174,9 @@ class Chain
     // Latent Genotype Adjustment
     // indexed by sample, locus
     MultiVector<float, 2> lg_adj_new{};
+
+    // Cached support size per (sample, locus); avoids std::find on every transmission eval.
+    MultiVector<std::uint16_t, 2> latent_support_k_{};
 
     // COI ~ ZTNB(population_coi_mean, population_coi_variance)
     // indexed by sample

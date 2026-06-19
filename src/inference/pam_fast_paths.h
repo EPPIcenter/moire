@@ -12,7 +12,7 @@
 
 namespace pam_fast_paths {
 
-inline constexpr std::size_t kLowKMaxSupport = 5;
+inline constexpr std::size_t kLowKMaxSupport = 8;
 
 namespace detail {
 

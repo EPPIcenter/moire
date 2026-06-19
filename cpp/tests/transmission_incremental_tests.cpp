@@ -129,6 +129,17 @@ private:
             assert_near(static_cast<float>(fast5[i]), static_cast<float>(gray5[i]),
                         "K=5 low-k vs gray");
         }
+
+        const std::vector<float> q8 = {0.05f, 0.08f, 0.1f, 0.12f, 0.15f, 0.2f, 0.25f, 0.05f};
+        std::vector<double> fast8;
+        if (!pam_fast_paths::try_fill_pam_vector(q8, 1u, max_n, fast8)) {
+            throw std::runtime_error("expected low-k fast path for K=8");
+        }
+        const std::vector<double> gray8 = functor.vectorized(q8, 1u, max_n);
+        for (std::size_t i = 0; i < fast8.size(); ++i) {
+            assert_near(static_cast<float>(fast8[i]), static_cast<float>(gray8[i]),
+                        "K=8 low-k vs gray");
+        }
     }
 };
 

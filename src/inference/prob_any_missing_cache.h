@@ -52,6 +52,8 @@ struct Stats {
     std::uint64_t exact_hits{0};
     std::uint64_t quant_hits{0};
     std::uint64_t misses{0};
+    /// k <= kLowKMaxSupport: computed inline without cache store on miss.
+    std::uint64_t low_k_inline{0};
     std::uint64_t verify_checks{0};
     std::uint64_t verify_over_tol{0};
     double verify_max_pam_diff{0.0};
