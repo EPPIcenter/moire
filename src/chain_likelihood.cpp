@@ -231,6 +231,12 @@ struct PChangePamGroup {
     bool pam_valid{false};
 };
 
+struct LocusPopPamGroup {
+    std::vector<float> q;
+    float log_sum{0.f};
+    std::vector<std::size_t> pops;
+};
+
 /// Dedup (q, coi) PAM vectors across loci in one sample recalculation pass.
 struct SamplePamCache {
     struct Entry {
@@ -746,17 +752,11 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
         locus_support_group[locus_idx] = group_idx;
     }
 
-    struct LocusPopPamGroup {
-        std::vector<float> q;
-        float log_sum{0.f};
-        std::vector<std::size_t> pops;
-    };
-
     const unsigned prev_coi_u =
         (coi != prev_coi) ? static_cast<unsigned>(prev_coi) : 0u;
     const unsigned coi_u = static_cast<unsigned>(coi);
 
-    thread_local std::vector<std::size_t> dirty_loci;
+    std::vector<std::size_t> dirty_loci;
     dirty_loci.clear();
     dirty_loci.reserve(n_loci);
     for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
@@ -815,13 +815,17 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
     }
     const std::span<const float> log_binom_w_span(log_binom_w);
 
+    // dirty_loci must be an ordinary local vector — not thread_local. TBB workers
+    // each get their own thread_local storage; a prior parallel attempt read empty
+    // lists and segfaulted. Per-locus work here is too small for recalc_parallel_for
+    // to beat serial (TBB overhead dominates typical dirty-locus counts).
     const SamplePamCache* const pam_table = &sample_pam;
-    for (std::size_t dirty_idx = 0; dirty_idx < dirty_loci.size(); ++dirty_idx) {
+    const auto process_dirty_locus = [&](std::size_t dirty_idx) {
         const std::size_t locus_idx = dirty_loci[dirty_idx];
 
         const int support_group_idx = locus_support_group[locus_idx];
         if (support_group_idx < 0) {
-            continue;
+            return;
         }
         const PChangePamGroup& support_group =
             support_groups[static_cast<std::size_t>(support_group_idx)];
@@ -831,14 +835,14 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
             for (std::size_t pop_idx = 0; pop_idx < n_pops; ++pop_idx) {
                 transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) = kNegInf;
             }
-            continue;
+            return;
         }
 
         if (!pam_fast_paths::tx_opts_enabled()) {
             for (std::size_t pop_idx = 0; pop_idx < n_pops; ++pop_idx) {
                 calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
             }
-            continue;
+            return;
         }
 
         thread_local std::vector<float> q_scratch;
@@ -906,6 +910,10 @@ void Chain::recalculate_transmission_for_sample_incremental(std::size_t sample_i
                 transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) = tx;
             }
         }
+    };
+
+    for (std::size_t dirty_idx = 0; dirty_idx < dirty_loci.size(); ++dirty_idx) {
+        process_dirty_locus(dirty_idx);
     }
 
     fold_sample_tx_after_cell_updates(sample_idx);
