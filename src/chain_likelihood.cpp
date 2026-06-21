@@ -1006,12 +1006,16 @@ float Chain::calc_new_likelihood() {
 }
 
 double Chain::recompute_collapsed_marginals(std::vector<float> &out) {
-    out.resize(genotyping_data.num_samples);
+    const std::size_t N = genotyping_data.num_samples;
+    out.resize(N);
+    // Per-sample marginals are independent; ecoi_sample_marginal_llik is now
+    // reentrant (thread_local scratch), so fill in parallel and reduce after.
+    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t s) {
+        out[s] = static_cast<float>(ecoi_sample_marginal_llik(s));
+    });
     double sum = 0.0;
-    for (std::size_t s = 0; s < genotyping_data.num_samples; ++s) {
-        const double m = ecoi_sample_marginal_llik(s);
-        out[s] = static_cast<float>(m);
-        sum += m;
+    for (std::size_t s = 0; s < N; ++s) {
+        sum += static_cast<double>(out[s]);
     }
     return sum;
 }
@@ -1116,6 +1120,14 @@ void Chain::calculate_transmission_likelihood_after_r_change(
 
 void Chain::invalidate_update_p_locus_group_cache(std::size_t locus_idx)
 {
+    // This locus-indexed cache is only consumed by the non-marginal update_p
+    // PAM fast path. In marginal_ecoi mode it is never read, so skipping the
+    // invalidation keeps it a no-op there -- and crucially removes a
+    // cross-sample write hazard, since the marginal latent moves invalidate
+    // genotypes in parallel over samples (many samples touch the same locus).
+    if (params.marginal_ecoi) {
+        return;
+    }
     if (locus_idx < update_p_locus_group_cache_.size()) {
         update_p_locus_group_cache_[locus_idx].valid = false;
         for (std::size_t pop_idx = 0; pop_idx < update_p_pam_slots_.size(); ++pop_idx) {
@@ -1725,19 +1737,22 @@ const ecoi_marginal::LocusSupport *Chain::ecoi_cached_support(
             if (!support.empty()) {
                 const auto [pb, pe] = p.inner_iterators({pop_idx, locus_idx});
                 const std::span<const float> p_span(pb, pe);
-                ecoi_support_p_scratch_.clear();
+                // thread_local: lazy population may run concurrently across
+                // samples from the parallel update_p / marginal recomputes.
+                static thread_local std::vector<float> support_p;
+                support_p.clear();
                 bool ok = true;
                 for (int a : support) {
                     if (a < 0 || static_cast<std::size_t>(a) >= p_span.size()) {
                         ok = false;
                         break;
                     }
-                    ecoi_support_p_scratch_.push_back(p_span[a]);
+                    support_p.push_back(p_span[a]);
                 }
                 if (ok) {
                     ecoi_support_cache_[idx] = ecoi_marginal::precompute_locus(
-                        std::span<const float>(ecoi_support_p_scratch_.data(),
-                                               ecoi_support_p_scratch_.size()),
+                        std::span<const float>(support_p.data(),
+                                               support_p.size()),
                         static_cast<int>(params.max_coi));
                     contributes = true;
                 }
@@ -1777,7 +1792,12 @@ double Chain::ecoi_sample_rel_marginal_llik(std::size_t sample_idx, double e)
     const std::size_t L = genotyping_data.num_loci;
     const std::size_t P = params.num_populations;
 
-    std::vector<double> per_pop(P, ecoi_marginal::kNegInf);
+    // Reentrant scratch (thread_local) so this can run on TBB workers from the
+    // parallel per-sample marginal recompute without racing on shared members.
+    static thread_local std::vector<const ecoi_marginal::LocusSupport *> contrib;
+    static thread_local std::vector<double> terms;
+    static thread_local std::vector<double> per_pop;
+    per_pop.assign(P, ecoi_marginal::kNegInf);
     const int m_lo = std::max(2, static_cast<int>(std::ceil(e)));
 
     for (std::size_t pop = 0; pop < P; ++pop) {
@@ -1787,24 +1807,24 @@ double Chain::ecoi_sample_rel_marginal_llik(std::size_t sample_idx, double e)
             per_pop[pop] = pop_log + ecoi_marginal::kNegInf;
             continue;
         }
-        ecoi_contrib_scratch_.clear();
+        contrib.clear();
         for (std::size_t l = 0; l < L; ++l) {
             const ecoi_marginal::LocusSupport *ls =
                 ecoi_cached_support(sample_idx, pop, l);
             if (ls != nullptr) {
-                ecoi_contrib_scratch_.push_back(ls);
+                contrib.push_back(ls);
             }
         }
-        ecoi_terms_scratch_.clear();
+        terms.clear();
         for (int m = m_lo; m <= max_coi; ++m) {
             const double r = ecoi_marginal::r_of(m, e);
             if (r <= 0.0 || r >= 1.0) {
-                ecoi_terms_scratch_.push_back(ecoi_marginal::kNegInf);
+                terms.push_back(ecoi_marginal::kNegInf);
                 continue;
             }
             double tx = 0.0;
             bool ok = true;
-            for (const ecoi_marginal::LocusSupport *ls : ecoi_contrib_scratch_) {
+            for (const ecoi_marginal::LocusSupport *ls : contrib) {
                 const double t = ecoi_marginal::tx_loglik_locus(*ls, m, r);
                 if (!std::isfinite(t)) {
                     ok = false;
@@ -1812,12 +1832,12 @@ double Chain::ecoi_sample_rel_marginal_llik(std::size_t sample_idx, double e)
                 }
                 tx += t;
             }
-            ecoi_terms_scratch_.push_back(
+            terms.push_back(
                 ok ? -std::log(static_cast<double>(m - 1)) + tx
                    : ecoi_marginal::kNegInf);
         }
         const double inner =
-            ecoi_marginal::log_sum_exp(std::span<const double>(ecoi_terms_scratch_));
+            ecoi_marginal::log_sum_exp(std::span<const double>(terms));
         per_pop[pop] = pop_log + ecoi_log_f(pop, e) + inner;
     }
     return ecoi_marginal::log_sum_exp(std::span<const double>(per_pop));
@@ -1829,7 +1849,10 @@ double Chain::ecoi_sample_rel_transmission_at_e(std::size_t sample_idx, double e
     const std::size_t L = genotyping_data.num_loci;
     const std::size_t P = params.num_populations;
 
-    std::vector<double> per_pop(P, ecoi_marginal::kNegInf);
+    static thread_local std::vector<const ecoi_marginal::LocusSupport *> contrib;
+    static thread_local std::vector<double> terms;
+    static thread_local std::vector<double> per_pop;
+    per_pop.assign(P, ecoi_marginal::kNegInf);
     const int m_lo = std::max(2, static_cast<int>(std::ceil(e)));
 
     for (std::size_t pop = 0; pop < P; ++pop) {
@@ -1839,24 +1862,24 @@ double Chain::ecoi_sample_rel_transmission_at_e(std::size_t sample_idx, double e
             per_pop[pop] = pop_log + ecoi_marginal::kNegInf;
             continue;
         }
-        ecoi_contrib_scratch_.clear();
+        contrib.clear();
         for (std::size_t l = 0; l < L; ++l) {
             const ecoi_marginal::LocusSupport *ls =
                 ecoi_cached_support(sample_idx, pop, l);
             if (ls != nullptr) {
-                ecoi_contrib_scratch_.push_back(ls);
+                contrib.push_back(ls);
             }
         }
-        ecoi_terms_scratch_.clear();
+        terms.clear();
         for (int m = m_lo; m <= max_coi; ++m) {
             const double r = ecoi_marginal::r_of(m, e);
             if (r <= 0.0 || r >= 1.0) {
-                ecoi_terms_scratch_.push_back(ecoi_marginal::kNegInf);
+                terms.push_back(ecoi_marginal::kNegInf);
                 continue;
             }
             double tx = 0.0;
             bool ok = true;
-            for (const ecoi_marginal::LocusSupport *ls : ecoi_contrib_scratch_) {
+            for (const ecoi_marginal::LocusSupport *ls : contrib) {
                 const double t = ecoi_marginal::tx_loglik_locus(*ls, m, r);
                 if (!std::isfinite(t)) {
                     ok = false;
@@ -1864,12 +1887,12 @@ double Chain::ecoi_sample_rel_transmission_at_e(std::size_t sample_idx, double e
                 }
                 tx += t;
             }
-            ecoi_terms_scratch_.push_back(
+            terms.push_back(
                 ok ? -std::log(static_cast<double>(m - 1)) + tx
                    : ecoi_marginal::kNegInf);
         }
         const double inner =
-            ecoi_marginal::log_sum_exp(std::span<const double>(ecoi_terms_scratch_));
+            ecoi_marginal::log_sum_exp(std::span<const double>(terms));
         per_pop[pop] = pop_log + inner;
     }
     return ecoi_marginal::log_sum_exp(std::span<const double>(per_pop));
@@ -1926,10 +1949,12 @@ void Chain::ecoi_up_build_decomp()
     up_told_.assign(N * stride, 0.0);
     up_tnew_.assign(N * stride, 0.0);
 
-    std::vector<const ecoi_marginal::LocusSupport *> contrib;
-    std::vector<double> terms;
-
-    for (std::size_t s = 0; s < N; ++s) {
+    // Parallel per-sample build: each sample owns its decomposition slices
+    // (up_*[s*stride + m]) and its own cache column, so this is a safe map.
+    // Scratch is thread_local to stay allocation-free across the parallel calls.
+    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t s) {
+        static thread_local std::vector<const ecoi_marginal::LocusSupport *> contrib;
+        static thread_local std::vector<double> terms;
         const double e = static_cast<double>(eff_coi.at({s}));
         const int m_lo = std::max(2, static_cast<int>(std::ceil(e)));
         up_mlo_[s] = m_lo;
@@ -1971,7 +1996,7 @@ void Chain::ecoi_up_build_decomp()
         }
         up_L_[s] = up_foff_[s] +
                    ecoi_marginal::log_sum_exp(std::span<const double>(terms));
-    }
+    });
 }
 
 // Per-locus transmission term t_l(m, r(m, e_s)) for population 0, written into
@@ -1985,8 +2010,13 @@ void Chain::ecoi_up_locus_terms(std::size_t locus_idx, std::vector<double> &out)
     const std::size_t stride = up_m_stride_;
     const std::size_t N = genotyping_data.num_samples;
 
-    for (std::size_t s = 0; s < N; ++s) {
-        const ecoi_marginal::LocusSupport *ls = ecoi_cached_support(s, 0, locus_idx);
+    // Each sample writes a disjoint [s*stride, (s+1)*stride) slice of `out` and
+    // only touches its own cache column (s, 0, locus_idx), so this is a safe
+    // parallel map. This is the dominant update_p kernel. Serial fallback when
+    // nested parallelism is disabled (parallel tempering across chains).
+    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t s) {
+        const ecoi_marginal::LocusSupport *ls =
+            ecoi_cached_support(s, 0, locus_idx);
         const double e = static_cast<double>(eff_coi.at({s}));
         const int m_lo = up_mlo_[s];
         for (int m = m_lo; m <= max_coi; ++m) {
@@ -2003,7 +2033,7 @@ void Chain::ecoi_up_locus_terms(std::size_t locus_idx, std::vector<double> &out)
             const double t = ecoi_marginal::tx_loglik_locus(*ls, m, r);
             out[idx] = std::isfinite(t) ? t : 0.0;
         }
-    }
+    });
 }
 
 // Stage 3b validation gate: confirm the in-Chain marginal assembly (population

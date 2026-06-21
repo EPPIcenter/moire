@@ -58,14 +58,13 @@ class Chain
     std::vector<char> ecoi_support_contributes_{}; // locus contributes to the product
     std::size_t ecoi_cache_pop_stride_ = 0;        // = num_loci
     std::size_t ecoi_cache_sample_stride_ = 0;     // = num_pop * num_loci
-    // Scratch reused by the cached marginal evaluation (avoids per-call allocs).
-    std::vector<const ecoi_marginal::LocusSupport *> ecoi_contrib_scratch_{};
-    std::vector<float> ecoi_support_p_scratch_{};
-    std::vector<double> ecoi_terms_scratch_{};
 
     void ecoi_support_cache_init();
     void ecoi_support_cache_invalidate_locus(std::size_t pop_idx, std::size_t locus_idx);
     void ecoi_support_cache_invalidate_sample(std::size_t sample_idx);
+    // Debug audit (env MOIRE_ECOI_CHECK_MOVES): verify a parallel latent move
+    // left per-sample marginal / obs-row bookkeeping exactly consistent.
+    void ecoi_check_latent_move_consistency(const char *label);
 
     // ---- update_p incremental transmission decomposition (single population) --
     // Built once per update_p call (valid only for its duration, since it pins

@@ -195,12 +195,26 @@ inline double tx_loglik_locus(const LocusSupport& pre, int m, double r)
         return kNegInf;
     }
     const int n_terms = m - pre.k + 1;
-    std::vector<double> terms(static_cast<std::size_t>(n_terms));
+    // r is constant across the mixture, so the binomial coefficient's
+    // i*log(r) + (size-i)*log1p(-r) factors are computed from two hoisted
+    // logs instead of re-evaluating dbinom_log (two transcendental calls) per
+    // term. The scratch is thread_local so this stays allocation-free and safe
+    // to call from parallel per-sample recomputes.
+    static thread_local std::vector<double> terms;
+    terms.resize(static_cast<std::size_t>(n_terms));
+    const int size = m - 1;
+    const double lg_size = lgamma_factorial(size);
+    const double logr = (r > 0.0) ? std::log(r) : kNegInf;
+    const double log1mr = std::log1p(-r);
     for (int i = 0; i < n_terms; ++i) {
         const int n_draws = m - i;  // 1 .. m
         const double logpas = pre.logpas[static_cast<std::size_t>(n_draws - 1)];
+        const double lcoef =
+            lg_size - lgamma_factorial(i) - lgamma_factorial(size - i);
+        const double lp = (i > 0) ? i * logr : 0.0;
+        const double lq = (size - i > 0) ? (size - i) * log1mr : 0.0;
         terms[static_cast<std::size_t>(i)] =
-            dbinom_log(i, m - 1, r) + logpas + n_draws * pre.logT;
+            lcoef + lp + lq + logpas + n_draws * pre.logT;
     }
     return log_sum_exp(std::span<const double>(terms));
 }
