@@ -14,3 +14,39 @@ LatentGenotype CountPoissonObservationModel::sample_latent_genotype(
 {
     return LatentGenotype{{0}, 0.0f};
 }
+
+// Marginal-proposal methods are exercised at the observation_model_math layer in
+// the unit tests; these stubs keep the test link self-contained (no boost).
+void BinaryObservationModel::marginal_presence_probs(std::span<int const>, float, float,
+                                                     std::vector<float>&) const
+{
+}
+
+LatentGenotype BinaryObservationModel::propose_latent_genotype_marginal(
+    Sampler&, std::span<int const>, float, float) const
+{
+    return LatentGenotype{{0}, 0.0f};
+}
+
+float BinaryObservationModel::latent_genotype_log_prob_marginal(
+    std::span<int const>, std::span<int const>, float, float) const
+{
+    return 0.0f;
+}
+
+void CountPoissonObservationModel::marginal_presence_probs(std::span<int const>, float, float,
+                                                           std::vector<float>&) const
+{
+}
+
+LatentGenotype CountPoissonObservationModel::propose_latent_genotype_marginal(
+    Sampler&, std::span<int const>, float, float) const
+{
+    return LatentGenotype{{0}, 0.0f};
+}
+
+float CountPoissonObservationModel::latent_genotype_log_prob_marginal(
+    std::span<int const>, std::span<int const>, float, float) const
+{
+    return 0.0f;
+}

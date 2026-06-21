@@ -112,6 +112,20 @@ target_sources(transmission_incremental_tests PRIVATE
     ../src/combination_indices_generator.cpp
 )
 
+add_executable(ecoi_marginal_tests tests/ecoi_marginal_tests.cpp)
+target_link_libraries(ecoi_marginal_tests
+    PRIVATE
+    Catch2::Catch2WithMain
+    moire_parallel_support
+)
+
+add_executable(marginal_proposal_tests tests/marginal_proposal_tests.cpp)
+target_link_libraries(marginal_proposal_tests
+    PRIVATE
+    Catch2::Catch2WithMain
+    moire_parallel_support
+)
+
 # Benchmark executables
 add_executable(multivector_benchmarks1 benchmarks/multivector_benchmark1.cpp)
 add_executable(multivector_benchmarks2 benchmarks/multivector_benchmark2.cpp)
@@ -153,6 +167,8 @@ add_test(NAME observation_model_tests COMMAND observation_model_tests)
 add_test(NAME prob_any_missing_tests COMMAND prob_any_missing_tests)
 add_test(NAME zeta_mobius_tests COMMAND zeta_mobius_tests)
 add_test(NAME transmission_incremental_tests COMMAND transmission_incremental_tests)
+add_test(NAME ecoi_marginal_tests COMMAND ecoi_marginal_tests)
+add_test(NAME marginal_proposal_tests COMMAND marginal_proposal_tests)
 
 # Set test properties
 set_tests_properties(multivector_tests PROPERTIES
@@ -173,7 +189,7 @@ set_tests_properties(zeta_mobius_tests PROPERTIES
 # Custom targets
 add_custom_target(run_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS multivector_tests distance_matrix_tests observation_model_tests prob_any_missing_tests zeta_mobius_tests transmission_incremental_tests
+    DEPENDS multivector_tests distance_matrix_tests observation_model_tests prob_any_missing_tests zeta_mobius_tests transmission_incremental_tests ecoi_marginal_tests marginal_proposal_tests
     COMMENT "Running all tests"
 )
 

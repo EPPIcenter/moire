@@ -92,4 +92,71 @@ inline bool allele_in_support(int allele_index, std::span<int const> latent_alle
     return std::find(latent_allele_indices.begin(), support_end, allele_index) != support_end;
 }
 
+// ---------------------------------------------------------------------------
+// Marginal (eCOI) latent-genotype proposal.
+//
+// The fully-collapsed eCOI sampler integrates COI out of the model, so its
+// latent-genotype proposal must be COI-independent AND have a density that can
+// be evaluated for an *arbitrary* genotype (needed for the reverse move). We use
+// an independent per-allele Bernoulli: allele a is present with probability
+// rho_a, the posterior presence probability under the per-allele error channel
+// and a uniform present/absent prior. rho_a is clamped away from {0,1} so the
+// chain stays ergodic and reverse-proposal densities are finite. The proposal is
+// conditioned on a non-empty genotype (every observed locus carries >=1 strain).
+// ---------------------------------------------------------------------------
+
+inline constexpr float kMarginalRhoClamp = 1e-4f;
+
+inline float marginal_presence_prob(bool observed_positive, float neg_rate, float pos_rate)
+{
+    const float nr = std::clamp(neg_rate, 0.0f, 1.0f);
+    const float pr = std::clamp(pos_rate, 0.0f, 1.0f);
+    float rho;
+    if (observed_positive) {
+        // P(present | obs=positive) propto P(obs=pos | present) = 1 - FN rate
+        const float denom = (1.0f - nr) + pr;
+        rho = denom > 0.0f ? (1.0f - nr) / denom : 0.5f;
+    } else {
+        // P(present | obs=negative) propto P(obs=neg | present) = FN rate
+        const float denom = nr + (1.0f - pr);
+        rho = denom > 0.0f ? nr / denom : 0.5f;
+    }
+    return std::clamp(rho, kMarginalRhoClamp, 1.0f - kMarginalRhoClamp);
+}
+
+// log P(empty genotype) under independent Bernoulli(rho_a).
+inline float marginal_log_prob_empty(std::span<const float> rho)
+{
+    double s = 0.0;
+    for (const float r : rho) {
+        s += std::log1p(-static_cast<double>(r));
+    }
+    return static_cast<float>(s);
+}
+
+// log q(G | non-empty) for an arbitrary latent genotype G (sentinel -1 padded ok).
+inline float marginal_proposal_log_prob(std::span<const float> rho,
+                                        std::span<int const> latent_allele_indices)
+{
+    const std::size_t k = support_size(latent_allele_indices);
+    std::vector<char> present(rho.size(), 0);
+    for (std::size_t i = 0; i < k; ++i) {
+        const int a = latent_allele_indices[i];
+        if (a >= 0 && static_cast<std::size_t>(a) < rho.size()) {
+            present[static_cast<std::size_t>(a)] = 1;
+        }
+    }
+    double lp = 0.0;
+    for (std::size_t a = 0; a < rho.size(); ++a) {
+        lp += present[a] ? std::log(static_cast<double>(rho[a]))
+                         : std::log1p(-static_cast<double>(rho[a]));
+    }
+    const double log_p_empty = static_cast<double>(marginal_log_prob_empty(rho));
+    // log(1 - P(empty)); guard against log(0) when P(empty) -> 1 (rho all tiny).
+    const double one_minus = -std::expm1(log_p_empty);  // = 1 - exp(log_p_empty)
+    const double log_p_nonempty =
+        one_minus > 0.0 ? std::log(one_minus) : std::log(kPoissonMeanFloor);
+    return static_cast<float>(lp - log_p_nonempty);
+}
+
 }  // namespace observation_model_math

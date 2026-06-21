@@ -61,7 +61,19 @@ class CountPoissonObservationModel : public ObservationModel {
                                           float epsilon_pos,
                                           float epsilon_neg) const override;
 
+    LatentGenotype propose_latent_genotype_marginal(
+        Sampler &sampler, std::span<int const> observed_barcode, float epsilon_pos,
+        float epsilon_neg) const override;
+
+    float latent_genotype_log_prob_marginal(
+        std::span<int const> latent_allele_indices, std::span<int const> observed_barcode,
+        float epsilon_pos, float epsilon_neg) const override;
+
    private:
+    // Per-allele Bernoulli presence probabilities for the marginal proposal.
+    void marginal_presence_probs(std::span<int const> observed_barcode, float epsilon_pos,
+                                 float epsilon_neg, std::vector<float> &rho_out) const;
+
     float max_eps_neg_;
     float max_eps_pos_;
 };

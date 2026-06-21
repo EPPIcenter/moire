@@ -1,5 +1,6 @@
 #include "binary_observation_model.h"
 #include "count_poisson_observation_model.h"
+#include "observation_model_math.h"
 #include "sampler.h"
 
 #include <boost/math/special_functions/binomial.hpp>
@@ -9,7 +10,47 @@
 #include <cmath>
 #include <limits>
 #include <numeric>
+#include <span>
 #include <vector>
+
+namespace {
+
+// Shared sampler for the COI-independent marginal proposal: draw each allele
+// present with probability rho_a, conditioned on a non-empty genotype, and
+// return the genotype together with its (non-empty conditioned) log density that
+// observation_model_math::marginal_proposal_log_prob reproduces exactly.
+LatentGenotype marginal_sample_from_rho(Sampler &sampler, const std::vector<float> &rho)
+{
+    std::vector<int> present;
+    constexpr int kMaxAttempts = 128;
+    for (int attempt = 0; attempt < kMaxAttempts && present.empty(); ++attempt)
+    {
+        present.clear();
+        for (std::size_t a = 0; a < rho.size(); ++a)
+        {
+            if (sampler.sample_unif() < rho[a])
+            {
+                present.push_back(static_cast<int>(a));
+            }
+        }
+    }
+    if (present.empty() && !rho.empty())
+    {
+        std::size_t best = 0;
+        for (std::size_t a = 1; a < rho.size(); ++a)
+        {
+            if (rho[a] > rho[best]) best = a;
+        }
+        present.push_back(static_cast<int>(best));
+    }
+    // present is already ascending since alleles are visited in order.
+    const float log_prob = observation_model_math::marginal_proposal_log_prob(
+        std::span<const float>(rho.data(), rho.size()),
+        std::span<int const>(present.data(), present.size()));
+    return LatentGenotype{present, log_prob};
+}
+
+}  // namespace
 
 namespace {
 
@@ -273,4 +314,80 @@ LatentGenotype CountPoissonObservationModel::sample_latent_genotype(
     assert(allele_index_vec.size() <= static_cast<std::size_t>(coi));
 
     return LatentGenotype{allele_index_vec, log_prob};
+}
+
+// ---------------------------------------------------------------------------
+// COI-independent marginal proposals.
+// ---------------------------------------------------------------------------
+
+void BinaryObservationModel::marginal_presence_probs(std::span<int const> observed_barcode,
+                                                     float epsilon_pos, float epsilon_neg,
+                                                     std::vector<float> &rho_out) const
+{
+    const std::size_t n = observed_barcode.size();
+    const float norm_factor = n > 0 ? 1.0f / static_cast<float>(n) : 1.0f;
+    const float neg_rate = epsilon_neg * max_eps_neg_ * norm_factor;
+    const float pos_rate = epsilon_pos * max_eps_pos_ * norm_factor;
+    rho_out.resize(n);
+    for (std::size_t a = 0; a < n; ++a)
+    {
+        const bool observed_positive = (observed_barcode[a] & 1) != 0;
+        rho_out[a] = observation_model_math::marginal_presence_prob(observed_positive, neg_rate,
+                                                                    pos_rate);
+    }
+}
+
+LatentGenotype BinaryObservationModel::propose_latent_genotype_marginal(
+    Sampler &sampler, std::span<int const> observed_barcode, float epsilon_pos,
+    float epsilon_neg) const
+{
+    std::vector<float> rho;
+    marginal_presence_probs(observed_barcode, epsilon_pos, epsilon_neg, rho);
+    return marginal_sample_from_rho(sampler, rho);
+}
+
+float BinaryObservationModel::latent_genotype_log_prob_marginal(
+    std::span<int const> latent_allele_indices, std::span<int const> observed_barcode,
+    float epsilon_pos, float epsilon_neg) const
+{
+    std::vector<float> rho;
+    marginal_presence_probs(observed_barcode, epsilon_pos, epsilon_neg, rho);
+    return observation_model_math::marginal_proposal_log_prob(
+        std::span<const float>(rho.data(), rho.size()), latent_allele_indices);
+}
+
+void CountPoissonObservationModel::marginal_presence_probs(std::span<int const> observed_barcode,
+                                                           float epsilon_pos, float epsilon_neg,
+                                                           std::vector<float> &rho_out) const
+{
+    const std::size_t n = observed_barcode.size();
+    const float allele_count = n > 0 ? static_cast<float>(n) : 1.0f;
+    const float neg_rate = std::min(1.0f, epsilon_neg * max_eps_neg_);
+    const float pos_rate = std::min(1.0f, epsilon_pos * max_eps_pos_ / allele_count);
+    rho_out.resize(n);
+    for (std::size_t a = 0; a < n; ++a)
+    {
+        const bool observed_positive = observed_barcode[a] > 0;
+        rho_out[a] = observation_model_math::marginal_presence_prob(observed_positive, neg_rate,
+                                                                    pos_rate);
+    }
+}
+
+LatentGenotype CountPoissonObservationModel::propose_latent_genotype_marginal(
+    Sampler &sampler, std::span<int const> observed_barcode, float epsilon_pos,
+    float epsilon_neg) const
+{
+    std::vector<float> rho;
+    marginal_presence_probs(observed_barcode, epsilon_pos, epsilon_neg, rho);
+    return marginal_sample_from_rho(sampler, rho);
+}
+
+float CountPoissonObservationModel::latent_genotype_log_prob_marginal(
+    std::span<int const> latent_allele_indices, std::span<int const> observed_barcode,
+    float epsilon_pos, float epsilon_neg) const
+{
+    std::vector<float> rho;
+    marginal_presence_probs(observed_barcode, epsilon_pos, epsilon_neg, rho);
+    return observation_model_math::marginal_proposal_log_prob(
+        std::span<const float>(rho.data(), rho.size()), latent_allele_indices);
 }
