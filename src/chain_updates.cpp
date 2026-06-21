@@ -255,6 +255,368 @@ void Chain::update_eff_coi(int iteration)
     }
 }
 
+// Fully-collapsed effective-COI move. The discrete COI is integrated out, so the
+// proposal acts on the continuous e in (1, max_coi] with latent genotypes held
+// fixed; acceptance compares the marginalized transmission term M(G_s, e) at the
+// proposed vs current e. The continuous e-prior f_p(e) is folded inside M, so no
+// separate prior term enters.
+//
+// Each sample gets two sub-moves: (a) a local random-walk step for fine mixing,
+// and (b) an independence step proposing e' from the population-0 continuous
+// prior 1 + Gamma(k_0, k_0 / mu_plus_0). The independence step is essential: the
+// per-sample e posterior under uniform relatedness has a secondary mode near
+// e = 1 (low observed diversity explained as a few highly-related strains), and a
+// pure random walk gets trapped there. Proposing from the prior covers the whole
+// (1, max_coi] range so trapped samples can escape; for a single population the
+// prior-densities cancel and acceptance is the pure marginal-likelihood ratio.
+void Chain::update_ecoi(int iteration)
+{
+    ProfileScope scope("Chain::update_ecoi");
+    auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
+    std::iota(sample_indices.begin(), sample_indices.end(), 0);
+    sampler.shuffle_vec(sample_indices);
+
+    const float k0 = ecoi_k.empty() ? 2.0f : ecoi_k[0];
+    const float mu0 = ecoi_mu_plus.empty() ? 3.0f : ecoi_mu_plus[0];
+
+    for (const auto sample_idx : sample_indices)
+    {
+        // (a) local random-walk step.
+        {
+            const float curr_e = eff_coi.at({sample_idx});
+            const auto prop_adj = sampler.sample_constrained(
+                curr_e, eff_coi_var.at({sample_idx}), 1, params.max_coi);
+            const float prop_e = std::get<0>(prop_adj);
+            const float adj = std::get<1>(prop_adj);
+
+            if ((prop_e > 1.0f) && prop_e <= params.max_coi && std::isfinite(prop_e)) {
+                const double new_marg = ecoi_sample_rel_marginal_llik(
+                    sample_idx, static_cast<double>(prop_e));
+                const double old_marg =
+                    static_cast<double>(ecoi_sample_marg_[sample_idx]);
+                const double new_marg_sum = ecoi_marg_sum_ - old_marg + new_marg;
+                const float new_llik =
+                    obs_llik_sum_new_ + static_cast<float>(new_marg_sum);
+                const float new_post = new_llik * temp + prior;
+                const float mh_ratio = new_post - get_posterior() + adj;
+
+                if (std::isfinite(new_post) &&
+                    sampler.sample_log_mh_acceptance() <= mh_ratio)
+                {
+                    eff_coi.at({sample_idx}) = prop_e;
+                    ecoi_sample_marg_[sample_idx] = static_cast<float>(new_marg);
+                    ecoi_marg_sum_ = new_marg_sum;
+                    llik = new_llik;
+                    ++eff_coi_accept.at({sample_idx});
+                }
+            }
+        }
+
+        // (b) independence step from the population-0 continuous prior.
+        {
+            const float curr_e = eff_coi.at({sample_idx});
+            const float prop_e = 1.0f + sampler.rgamma2(k0, k0 / mu0);
+            if ((prop_e > 1.0f) && prop_e <= params.max_coi && std::isfinite(prop_e)) {
+                const double new_marg = ecoi_sample_rel_marginal_llik(
+                    sample_idx, static_cast<double>(prop_e));
+                const double old_marg =
+                    static_cast<double>(ecoi_sample_marg_[sample_idx]);
+                const double new_marg_sum = ecoi_marg_sum_ - old_marg + new_marg;
+                const float new_llik =
+                    obs_llik_sum_new_ + static_cast<float>(new_marg_sum);
+                const float new_post = new_llik * temp + prior;
+                // Hastings correction for the asymmetric prior proposal q = f_0.
+                const double logq_new = ecoi_log_f(0, static_cast<double>(prop_e));
+                const double logq_old = ecoi_log_f(0, static_cast<double>(curr_e));
+                const float mh_ratio = new_post - get_posterior() +
+                                       static_cast<float>(logq_old - logq_new);
+
+                if (std::isfinite(new_post) && std::isfinite(logq_new) &&
+                    sampler.sample_log_mh_acceptance() <= mh_ratio)
+                {
+                    eff_coi.at({sample_idx}) = prop_e;
+                    ecoi_sample_marg_[sample_idx] = static_cast<float>(new_marg);
+                    ecoi_marg_sum_ = new_marg_sum;
+                    llik = new_llik;
+                    ++eff_coi_accept.at({sample_idx});
+                }
+            }
+        }
+
+        if (iteration < params.burnin && iteration > 15)
+        {
+            const float acceptanceRate = eff_coi_accept.at({sample_idx}) / float(iteration);
+            const float update = (acceptanceRate - .23) / std::pow(iteration + 1, .5);
+            eff_coi_var.at({sample_idx}) = std::max(eff_coi_var.at({sample_idx}) + update, .01f);
+        }
+    }
+}
+
+// Fully-collapsed latent-genotype move. Genotypes are reproposed from the
+// COI-independent proposal (whose density is evaluable for the reverse move) and
+// accepted against the observation likelihood plus the marginalized transmission
+// term. Effective COI and error rates are held fixed.
+void Chain::update_latent_marginal(int iteration)
+{
+    ProfileScope scope("Chain::update_latent_marginal");
+    (void)iteration;
+    auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
+    std::iota(sample_indices.begin(), sample_indices.end(), 0);
+    sampler.shuffle_vec(sample_indices);
+
+    for (const auto sample_idx : sample_indices)
+    {
+        const float eps_neg_s = eps_neg.at({sample_idx});
+
+        float adj_ratio = 0.0f;
+        for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
+        {
+            if (genotyping_data.is_missing(sample_idx, locus_idx)) {
+                continue;
+            }
+            const float eps_pos_l = eps_pos_at(sample_idx, locus_idx);
+            const auto observed = genotyping_data.get_observed_alleles(sample_idx, locus_idx);
+            const auto old_support = latent_allele_support(sample_idx, locus_idx);
+            const float rev_logq = observation_model_->latent_genotype_log_prob_marginal(
+                old_support, observed, eps_pos_l, eps_neg_s);
+
+            const auto lg = observation_model_->propose_latent_genotype_marginal(
+                sampler, observed, eps_pos_l, eps_neg_s);
+            assign_latent_genotype_new(sample_idx, locus_idx, lg.value);
+            lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
+            adj_ratio += rev_logq - lg.log_prob;
+        }
+
+        // Latent supports for this sample changed; rebuild its cached supports.
+        ecoi_support_cache_invalidate_sample(sample_idx);
+
+        moire_parallel::recalc_parallel_for(0, genotyping_data.num_loci, [&](std::size_t locus_idx) {
+            calculate_observation_likelihood(sample_idx, locus_idx);
+        });
+        sync_obs_sum_for_sample(sample_idx);
+
+        // e and the monoclonal indicator are fixed here, so the per-sample
+        // marginal is recomputed at the current state (atom or continuous) and
+        // the e-prior is unchanged.
+        const double new_marg = ecoi_sample_marginal_llik(sample_idx);
+        const double old_marg = static_cast<double>(ecoi_sample_marg_[sample_idx]);
+        const double new_marg_sum = ecoi_marg_sum_ - old_marg + new_marg;
+        const float new_llik = obs_llik_sum_new_ + static_cast<float>(new_marg_sum);
+        const float new_post = new_llik * temp + prior;
+        const float mh_ratio = new_post - get_posterior() + adj_ratio;
+
+        if (std::isfinite(new_post) && sampler.sample_log_mh_acceptance() <= mh_ratio)
+        {
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
+            {
+                if (genotyping_data.is_missing(sample_idx, locus_idx)) {
+                    continue;
+                }
+                lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
+                const auto [begin, end] =
+                    latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
+                save_observation_likelihood(sample_idx, locus_idx);
+            }
+            ecoi_sample_marg_[sample_idx] = static_cast<float>(new_marg);
+            ecoi_marg_sum_ = new_marg_sum;
+            llik = new_llik;
+            ++sample_accept.at({sample_idx});
+        }
+        else
+        {
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
+            {
+                if (genotyping_data.is_missing(sample_idx, locus_idx)) {
+                    continue;
+                }
+                lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
+                restore_latent_genotype_new(sample_idx, locus_idx);
+                restore_observation_likelihood(sample_idx, locus_idx);
+            }
+            sync_obs_sum_for_sample(sample_idx);
+            // Supports restored; rebuild the cache from the restored supports.
+            ecoi_support_cache_invalidate_sample(sample_idx);
+        }
+    }
+}
+
+// Joint (effective COI, latent-genotype) move. Per sample we propose e' from the
+// population-0 continuous prior (independence) and simultaneously repropose all of
+// the sample's latent genotypes from the COI-independent proposal, accepting the
+// pair in one step. Because the COI-independent proposal draws supports sized to
+// the observed diversity (independent of e), a large e jump arrives with supports
+// that can actually support it -- so a sample trapped in the e ~ 1 / small-support
+// joint mode can escape, which a fixed-G e move cannot do. The e-prior f_0 cancels
+// against the proposal density for a single population, leaving the marginal +
+// observation likelihood ratio and the genotype-proposal Hastings term.
+void Chain::update_ecoi_latent_joint(int iteration)
+{
+    ProfileScope scope("Chain::update_ecoi_latent_joint");
+    (void)iteration;
+    auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
+    std::iota(sample_indices.begin(), sample_indices.end(), 0);
+    sampler.shuffle_vec(sample_indices);
+
+    const float k0 = ecoi_k.empty() ? 2.0f : ecoi_k[0];
+    const float mu0 = ecoi_mu_plus.empty() ? 3.0f : ecoi_mu_plus[0];
+
+    for (const auto sample_idx : sample_indices)
+    {
+        const float curr_e = eff_coi.at({sample_idx});
+        const float prop_e = 1.0f + sampler.rgamma2(k0, k0 / mu0);
+        if (!(prop_e > 1.0f) || prop_e > params.max_coi || !std::isfinite(prop_e)) {
+            continue;
+        }
+        const double logq_old_e = ecoi_log_f(0, static_cast<double>(curr_e));
+        const double logq_new_e = ecoi_log_f(0, static_cast<double>(prop_e));
+        if (!std::isfinite(logq_new_e)) {
+            continue;
+        }
+
+        const float eps_neg_s = eps_neg.at({sample_idx});
+
+        float adj_ratio = 0.0f;
+        for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
+        {
+            if (genotyping_data.is_missing(sample_idx, locus_idx)) {
+                continue;
+            }
+            const float eps_pos_l = eps_pos_at(sample_idx, locus_idx);
+            const auto observed = genotyping_data.get_observed_alleles(sample_idx, locus_idx);
+            const auto old_support = latent_allele_support(sample_idx, locus_idx);
+            const float rev_logq = observation_model_->latent_genotype_log_prob_marginal(
+                old_support, observed, eps_pos_l, eps_neg_s);
+
+            const auto lg = observation_model_->propose_latent_genotype_marginal(
+                sampler, observed, eps_pos_l, eps_neg_s);
+            assign_latent_genotype_new(sample_idx, locus_idx, lg.value);
+            lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
+            adj_ratio += rev_logq - lg.log_prob;
+        }
+
+        ecoi_support_cache_invalidate_sample(sample_idx);
+
+        moire_parallel::recalc_parallel_for(0, genotyping_data.num_loci, [&](std::size_t locus_idx) {
+            calculate_observation_likelihood(sample_idx, locus_idx);
+        });
+        sync_obs_sum_for_sample(sample_idx);
+
+        const double new_marg =
+            ecoi_sample_rel_marginal_llik(sample_idx, static_cast<double>(prop_e));
+        const double old_marg = static_cast<double>(ecoi_sample_marg_[sample_idx]);
+        const double new_marg_sum = ecoi_marg_sum_ - old_marg + new_marg;
+        const float new_llik = obs_llik_sum_new_ + static_cast<float>(new_marg_sum);
+        const float new_post = new_llik * temp + prior;
+        const float mh_ratio = new_post - get_posterior() + adj_ratio +
+                               static_cast<float>(logq_old_e - logq_new_e);
+
+        if (std::isfinite(new_post) && sampler.sample_log_mh_acceptance() <= mh_ratio)
+        {
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
+            {
+                if (genotyping_data.is_missing(sample_idx, locus_idx)) {
+                    continue;
+                }
+                lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
+                const auto [begin, end] =
+                    latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
+                save_observation_likelihood(sample_idx, locus_idx);
+            }
+            eff_coi.at({sample_idx}) = prop_e;
+            ecoi_sample_marg_[sample_idx] = static_cast<float>(new_marg);
+            ecoi_marg_sum_ = new_marg_sum;
+            llik = new_llik;
+            ++sample_accept.at({sample_idx});
+        }
+        else
+        {
+            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
+            {
+                if (genotyping_data.is_missing(sample_idx, locus_idx)) {
+                    continue;
+                }
+                lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
+                restore_latent_genotype_new(sample_idx, locus_idx);
+                restore_observation_likelihood(sample_idx, locus_idx);
+            }
+            sync_obs_sum_for_sample(sample_idx);
+            ecoi_support_cache_invalidate_sample(sample_idx);
+        }
+    }
+}
+
+// Population-e hierarchy move. With the per-population continuous e-prior folded
+// inside each sample's population mixture, the per-population (mu_plus_p, k_p)
+// enter the marginal likelihood (through f_p), so changing them shifts every
+// sample's marginal. For each population we take a log-scale random-walk
+// Metropolis step and accept against the full collapsed marginal sum plus the
+// hyperpriors (a responsibility-consistent move: a sample's pull on population p
+// is exactly its posterior weight in the LSE, no z augmentation needed).
+void Chain::update_population_e(int iteration)
+{
+    ProfileScope scope("Chain::update_population_e");
+    (void)iteration;
+    const std::size_t n = genotyping_data.num_samples;
+    if (n == 0) {
+        return;
+    }
+    const float obs_llik = obs_llik_sum_new_;
+
+    auto pop_indices = std::vector<std::size_t>(params.num_populations);
+    std::iota(pop_indices.begin(), pop_indices.end(), 0);
+    sampler.shuffle_vec(pop_indices);
+
+    for (const std::size_t pop : pop_indices)
+    {
+        const float cur_mu = ecoi_mu_plus[pop];
+        const float cur_k = ecoi_k[pop];
+
+        const float mu_prop = cur_mu * std::exp(sampler.sample_epsilon(0.0f, ecoi_mu_log_sd));
+        const float k_prop = cur_k * std::exp(sampler.sample_epsilon(0.0f, ecoi_k_log_sd));
+        if (!(mu_prop > 0.0f) || !(k_prop > 0.0f) || !std::isfinite(mu_prop) ||
+            !std::isfinite(k_prop)) {
+            continue;
+        }
+
+        const double saved_hyper = ecoi_hyperprior_;
+        ecoi_mu_plus[pop] = mu_prop;
+        ecoi_k[pop] = k_prop;
+
+        const double new_marg_sum =
+            recompute_collapsed_marginals(ecoi_sample_marg_scratch_);
+        ecoi_hyperprior_ = ecoi_population_hyperprior();
+        const float new_llik = obs_llik + static_cast<float>(new_marg_sum);
+        const float new_prior = calc_new_prior();
+        const float new_post = new_llik * temp + new_prior;
+
+        // Jacobian of the log-scale random walk.
+        const double log_jac = std::log(static_cast<double>(mu_prop)) -
+                               std::log(static_cast<double>(cur_mu)) +
+                               std::log(static_cast<double>(k_prop)) -
+                               std::log(static_cast<double>(cur_k));
+        const double mh_ratio = new_post - get_posterior() + log_jac;
+        ++ecoi_pop_attempt;
+
+        if (std::isfinite(new_post) &&
+            sampler.sample_log_mh_acceptance() <= static_cast<float>(mh_ratio))
+        {
+            std::swap(ecoi_sample_marg_, ecoi_sample_marg_scratch_);
+            ecoi_marg_sum_ = new_marg_sum;
+            llik = new_llik;
+            prior = new_prior;
+            ++ecoi_pop_accept;
+        }
+        else
+        {
+            ecoi_mu_plus[pop] = cur_mu;
+            ecoi_k[pop] = cur_k;
+            ecoi_hyperprior_ = saved_hyper;
+        }
+    }
+}
+
 void Chain::update_r(int iteration)
 {
     ProfileScope scope("Chain::update_r");
@@ -524,6 +886,28 @@ void Chain::update_p(int iteration)
         rebuild_transmission_llik_cache();
     }
 
+    // Single-population eCOI fast path: build each sample's per-m transmission
+    // decomposition once, then update only the changed locus' contribution per
+    // proposal (O(max_coi) per sample) instead of rebuilding every locus.
+    const bool ecoi_fast = params.marginal_ecoi && params.num_populations == 1 &&
+                           ecoi_fast_update_p_;
+    if (ecoi_fast) {
+        ecoi_up_build_decomp();
+        // One-time consistency guard: the rebuilt decomposition must reproduce
+        // the persistent marginal sum. If not, fall back to the safe full
+        // recompute for the rest of the run.
+        double check_sum = 0.0;
+        for (std::size_t s = 0; s < genotyping_data.num_samples; ++s) {
+            check_sum += up_L_[s];
+        }
+        const double tol = 1e-2 * (1.0 + std::abs(ecoi_marg_sum_));
+        if (!std::isfinite(check_sum) || std::abs(check_sum - ecoi_marg_sum_) > tol) {
+            ecoi_fast_update_p_ = false;
+        }
+    }
+    const bool ecoi_fast_active = ecoi_fast && ecoi_fast_update_p_;
+    const std::size_t up_stride = up_m_stride_;
+
     auto locus_indices = std::vector<std::size_t>(genotyping_data.num_loci);
     auto pop_indices = std::vector<std::size_t>(params.num_populations);
     std::iota(locus_indices.begin(), locus_indices.end(), 0);
@@ -590,9 +974,22 @@ void Chain::update_p(int iteration)
                 }
 
                 update_p_prev_p_ws_.assign(begin, end);
+
+                // Fast path: capture the changed locus' OLD transmission terms
+                // (from the still-valid cache) before the proposal is applied.
+                if (ecoi_fast_active) {
+                    ecoi_up_locus_terms(locus_idx, up_told_);
+                }
+
                 p.inner_fill({pop_idx, locus_idx}, prop_p);
 
-                {
+                if (params.marginal_ecoi) {
+                    // Only this (pop, locus) column of allele frequencies changed;
+                    // invalidate just those cached LocusSupport entries.
+                    ecoi_support_cache_invalidate_locus(pop_idx, locus_idx);
+                }
+
+                if (!params.marginal_ecoi) {
                     const std::size_t n_samples = genotyping_data.num_samples;
                     if (pam_fast_paths::tx_opts_enabled()) {
                         recalculate_transmission_at_locus_after_p_change(
@@ -611,9 +1008,56 @@ void Chain::update_p(int iteration)
 
                 float new_llik;
                 float new_post;
+                double collapsed_sum = 0.0;
                 {
                     ProfileScope scope("Chain::update_p::calc_post");
-                    new_llik = obs_llik + tx_llik_sum_new;
+                    if (ecoi_fast_active) {
+                        // Incremental: only locus_idx's transmission term changed.
+                        ecoi_up_locus_terms(locus_idx, up_tnew_);
+                        const int max_coi = static_cast<int>(params.max_coi);
+                        collapsed_sum = 0.0;
+                        for (std::size_t s = 0; s < genotyping_data.num_samples; ++s) {
+                            ecoi_terms_scratch_.clear();
+                            for (int m = up_mlo_[s]; m <= max_coi; ++m) {
+                                const std::size_t idx =
+                                    s * up_stride + static_cast<std::size_t>(m);
+                                if (up_ninf_[idx] > 0 || !std::isfinite(up_a_[idx])) {
+                                    ecoi_terms_scratch_.push_back(ecoi_marginal::kNegInf);
+                                    continue;
+                                }
+                                ecoi_terms_scratch_.push_back(
+                                    up_a_[idx] + up_slog_[idx] +
+                                    (up_tnew_[idx] - up_told_[idx]));
+                            }
+                            const double newL =
+                                up_foff_[s] +
+                                ecoi_marginal::log_sum_exp(
+                                    std::span<const double>(ecoi_terms_scratch_));
+                            up_newL_[s] = newL;
+                            collapsed_sum += newL;
+                        }
+                        new_llik = obs_llik + static_cast<float>(collapsed_sum);
+
+                        // Optional exact-correctness audit: compare the
+                        // incremental sum to a full recompute (same float inputs,
+                        // different summation order -> expect ~1e-5).
+                        static const bool ecoi_audit =
+                            std::getenv("MOIRE_ECOI_CHECK_FAST") != nullptr;
+                        if (ecoi_audit) {
+                            const double full =
+                                recompute_collapsed_marginals(ecoi_sample_marg_scratch_);
+                            const double d = std::abs(full - collapsed_sum);
+                            if (d > ecoi_fast_audit_max_) {
+                                ecoi_fast_audit_max_ = d;
+                            }
+                        }
+                    } else if (params.marginal_ecoi) {
+                        // p changes shift every sample's marginal; obs is fixed.
+                        collapsed_sum = recompute_collapsed_marginals(ecoi_sample_marg_scratch_);
+                        new_llik = obs_llik + static_cast<float>(collapsed_sum);
+                    } else {
+                        new_llik = obs_llik + tx_llik_sum_new;
+                    }
                     new_post = new_llik * temp + prior;
                 }
 
@@ -623,15 +1067,40 @@ void Chain::update_p(int iteration)
                     sampler.sample_log_mh_acceptance() > acceptanceRatio)
                 {
                     p.inner_fill({pop_idx, locus_idx}, update_p_prev_p_ws_);
-                    restore_transmission_column_change(pop_idx, locus_idx);
+                    if (params.marginal_ecoi) {
+                        // Restored p; rebuild this column from the restored values.
+                        ecoi_support_cache_invalidate_locus(pop_idx, locus_idx);
+                    }
+                    if (!params.marginal_ecoi) {
+                        restore_transmission_column_change(pop_idx, locus_idx);
+                    }
                 }
                 else
                 {
                     ProfileScope scope("Chain::update_p::accept_save");
                     llik = new_llik;
-                    moire_parallel::parallel_for(0, genotyping_data.num_samples, [&](std::size_t sample_idx) {
-                        save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-                    });
+                    if (ecoi_fast_active) {
+                        // Commit the locus delta into the persistent decomposition
+                        // and the per-sample marginal cache.
+                        const int max_coi = static_cast<int>(params.max_coi);
+                        for (std::size_t s = 0; s < genotyping_data.num_samples; ++s) {
+                            for (int m = up_mlo_[s]; m <= max_coi; ++m) {
+                                const std::size_t idx =
+                                    s * up_stride + static_cast<std::size_t>(m);
+                                up_slog_[idx] += (up_tnew_[idx] - up_told_[idx]);
+                            }
+                            up_L_[s] = up_newL_[s];
+                            ecoi_sample_marg_[s] = static_cast<float>(up_newL_[s]);
+                        }
+                        ecoi_marg_sum_ = collapsed_sum;
+                    } else if (params.marginal_ecoi) {
+                        std::swap(ecoi_sample_marg_, ecoi_sample_marg_scratch_);
+                        ecoi_marg_sum_ = collapsed_sum;
+                    } else {
+                        moire_parallel::parallel_for(0, genotyping_data.num_samples, [&](std::size_t sample_idx) {
+                            save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
+                        });
+                    }
                     ++p_accept.at({pop_idx, locus_idx, allele_idx});
                 }
 
@@ -647,11 +1116,21 @@ void Chain::update_p(int iteration)
             }
         }
     }
+
+    if (ecoi_fast_active && std::getenv("MOIRE_ECOI_CHECK_FAST") != nullptr) {
+        Rcpp::Rcout << "[ecoi-fast-audit] running max|incremental - full| = "
+                    << ecoi_fast_audit_max_ << "\n";
+    }
 }
 
 void Chain::update_eps_pos(int iteration)
 {
     ProfileScope scope("Chain::update_eps_pos");
+    if (params.marginal_ecoi)
+    {
+        update_eps_pos_locus(iteration);
+        return;
+    }
     auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
     sampler.shuffle_vec(sample_indices);
@@ -712,6 +1191,83 @@ void Chain::update_eps_pos(int iteration)
                     (acceptanceRate - .23) / std::pow(iteration + 1, .5);
                 eps_pos_var.at({sample_idx}) = std::max(eps_pos_var.at({sample_idx}) + update, .0001f);
             }
+        }
+    }
+}
+
+void Chain::update_eps_pos_locus(int iteration)
+{
+    ProfileScope scope("Chain::update_eps_pos_locus");
+    const std::size_t N = genotyping_data.num_samples;
+    auto locus_indices = std::vector<std::size_t>(genotyping_data.num_loci);
+    std::iota(locus_indices.begin(), locus_indices.end(), 0);
+    sampler.shuffle_vec(locus_indices);
+
+    for (const auto locus_idx : locus_indices)
+    {
+        const auto prop_adj = sampler.sample_constrained(
+            eps_pos_locus.at({locus_idx}), eps_pos_locus_var.at({locus_idx}), min_sampled, 1);
+        const float prop_eps_pos = std::get<0>(prop_adj);
+        const float adj = std::get<1>(prop_adj);
+
+        if (!(prop_eps_pos < 1) || !(prop_eps_pos > 1e-32))
+        {
+            continue;
+        }
+
+        const float prev_eps_pos = eps_pos_locus.at({locus_idx});
+        eps_pos_locus.at({locus_idx}) = prop_eps_pos;
+        calculate_eps_pos_locus_likelihood(locus_idx);
+
+        // The false-positive rate enters only the observation model, so changing
+        // it touches this locus' column across every sample; the marginalized
+        // transmission term (ecoi_marg_sum_) is unaffected.
+        moire_parallel::parallel_for(0, N, [&](std::size_t sample_idx) {
+            calculate_observation_likelihood(sample_idx, locus_idx);
+        });
+        for (std::size_t sample_idx = 0; sample_idx < N; ++sample_idx)
+        {
+            sync_obs_sum_for_sample(sample_idx);
+        }
+
+        const float new_llik = calc_new_likelihood();
+        const float new_prior = calc_new_prior();
+        const float new_post = new_llik * temp + new_prior;
+
+        if (!std::isfinite(new_post) or sampler.sample_log_mh_acceptance() >
+                                        (new_post - get_posterior() + adj))
+        {
+            eps_pos_locus.at({locus_idx}) = prev_eps_pos;
+            restore_eps_pos_locus_likelihood(locus_idx);
+            for (std::size_t sample_idx = 0; sample_idx < N; ++sample_idx)
+            {
+                restore_observation_likelihood(sample_idx, locus_idx);
+            }
+            for (std::size_t sample_idx = 0; sample_idx < N; ++sample_idx)
+            {
+                sync_obs_sum_for_sample(sample_idx);
+            }
+        }
+        else
+        {
+            llik = new_llik;
+            prior = new_prior;
+            save_eps_pos_locus_likelihood(locus_idx);
+            for (std::size_t sample_idx = 0; sample_idx < N; ++sample_idx)
+            {
+                save_observation_likelihood(sample_idx, locus_idx);
+            }
+            ++eps_pos_locus_accept.at({locus_idx});
+        }
+
+        if (iteration < params.burnin and iteration > 15)
+        {
+            const float acceptanceRate =
+                eps_pos_locus_accept.at({locus_idx}) / float(iteration);
+            const float update =
+                (acceptanceRate - .23) / std::pow(iteration + 1, .5);
+            eps_pos_locus_var.at({locus_idx}) =
+                std::max(eps_pos_locus_var.at({locus_idx}) + update, .0001f);
         }
     }
 }
@@ -946,8 +1502,16 @@ void Chain::update_population_coi_p(int iteration)
     {
         calculate_coi_likelihood(sample_idx);
     }
-    refresh_all_samples_tx_logsumexp();
-    const float new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
+    float new_llik;
+    double collapsed_sum = 0.0;
+    if (params.marginal_ecoi) {
+        // population_coi_p enters w(m|e); the whole marginal shifts.
+        collapsed_sum = recompute_collapsed_marginals(ecoi_sample_marg_scratch_);
+        new_llik = obs_llik_sum_new_ + static_cast<float>(collapsed_sum);
+    } else {
+        refresh_all_samples_tx_logsumexp();
+        new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
+    }
     const float new_prior = calc_new_prior();
     const float new_post = new_llik * temp + new_prior;
 
@@ -961,6 +1525,10 @@ void Chain::update_population_coi_p(int iteration)
         {
             save_coi_likelihood(sample_idx);
         }
+        if (params.marginal_ecoi) {
+            std::swap(ecoi_sample_marg_, ecoi_sample_marg_scratch_);
+            ecoi_marg_sum_ = collapsed_sum;
+        }
         ++population_coi_p_accept;
     }
     else
@@ -971,7 +1539,9 @@ void Chain::update_population_coi_p(int iteration)
         {
             restore_coi_likelihood(sample_idx);
         }
-        refresh_all_samples_tx_logsumexp();
+        if (!params.marginal_ecoi) {
+            refresh_all_samples_tx_logsumexp();
+        }
     }
 
     if (iteration < params.burnin and iteration > 15)
@@ -997,8 +1567,15 @@ void Chain::update_population_coi_r(int iteration)
     {
         calculate_coi_likelihood(sample_idx);
     }
-    refresh_all_samples_tx_logsumexp();
-    const float new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
+    float new_llik;
+    double collapsed_sum = 0.0;
+    if (params.marginal_ecoi) {
+        collapsed_sum = recompute_collapsed_marginals(ecoi_sample_marg_scratch_);
+        new_llik = obs_llik_sum_new_ + static_cast<float>(collapsed_sum);
+    } else {
+        refresh_all_samples_tx_logsumexp();
+        new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
+    }
     const float new_prior = calc_new_prior();
     const float new_post = new_llik * temp + new_prior;
 
@@ -1013,6 +1590,10 @@ void Chain::update_population_coi_r(int iteration)
         {
             save_coi_likelihood(sample_idx);
         }
+        if (params.marginal_ecoi) {
+            std::swap(ecoi_sample_marg_, ecoi_sample_marg_scratch_);
+            ecoi_marg_sum_ = collapsed_sum;
+        }
         ++population_coi_r_accept;
     }
     else
@@ -1023,7 +1604,9 @@ void Chain::update_population_coi_r(int iteration)
         {
             restore_coi_likelihood(sample_idx);
         }
-        refresh_all_samples_tx_logsumexp();
+        if (!params.marginal_ecoi) {
+            refresh_all_samples_tx_logsumexp();
+        }
     }
 
     if (iteration < params.burnin and iteration > 15)
@@ -1100,8 +1683,16 @@ void Chain::update_population_responsibility_vector(int iteration)
         // Invalidate cached log when vector changes
         population_responsibility_vector_log_valid_ = false;
         calculate_population_responsibility_vector_likelihood();
-        refresh_all_samples_tx_logsumexp();
-        const float new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
+        float new_llik;
+        double collapsed_sum = 0.0;
+        if (params.marginal_ecoi) {
+            // population weights enter the per-sample population mixture in M.
+            collapsed_sum = recompute_collapsed_marginals(ecoi_sample_marg_scratch_);
+            new_llik = obs_llik_sum_new_ + static_cast<float>(collapsed_sum);
+        } else {
+            refresh_all_samples_tx_logsumexp();
+            new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
+        }
         const float new_prior = calc_new_prior();
         const float new_post = new_llik * temp + new_prior;
 
@@ -1115,13 +1706,19 @@ void Chain::update_population_responsibility_vector(int iteration)
             // Invalidate cached log when reverting
             population_responsibility_vector_log_valid_ = false;
             restore_population_responsibility_vector_likelihood();
-            refresh_all_samples_tx_logsumexp();
+            if (!params.marginal_ecoi) {
+                refresh_all_samples_tx_logsumexp();
+            }
         }
         else
         {
             llik = new_llik;
             prior = new_prior;
             save_population_responsibility_vector_likelihood();
+            if (params.marginal_ecoi) {
+                std::swap(ecoi_sample_marg_, ecoi_sample_marg_scratch_);
+                ecoi_marg_sum_ = collapsed_sum;
+            }
             ++population_responsibility_vector_accept.at({pop_idx});
             // for (size_t i = 0; i < params.num_populations; ++i) {
             //     sorted_var[i] = var_begin[indices[i]];

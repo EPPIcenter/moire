@@ -175,6 +175,10 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res.push_back(Rcpp::wrap(mcmc.eps_neg_store));
     res.push_back(Rcpp::wrap(mcmc.eps_pos_store));
     res.push_back(Rcpp::wrap(mcmc.r_store));
+    res.push_back(Rcpp::wrap(mcmc.eff_coi_store));
+    res.push_back(Rcpp::wrap(mcmc.ecoi_mu_plus_store));
+    res.push_back(Rcpp::wrap(mcmc.ecoi_k_store));
+    res.push_back(Rcpp::wrap(mcmc.eps_pos_locus_store));
     res.push_back(Rcpp::wrap(mcmc.latent_genotypes_store));
     res.push_back(Rcpp::wrap(mcmc.genotyping_data.observed_coi));
     res.push_back(Rcpp::wrap(mcmc.swap_store));
@@ -204,6 +208,10 @@ Rcpp::List run_mcmc(Rcpp::List args)
     res_names.push_back("eps_neg");
     res_names.push_back("eps_pos");
     res_names.push_back("relatedness");
+    res_names.push_back("effective_coi");
+    res_names.push_back("ecoi_mu_plus");
+    res_names.push_back("ecoi_k");
+    res_names.push_back("eps_pos_locus");
     res_names.push_back("latent_genotypes");
     res_names.push_back("observed_coi");
     res_names.push_back("swap_store");

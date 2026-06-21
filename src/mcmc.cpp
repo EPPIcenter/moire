@@ -8,6 +8,42 @@
 #include <Rcpp.h>
 #include "profiler.h"
 
+namespace {
+// One sweep of parameter updates. In fully-collapsed eCOI mode the discrete COI
+// (and relatedness) are integrated out, so the COI/relatedness/joint-sample moves
+// are replaced by the collapsed effective-COI and latent-genotype moves.
+void run_chain_updates(Chain &chain, const Parameters &params, int step)
+{
+    chain.update_eps_neg(step);
+    chain.update_eps_pos(step);
+    chain.update_p(step);
+    if (params.marginal_ecoi)
+    {
+        // Population-e hierarchy: COI (and relatedness) are integrated out, so
+        // the discrete-COI / ZTNB population moves are replaced by the collapsed
+        // effective-COI moves and the population-e prior moves.
+        chain.update_ecoi(step);
+        chain.update_latent_marginal(step);
+        chain.update_ecoi_latent_joint(step);
+        chain.update_population_e(step);
+        chain.update_population_responsibility_vector(step);
+    }
+    else
+    {
+        chain.update_m(step);
+        if (params.allow_relatedness)
+        {
+            chain.update_r(step);
+            chain.update_eff_coi(step);
+        }
+        chain.update_samples(step);
+        chain.update_population_coi_p(step);
+        chain.update_population_coi_r(step);
+        chain.update_population_responsibility_vector(step);
+    }
+}
+}  // namespace
+
 MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     : genotyping_data(genotyping_data), params(params)
 {
@@ -24,8 +60,13 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     }
     m_store.resize(genotyping_data.num_samples);
     r_store.resize(genotyping_data.num_samples);
+    eff_coi_store.resize(genotyping_data.num_samples);
     eps_neg_store.resize(genotyping_data.num_samples);
     eps_pos_store.resize(genotyping_data.num_samples);
+    if (params.marginal_ecoi)
+    {
+        eps_pos_locus_store.resize(genotyping_data.num_loci);
+    }
     data_llik_store.resize(genotyping_data.num_samples);
     swap_acceptances.resize(params.pt_chains.size() - 1, 0);
     swap_barriers.resize(params.pt_chains.size() - 1, 0.0);
@@ -92,19 +133,7 @@ void MCMC::burnin(int step)
             moire_parallel::disable_nested_parallelism = true;
             auto &chain = chains[i];
             ProfileScope s_update("Chain::updates (burnin)");
-            chain.update_eps_neg(step);
-            chain.update_eps_pos(step);
-            chain.update_p(step);
-            chain.update_m(step);
-            if (params.allow_relatedness)
-            {
-                chain.update_r(step);
-                chain.update_eff_coi(step);
-            }
-            chain.update_samples(step);
-            chain.update_population_coi_p(step);
-            chain.update_population_coi_r(step);
-            chain.update_population_responsibility_vector(step);
+            run_chain_updates(chain, params, step);
             // Reset flag for this thread (though not strictly necessary since lambda ends)
             moire_parallel::disable_nested_parallelism = false;
         });
@@ -112,19 +141,7 @@ void MCMC::burnin(int step)
         // Single chain: sequential at top level, inner operations parallelize
         auto &chain = chains[0];
         ProfileScope s_update("Chain::updates (burnin)");
-        chain.update_eps_neg(step);
-        chain.update_eps_pos(step);
-        chain.update_p(step);
-        chain.update_m(step);
-        if (params.allow_relatedness)
-        {
-            chain.update_r(step);
-            chain.update_eff_coi(step);
-        }
-        chain.update_samples(step);
-        chain.update_population_coi_p(step);
-        chain.update_population_coi_r(step);
-        chain.update_population_responsibility_vector(step);
+        run_chain_updates(chain, params, step);
     }
     llik_burnin.push_back(get_llik());
     prior_burnin.push_back(get_prior());
@@ -275,20 +292,7 @@ void MCMC::sample(int step)
             moire_parallel::disable_nested_parallelism = true;
             auto &chain = chains[i];
             ProfileScope s_update("Chain::updates (sample)");
-            chain.update_eps_neg(params.burnin + step);
-            chain.update_eps_pos(params.burnin + step);
-            chain.update_p(params.burnin + step);
-            chain.update_m(params.burnin + step);
-
-            if (params.allow_relatedness)
-            {
-                chain.update_r(params.burnin + step);
-                chain.update_eff_coi(params.burnin + step);
-            }
-            chain.update_samples(params.burnin + step);
-            chain.update_population_coi_p(params.burnin + step);
-            chain.update_population_coi_r(params.burnin + step);
-            chain.update_population_responsibility_vector(params.burnin + step);
+            run_chain_updates(chain, params, params.burnin + step);
 
         if ((params.thin == 0 or step % params.thin == 0) and
             (chain.is_hot() or chains.size() == 1))
@@ -308,6 +312,7 @@ void MCMC::sample(int step)
                 eps_neg_store[sample_idx].push_back(chain.eps_neg.at({sample_idx}));
                 eps_pos_store[sample_idx].push_back(chain.eps_pos.at({sample_idx}));
                 r_store[sample_idx].push_back(chain.r.at({sample_idx}));
+                eff_coi_store[sample_idx].push_back(chain.eff_coi.at({sample_idx}));
                 // data_llik_store[sample_idx].push_back(chain.get_llik(sample_idx));
 
                 if (params.record_latent_genotypes) {
@@ -330,6 +335,13 @@ void MCMC::sample(int step)
             population_coi_p_store.push_back(chain.population_coi_p);
             population_coi_r_store.push_back(chain.population_coi_r);
             population_responsibility_store.push_back(chain.population_responsibility_vector.data());
+            if (params.marginal_ecoi) {
+                ecoi_mu_plus_store.push_back(chain.ecoi_mu_plus);
+                ecoi_k_store.push_back(chain.ecoi_k);
+                for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
+                    eps_pos_locus_store[locus_idx].push_back(chain.eps_pos_locus.at({locus_idx}));
+                }
+            }
         }
             // Reset flag for this thread (though not strictly necessary since lambda ends)
             moire_parallel::disable_nested_parallelism = false;
@@ -338,20 +350,7 @@ void MCMC::sample(int step)
         // Single chain: sequential at top level, inner operations can parallelize
         auto &chain = chains[0];
         ProfileScope s_update("Chain::updates (sample)");
-        chain.update_eps_neg(params.burnin + step);
-        chain.update_eps_pos(params.burnin + step);
-        chain.update_p(params.burnin + step);
-        chain.update_m(params.burnin + step);
-
-        if (params.allow_relatedness)
-        {
-            chain.update_r(params.burnin + step);
-            chain.update_eff_coi(params.burnin + step);
-        }
-        chain.update_samples(params.burnin + step);
-        chain.update_population_coi_p(params.burnin + step);
-        chain.update_population_coi_r(params.burnin + step);
-        chain.update_population_responsibility_vector(params.burnin + step);
+        run_chain_updates(chain, params, params.burnin + step);
 
         if ((params.thin == 0 or step % params.thin == 0) and (chain.is_hot() or chains.size() == 1))
         {
@@ -370,6 +369,7 @@ void MCMC::sample(int step)
                 eps_neg_store[sample_idx].push_back(chain.eps_neg.at({sample_idx}));
                 eps_pos_store[sample_idx].push_back(chain.eps_pos.at({sample_idx}));
                 r_store[sample_idx].push_back(chain.r.at({sample_idx}));
+                eff_coi_store[sample_idx].push_back(chain.eff_coi.at({sample_idx}));
 
                 if (params.record_latent_genotypes) {
                     for (size_t sample_locus_idx = 0; sample_locus_idx < genotyping_data.num_loci; ++sample_locus_idx)
@@ -390,6 +390,13 @@ void MCMC::sample(int step)
             population_coi_p_store.push_back(chain.population_coi_p);
             population_coi_r_store.push_back(chain.population_coi_r);
             population_responsibility_store.push_back(chain.population_responsibility_vector.data());
+            if (params.marginal_ecoi) {
+                ecoi_mu_plus_store.push_back(chain.ecoi_mu_plus);
+                ecoi_k_store.push_back(chain.ecoi_k);
+                for (size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
+                    eps_pos_locus_store[locus_idx].push_back(chain.eps_pos_locus.at({locus_idx}));
+                }
+            }
         }
     }
     llik_sample.push_back(get_llik());

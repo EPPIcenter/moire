@@ -15,6 +15,8 @@ run_mcmc(
   use_message = FALSE,
   eps_pos_alpha = 1,
   eps_pos_beta = 1,
+  eps_pos_locus_alpha = 1,
+  eps_pos_locus_beta = 2000,
   eps_neg_alpha = 1,
   eps_neg_beta = 1,
   r_alpha = 1,
@@ -32,6 +34,10 @@ run_mcmc(
   max_eps_neg = 2,
   max_coi = 40,
   record_latent_genotypes = FALSE,
+  marginal_ecoi = FALSE,
+  ecoi_mu_rate = 0.1,
+  ecoi_k_shape = 2,
+  ecoi_k_rate = 1,
   num_chains = 1,
   num_cores = 1,
   pt_chains = 1,
@@ -77,6 +83,20 @@ Beta distribution for eps_pos prior}
 \item{eps_pos_beta}{Positive Numeric. Beta parameter in
 Beta distribution for eps_pos prior}
 
+\item{eps_pos_locus_alpha, eps_pos_locus_beta}{Positive Numerics. Alpha/Beta
+parameters of the Beta prior on the per-locus (raw) false-positive rate used
+only in \code{marginal_ecoi} mode. With the COI marginalized the false-positive
+rate is weakly identified: a free rate lets polyclonal samples explain their
+extra alleles as error and collapse to effectively monoclonal, which biases
+the eCOI heterogeneity (\code{ecoi_k}) low. This prior anchors the pooled
+per-locus rate near a small known assay rate, breaking that degeneracy. The
+default \code{Beta(1, 2000)} is a strong, monotone (mode at 0) anchor near zero;
+the anchor must be strongly informative to resist the likelihood pull, and
+must keep its mode at 0 (use \code{alpha = 1}) when the assay rate is ~0. For an
+assay with a known nonzero rate r, use a concentrated bump centered at r
+(\code{alpha > 1}, \code{alpha / (alpha + beta) = r}, large \code{alpha + beta}). Ignored
+unless \code{marginal_ecoi = TRUE}.}
+
 \item{eps_neg_alpha}{Positive Numeric. Alpha parameter in
 Beta distribution for eps_neg prior}
 
@@ -84,10 +104,14 @@ Beta distribution for eps_neg prior}
 Beta distribution for eps_neg prior}
 
 \item{r_alpha}{Positive Numeric. Alpha parameter in Beta
-distribution for relatedness prior}
+distribution for relatedness prior. NOTE: ignored when
+\code{marginal_ecoi = TRUE}; eCOI fitting integrates the discrete COI out under a
+uniform relatedness law (the effective COI is the identified quantity). The
+relatedness Beta(\code{r_alpha}, \code{r_beta}) is only meaningful for the legacy
+sampler and for post-hoc COI recovery from the eCOI posterior.}
 
 \item{r_beta}{Positive Numeric. Beta parameter in Beta
-distribution for relatedness prior}
+distribution for relatedness prior. See \code{r_alpha} (ignored for eCOI fitting).}
 
 \item{population_coi_p_alpha}{Alpha for Beta prior on negative-binomial p (COI)}
 
@@ -118,6 +142,31 @@ For Poisson model, accepts: "pois", "poisson".}
 \item{record_latent_genotypes}{Logical indicating whether or not to record
 the latent genotypes at each step of the MCMC. WARNING: This will increase
 the size of the output object significantly.}
+
+\item{marginal_ecoi}{Logical. If TRUE, sample the effective COI (eCOI) and
+marginalize the discrete COI analytically instead of sampling (COI,
+relatedness) jointly. Effective COI draws are returned in the \code{effective_coi}
+element of each chain. Each population has its own continuous effective-COI
+prior \code{e ~ 1 + Gamma(shape = k_p, rate = k_p / mu_plus_p)} (there is no
+monoclonal atom at \code{e = 1}; monoclonality and the COI/relatedness split are
+post-hoc quantities derived under a user-supplied COI assumption). Per-
+population draws of \code{mu_plus} and \code{k} are returned in \code{ecoi_mu_plus} /
+\code{ecoi_k}. Experimental; defaults to FALSE (legacy sampler).
+NOTE: collapsing COI removes the implicit cap the discrete COI places on the
+latent genotype size, which exposes an eps_neg<->COI identifiability
+degeneracy. Use an informative false-negative prior (e.g. \code{eps_neg_beta}
+substantially larger than \code{eps_neg_alpha}) and a modest \code{max_eps_neg}
+(e.g. <= 0.2) when \code{marginal_ecoi = TRUE}; otherwise effective COI can run
+away to \code{max_coi}.}
+
+\item{ecoi_mu_rate}{Positive Numeric. Rate of the Exponential hyperprior on
+each population's \code{mu_plus}, the mean \emph{excess} effective COI (mean eCOI =
+1 + mu_plus). Only used when \code{marginal_ecoi = TRUE}.}
+
+\item{ecoi_k_shape, ecoi_k_rate}{Positive Numerics. Gamma hyperprior
+(shape, rate) on each population's \code{k}, the shape/heterogeneity of the
+effective COI (coefficient of variation = 1/sqrt(k)). Only used when
+\code{marginal_ecoi = TRUE}.}
 
 \item{num_chains}{Number of independent MCMC replicates to run. When greater
 than 1, replicates are run in parallel R worker processes (see \code{num_cores}).}

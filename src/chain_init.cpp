@@ -182,6 +182,27 @@ void Chain::initialize_eps_pos()
     }
     eps_pos_accept.resize({genotyping_data.num_samples}, 0);
     eps_pos_var.resize({genotyping_data.num_samples}, 1);
+
+    // eCOI mode pools the false-positive rate to one value per locus.
+    if (params.marginal_ecoi)
+    {
+        const std::size_t L = genotyping_data.num_loci;
+        eps_pos_locus.clear();
+        eps_pos_locus_accept.clear();
+        eps_pos_locus_var.clear();
+        eps_pos_locus.resize({L});
+        // Start each locus at the (anchored) prior mean so the chain begins at the
+        // assay rate rather than an arbitrary high value it would have to walk down.
+        const float prior_mean =
+            params.eps_pos_locus_alpha /
+            std::max(1e-6f, params.eps_pos_locus_alpha + params.eps_pos_locus_beta);
+        for (std::size_t l = 0; l < L; ++l)
+        {
+            eps_pos_locus.at({l}) = prior_mean;
+        }
+        eps_pos_locus_accept.resize({L}, 0);
+        eps_pos_locus_var.resize({L}, 1);
+    }
 }
 
 void Chain::initialize_r()
@@ -208,6 +229,19 @@ void Chain::initialize_r()
     r_var.resize({genotyping_data.num_samples}, 1);
     m_r_accept.resize({genotyping_data.num_samples}, 0);
     m_r_var.resize({genotyping_data.num_samples}, 1);
+
+    // Effective COI, initialized from the (m, r) starting point.
+    eff_coi.clear();
+    eff_coi_accept.clear();
+    eff_coi_var.clear();
+    eff_coi.resize({genotyping_data.num_samples});
+    for (std::size_t i = 0; i < genotyping_data.num_samples; ++i)
+    {
+        eff_coi.at({i}) =
+            (m.at({i}) - 1) * (1.0f - r.at({i})) + 1.0f;  // = eCOI(m, r)
+    }
+    eff_coi_accept.resize({genotyping_data.num_samples}, 0);
+    eff_coi_var.resize({genotyping_data.num_samples}, 1);
 }
 
 void Chain::initialize_population_coi()
@@ -232,6 +266,72 @@ void Chain::initialize_population_coi()
 
 
 
+void Chain::initialize_population_e()
+{
+    ecoi_support_cache_init();
+
+    const std::size_t n = genotyping_data.num_samples;
+    const std::size_t P = params.num_populations;
+
+    // Data-driven start: place each sample's effective COI at the argmax of its
+    // own transmission-only marginal profile (uniform relatedness, m integrated),
+    // evaluated on the initial allele frequencies and observed supports. The
+    // per-sample and per-allele-frequency conditionals are individually well
+    // identified, but the joint (e, p, G) posterior is multimodal; from a cold
+    // clustering start the chain otherwise settles into a partially-collapsed
+    // mode (some high-eCOI samples explained as e~1) that the local moves cannot
+    // escape. Seeding e at its data-supported MAP places the chain in the correct
+    // basin. NOTE: empirically this alone does NOT fix the k underestimate (the
+    // collapse is a stationary phenomenon, not a cold-start trap), so it is
+    // opt-in via MOIRE_ECOI_SMART_INIT and the (m, r) start remains the default.
+    const bool smart_init = std::getenv("MOIRE_ECOI_SMART_INIT") != nullptr;
+    if (smart_init)
+    {
+        const double e_hi = std::max(1.1, static_cast<double>(params.max_coi) - 1e-2);
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            double best_e = static_cast<double>(eff_coi.at({i}));
+            double best_val = -std::numeric_limits<double>::infinity();
+            for (double e = 1.05; e <= e_hi; e += 0.25)
+            {
+                const double v = ecoi_sample_rel_transmission_at_e(i, e);
+                if (std::isfinite(v) && v > best_val)
+                {
+                    best_val = v;
+                    best_e = e;
+                }
+            }
+            eff_coi.at({i}) = static_cast<float>(best_e);
+        }
+    }
+
+    // Every sample's effective COI is continuous (e > 1); there is no atom. Seed
+    // any sample initialized at e <= 1 (e.g. a starting COI of 1) just above 1 so
+    // the continuous prior and the m-marginalization are well defined.
+    double sum_excess = 0.0;
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        if (!(eff_coi.at({i}) > 1.0f))
+        {
+            eff_coi.at({i}) = 1.0f + 1e-2f;
+        }
+        sum_excess += static_cast<double>(eff_coi.at({i})) - 1.0;
+    }
+
+    // Seed the per-population e-prior parameters from the starting configuration,
+    // clamped to sane interiors so f_p(e) and its hyperpriors are finite.
+    const float mu0 = static_cast<float>(
+        std::max(0.5, n > 0 ? sum_excess / double(n) : 3.0));
+    ecoi_mu_plus.assign(P, mu0);
+    ecoi_k.assign(P, 2.0f);
+    ecoi_mu_log_sd = 0.15f;
+    ecoi_k_log_sd = 0.2f;
+    ecoi_pop_accept = 0;
+    ecoi_pop_attempt = 0;
+
+    recompute_ecoi_prior();
+}
+
 void Chain::initialize_parameters()
 {
     initialize_m();
@@ -242,5 +342,9 @@ void Chain::initialize_parameters()
     initialize_population_responsibility();
     initialize_p();
     initialize_population_coi();
+    if (params.marginal_ecoi)
+    {
+        initialize_population_e();
+    }
     initialize_likelihood();
 }

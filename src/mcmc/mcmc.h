@@ -25,8 +25,17 @@ class MCMC
     std::vector<std::vector<std::vector<std::vector<int>>>> latent_genotypes_store{};
     std::vector<std::vector<float>> data_llik_store{};
     std::vector<std::vector<float>> eps_pos_store{};
+    // Per-locus pooled false-positive draws (marginal_ecoi mode); indexed by
+    // locus, step.
+    std::vector<std::vector<float>> eps_pos_locus_store{};
     std::vector<std::vector<float>> eps_neg_store{};
     std::vector<std::vector<float>> r_store{};
+    // Effective COI draws (marginal_ecoi mode); indexed by sample, step.
+    std::vector<std::vector<float>> eff_coi_store{};
+    // Per-population e-hierarchy parameter draws (marginal_ecoi mode); each entry
+    // is the per-population vector at a stored step (indexed by step, population).
+    std::vector<std::vector<float>> ecoi_mu_plus_store{};
+    std::vector<std::vector<float>> ecoi_k_store{};
     std::vector<float> population_coi_p_store{};
     std::vector<float> population_coi_r_store{};
     std::vector<std::vector<float>> population_responsibility_store{};

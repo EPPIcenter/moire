@@ -28,6 +28,10 @@ class Parameters
 
     bool record_latent_genotypes;
 
+    // Marginalize COI analytically and sample effective COI (eCOI) instead of
+    // (COI, relatedness). Off by default; the legacy (m, r) sampler is unchanged.
+    bool marginal_ecoi;
+
     // Model Parameters
     // Complexity of Infection
     std::size_t max_coi;
@@ -40,6 +44,10 @@ class Parameters
     float max_eps_pos;    // Max allowed value
     float eps_pos_alpha;  // Alpha parameter prior on beta distribution
     float eps_pos_beta;   // Beta parameter prior on beta distribution
+    // Per-locus pooled false-positive prior (marginal_ecoi only); anchors the
+    // weakly-identified assay rate near a small known value.
+    float eps_pos_locus_alpha;
+    float eps_pos_locus_beta;
 
     // False Negative Rate
     float max_eps_neg;    // Max allowed value
@@ -49,6 +57,15 @@ class Parameters
     // Relatedness
     float r_alpha;
     float r_beta;
+
+    // Population-e (eCOI) hierarchy hyperpriors (used only when marginal_ecoi).
+    // Each population's effective COI has the continuous prior (no e = 1 atom)
+    //   e ~ 1 + Gamma(shape = k_p, rate = k_p / mu_plus_p),
+    // with shared hyperpriors mu_plus_p ~ Exponential(ecoi_mu_rate) and
+    //                         k_p       ~ Gamma(ecoi_k_shape, rate = ecoi_k_rate).
+    float ecoi_mu_rate;
+    float ecoi_k_shape;
+    float ecoi_k_rate;
 
     // number of populations
     std::size_t num_populations;

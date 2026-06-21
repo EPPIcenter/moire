@@ -27,6 +27,8 @@ Parameters::Parameters(const Rcpp::List &args)
     temp_adapt_steps = UtilFunctions::r_to_int(args["temp_adapt_steps"]);
     max_initialization_tries = UtilFunctions::r_to_int(args["max_initialization_tries"]);
     record_latent_genotypes = UtilFunctions::r_to_bool(args["record_latent_genotypes"]);
+    marginal_ecoi = args.containsElementNamed("marginal_ecoi") &&
+                    UtilFunctions::r_to_bool(args["marginal_ecoi"]);
     max_runtime = UtilFunctions::r_to_float(args["max_runtime"]);
     // Model
     max_coi = UtilFunctions::r_to_int(args["max_coi"]);
@@ -37,11 +39,24 @@ Parameters::Parameters(const Rcpp::List &args)
     max_eps_pos = UtilFunctions::r_to_float(args["max_eps_pos"]);
     eps_pos_alpha = UtilFunctions::r_to_float(args["eps_pos_alpha"]);
     eps_pos_beta = UtilFunctions::r_to_float(args["eps_pos_beta"]);
+    eps_pos_locus_alpha = UtilFunctions::r_to_float(args["eps_pos_locus_alpha"]);
+    eps_pos_locus_beta = UtilFunctions::r_to_float(args["eps_pos_locus_beta"]);
     max_eps_neg = UtilFunctions::r_to_float(args["max_eps_neg"]);
     eps_neg_alpha = UtilFunctions::r_to_float(args["eps_neg_alpha"]);
     eps_neg_beta = UtilFunctions::r_to_float(args["eps_neg_beta"]);
     r_alpha = UtilFunctions::r_to_float(args["r_alpha"]);
     r_beta = UtilFunctions::r_to_float(args["r_beta"]);
+
+    // Population-e hierarchy hyperpriors (optional; sensible defaults so legacy
+    // callers and tests that predate marginal_ecoi keep working unchanged).
+    const auto float_or = [&](const char *name, float def) {
+        return args.containsElementNamed(name) ? UtilFunctions::r_to_float(args[name])
+                                               : def;
+    };
+    ecoi_mu_rate = float_or("ecoi_mu_rate", 0.1f);
+    ecoi_k_shape = float_or("ecoi_k_shape", 2.0f);
+    ecoi_k_rate = float_or("ecoi_k_rate", 1.0f);
+
     num_populations = UtilFunctions::r_to_int(args["num_populations"]);
     population_responsibility_vector_alpha = UtilFunctions::r_to_vector_float(args["populations_prior"]);
     

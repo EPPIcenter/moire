@@ -12,6 +12,7 @@
 #include "sampler.h"
 #include "multivector.h"
 #include "prob_any_missing_cache.h"
+#include "ecoi_marginal.h"
 
 #include <Rcpp.h>
 
@@ -28,6 +29,76 @@ class Chain
     float llik;
     float prior;
 
+    // Fully-collapsed (eCOI) likelihood accounting. In marginal_ecoi mode the
+    // persistent likelihood is obs_llik_sum_new_ + ecoi_marg_sum_, where
+    // ecoi_sample_marg_[s] = log M(G_s, e_s) is the per-sample marginalized
+    // transmission term and ecoi_marg_sum_ is their running sum.
+    std::vector<float> ecoi_sample_marg_;
+    std::vector<float> ecoi_sample_marg_scratch_;
+    double ecoi_marg_sum_ = 0.0;
+
+    // Population-e hierarchy prior decomposition (marginal_ecoi). With the e = 1
+    // atom removed, the per-population continuous e-prior log f_p(e_s) is folded
+    // *inside* the per-sample population mixture (see ecoi_sample_rel_marginal_llik),
+    // so it lives in ecoi_marg_sum_ rather than as a separate additive prior. Only
+    // the hyperpriors on the per-population (mu_plus_p, k_p) remain here.
+    double ecoi_hyperprior_ = 0.0;
+
+    // Per-(sample, pop, locus) cache of the eCOI LocusSupport precompute (PAM
+    // all-seen probabilities + log support total). These depend only on the
+    // latent support at (sample, locus) and the allele frequencies p[pop, locus],
+    // *not* on e / m / r / pi_pop, so they survive update_ecoi,
+    // update_population_e and update_population_responsibility untouched. A p
+    // proposal invalidates only the changed (pop, locus) column; a latent-genotype
+    // proposal invalidates only the changed sample's loci. This removes the
+    // dominant inclusion-exclusion (O(2^k)) rebuild from the per-proposal marginal
+    // recompute. Flat index: (sample * num_pop + pop) * num_loci + locus.
+    std::vector<ecoi_marginal::LocusSupport> ecoi_support_cache_{};
+    std::vector<char> ecoi_support_valid_{};       // entry has been built
+    std::vector<char> ecoi_support_contributes_{}; // locus contributes to the product
+    std::size_t ecoi_cache_pop_stride_ = 0;        // = num_loci
+    std::size_t ecoi_cache_sample_stride_ = 0;     // = num_pop * num_loci
+    // Scratch reused by the cached marginal evaluation (avoids per-call allocs).
+    std::vector<const ecoi_marginal::LocusSupport *> ecoi_contrib_scratch_{};
+    std::vector<float> ecoi_support_p_scratch_{};
+    std::vector<double> ecoi_terms_scratch_{};
+
+    void ecoi_support_cache_init();
+    void ecoi_support_cache_invalidate_locus(std::size_t pop_idx, std::size_t locus_idx);
+    void ecoi_support_cache_invalidate_sample(std::size_t sample_idx);
+
+    // ---- update_p incremental transmission decomposition (single population) --
+    // Built once per update_p call (valid only for its duration, since it pins
+    // the current e_s and p). For each sample we hold, per COI m, the sum of the
+    // finite per-locus transmission terms (up_slog_) plus a count of the -inf
+    // (incompatible) loci (up_ninf_), so a one-locus p proposal can update the
+    // marginal by subtracting the changed locus' old contribution and adding the
+    // new one in O(max_coi) per sample instead of rebuilding every locus. Stride
+    // over m is (max_coi + 1); flat index s * stride + m.
+    std::vector<int> up_mlo_{};        // [s] m_lo(e_s) for each sample
+    std::vector<double> up_foff_{};    // [s] log pi_0 + log f_0(e_s) offset
+    std::vector<double> up_a_{};       // [s*stride+m] -log(m-1) (uniform relatedness)
+    std::vector<double> up_slog_{};    // [s*stride+m] sum of finite per-locus t
+    std::vector<int> up_ninf_{};       // [s*stride+m] count of -inf per-locus t
+    std::vector<double> up_L_{};       // [s] current per-sample marginal
+    std::vector<double> up_told_{};    // [s*stride+m] scratch: old locus t
+    std::vector<double> up_tnew_{};    // [s*stride+m] scratch: new locus t
+    std::vector<double> up_newL_{};    // [s] scratch: proposed per-sample marginal
+    std::size_t up_m_stride_ = 0;
+    bool ecoi_fast_update_p_ = true;   // disabled if a consistency check fails
+    double ecoi_fast_audit_max_ = 0.0; // max |incremental - full| (audit only)
+    /// Build the per-sample transmission decomposition for population 0 from the
+    /// current state (called at the start of each update_p in single-pop eCOI).
+    void ecoi_up_build_decomp();
+    /// Per-locus transmission term t_l(m, r(m,e_s)) for population 0 and the given
+    /// locus, written into `out` (flat s*stride+m) over each sample's m range;
+    /// `ninf_out` counts -inf entries. Uses the cached LocusSupport.
+    void ecoi_up_locus_terms(std::size_t locus_idx, std::vector<double> &out);
+    /// Cached LocusSupport for (sample, pop, locus); builds lazily. Returns
+    /// nullptr if the locus does not contribute (missing or empty support).
+    const ecoi_marginal::LocusSupport *ecoi_cached_support(
+        std::size_t sample_idx, std::size_t pop_idx, std::size_t locus_idx);
+
     CombinationIndicesGenerator allele_index_generator_;
 
     void initialize_latent_genotypes();
@@ -38,7 +109,36 @@ class Chain
     void initialize_eps_pos();
     void initialize_r();
     void initialize_population_coi();
+    /// Initialize the population-e hierarchy state (monoclonal indicators from
+    /// the (m, r) starting point, population-e params, prior decomposition).
+    void initialize_population_e();
     void initialize_likelihood();
+
+    /// Build, for each population, the per-locus LocusSupport over this sample's
+    /// non-missing latent supports (relatedness-only eCOI marginal inputs).
+    void build_sample_pop_loci(
+        std::size_t sample_idx, int max_coi,
+        std::vector<std::vector<ecoi_marginal::LocusSupport>> &out) const;
+    /// Per-sample marginal log-likelihood at effective COI e > 1, with the
+    /// per-population continuous e-prior log f_p(e) folded inside the population
+    /// mixture: LSE_p[ log pi_p + log f_p(e) + sum_l t_l(s,p,m,r(m,e)) marginalized
+    /// over m under uniform relatedness ]. Reads/builds the per-(sample,pop,locus)
+    /// LocusSupport cache.
+    double ecoi_sample_rel_marginal_llik(std::size_t sample_idx, double e);
+    /// Transmission-only counterpart of ecoi_sample_rel_marginal_llik: the same
+    /// LSE_p[ log pi_p + sum_l t_l(...) marginalized over m ] WITHOUT the e-prior
+    /// log f_p(e). Used at initialization to set each sample's eff_coi to its
+    /// data-driven marginal MAP before the (mu_plus, k) hyperparameters exist.
+    double ecoi_sample_rel_transmission_at_e(std::size_t sample_idx, double e);
+    /// Per-sample marginal log-likelihood at the current eff_coi (folded e-prior).
+    double ecoi_sample_marginal_llik(std::size_t sample_idx);
+    /// log of the continuous per-population e-prior density at e:
+    /// log Gamma(e - 1; shape = k_p, rate = k_p / mu_plus_p).
+    double ecoi_log_f(std::size_t pop_idx, double e) const;
+    /// log priors on the per-population hyperparameters (mu_plus_p, k_p).
+    double ecoi_population_hyperprior() const;
+    /// Rebuild ecoi_hyperprior_ from the current per-population (mu_plus, k).
+    void recompute_ecoi_prior();
 
     /// Number of non-padding alleles in latent_genotypes_new[sample, locus].
     void refresh_latent_support_k(std::size_t sample_idx, std::size_t locus_idx);
@@ -74,6 +174,9 @@ class Chain
     float calc_new_likelihood();
     float calc_new_prior();
     float calc_transmission_llik_sum();
+    /// eCOI mode: marginalized transmission log-lik summed over samples
+    /// (from scratch). Used by calc_new_likelihood when params.marginal_ecoi.
+    float calc_marginal_transmission_llik_sum();
     void invalidate_transmission_llik_cache();
     void rebuild_transmission_llik_cache();
     float apply_transmission_cell_change(
@@ -111,6 +214,7 @@ class Chain
     void ensure_update_p_locus_group_cache(std::size_t locus_idx);
     void calculate_eps_neg_likelihood(std::size_t sample_idx);
     void calculate_eps_pos_likelihood(std::size_t sample_idx);
+    void calculate_eps_pos_locus_likelihood(std::size_t locus_idx);
     void calculate_coi_likelihood(std::size_t sample_idx);
     void calculate_relatedness_likelihood(std::size_t sample_idx);
     void calculate_population_coi_p_likelihood();
@@ -121,6 +225,7 @@ class Chain
     void save_transmission_likelihood(std::size_t population_idx, std::size_t sample_idx, std::size_t locus_idx);
     void save_eps_neg_likelihood(std::size_t sample_idx);
     void save_eps_pos_likelihood(std::size_t sample_idx);
+    void save_eps_pos_locus_likelihood(std::size_t locus_idx);
     void save_coi_likelihood(std::size_t sample_idx);
     void save_relatedness_likelihood(std::size_t sample_idx);
     void save_population_coi_p_likelihood();
@@ -131,7 +236,15 @@ class Chain
     void restore_transmission_likelihood(std::size_t sample_idx, std::size_t population_idx, std::size_t locus_idx);
     void restore_eps_neg_likelihood(std::size_t sample_idx);
     void restore_eps_pos_likelihood(std::size_t sample_idx);
+    void restore_eps_pos_locus_likelihood(std::size_t locus_idx);
     void restore_coi_likelihood(std::size_t sample_idx);
+
+    /// False-positive rate used at (sample, locus): per-locus pooled rate in
+    /// marginal_ecoi mode, otherwise the per-sample eps_pos.
+    float eps_pos_at(std::size_t sample_idx, std::size_t locus_idx) {
+        return params.marginal_ecoi ? eps_pos_locus.at({locus_idx})
+                                    : eps_pos.at({sample_idx});
+    }
     void restore_relatedness_likelihood(std::size_t sample_idx);
     void restore_population_coi_p_likelihood();
     void restore_population_coi_r_likelihood();
@@ -166,6 +279,11 @@ class Chain
     // Epsilon positive prior
     // indexed by sample
     MultiVector<float, 1> eps_pos_prior_new{};
+
+    // Per-locus false-positive prior (marginal_ecoi only)
+    // indexed by locus
+    MultiVector<float, 1> eps_pos_locus_prior_old{};
+    MultiVector<float, 1> eps_pos_locus_prior_new{};
 
     // COI prior
     // indexed by sample, population
@@ -255,6 +373,7 @@ class Chain
     std::vector<float> obs_row_sum_new_{};
     float eps_neg_prior_sum_new_{0.f};
     float eps_pos_prior_sum_new_{0.f};
+    float eps_pos_locus_prior_sum_new_{0.f};
     float relatedness_prior_sum_new_{0.f};
 
     // Reused buffers for update_p SALT proposals (sized to max alleles per locus).
@@ -319,6 +438,29 @@ class Chain
     // indexed by sample
     MultiVector<float, 1> m_r_var{};
 
+    // Effective COI (eCOI) parameter, sampled when params.marginal_ecoi; the
+    // discrete COI is marginalized analytically. Initialized from (m, r).
+    // indexed by sample
+    MultiVector<float, 1> eff_coi{};
+    // eCOI proposal acceptance / variance
+    // indexed by sample
+    MultiVector<int, 1> eff_coi_accept{};
+    MultiVector<float, 1> eff_coi_var{};
+
+    // ----- Population-e (eCOI) hierarchy (marginal_ecoi) -------------------
+    // Per-population continuous effective-COI prior parameters. There is no
+    // e = 1 atom: every sample's effective COI is continuous with population p's
+    //   e ~ 1 + Gamma(shape = k_p, rate = k_p / mu_plus_p).
+    // (Monoclonality, P(m = 1), is a post-hoc quantity, not a model component.)
+    // indexed by population
+    std::vector<float> ecoi_mu_plus{};  // mean excess effective COI per population
+    std::vector<float> ecoi_k{};        // effective-COI shape per population
+    // Log-scale random-walk SDs for the per-population (mu_plus, k) Metropolis move.
+    float ecoi_mu_log_sd{0.15f};
+    float ecoi_k_log_sd{0.2f};
+    int ecoi_pop_accept{0};
+    int ecoi_pop_attempt{0};
+
     // Allele Frequencies Parameter
     // indexed by population, locus, allele
     RaggedMultiVector<float, 3> p{};
@@ -341,6 +483,19 @@ class Chain
     // Epsilon Positive proposal variance
     // indexed by sample
     MultiVector<float, 1> eps_pos_var{};
+
+    // Per-locus false-positive rate (marginal_ecoi only). The false-positive
+    // rate is inherent assay noise rather than a sample property, so it is pooled
+    // across samples to a single rate per locus. Pooling is also what restores
+    // identifiability: with COI marginalized, a per-sample eps_pos lets each
+    // high-eCOI sample individually explain its extra alleles away as error
+    // (latent support shrinks, e -> 1); a per-locus rate is pinned near zero by
+    // the many genuinely low-diversity samples. The per-sample eps_pos above is
+    // unused in eCOI mode (eps_neg stays per-sample -- dropout is a real sample
+    // property). indexed by locus.
+    MultiVector<float, 1> eps_pos_locus{};
+    MultiVector<int, 1> eps_pos_locus_accept{};
+    MultiVector<float, 1> eps_pos_locus_var{};
 
     // Epsilon Negative Parameter
     // indexed by sample
@@ -365,15 +520,54 @@ class Chain
     void update_r(int iteration);
     void update_m_r(int iteration);
     void update_eff_coi(int iteration);
+    /// Fully-collapsed effective-COI move (marginal_ecoi): Metropolis on e per
+    /// sample with COI integrated out, latent genotypes held fixed.
+    void update_ecoi(int iteration);
+    /// Fully-collapsed latent-genotype move (marginal_ecoi): repropose genotypes
+    /// from the COI-independent proposal, accept against the marginal likelihood.
+    void update_latent_marginal(int iteration);
+    /// Joint (effective COI, latent-genotype) move (marginal_ecoi): propose e'
+    /// from the population-0 continuous prior AND repropose the sample's latent
+    /// genotypes from the COI-independent proposal in a single accept/reject. The
+    /// COI-independent proposal draws supports sized to the observed diversity, so
+    /// a big e jump arrives with matching supports -- this breaks the joint
+    /// (e, G) mode trap near e = 1 that a fixed-G e move cannot escape.
+    void update_ecoi_latent_joint(int iteration);
+    /// Population-e hierarchy moves (marginal_ecoi): per-population log-scale
+    /// random-walk Metropolis update of (mu_plus_p, k_p). Because the e-prior is
+    /// folded inside the per-sample population mixture, changing (mu_plus_p, k_p)
+    /// shifts every sample's marginal, so the move recomputes the collapsed
+    /// marginals and accepts against the full marginal likelihood + hyperpriors.
+    void update_population_e(int iteration);
     void update_p(int iteration);
     void update_eps(int iteration);
     void update_eps_pos(int iteration);
+    /// Per-locus pooled false-positive update (marginal_ecoi). Proposes one
+    /// eps_pos per locus and accepts against that locus' observation column.
+    void update_eps_pos_locus(int iteration);
     void update_eps_neg(int iteration);
     void update_samples(int iteration);
     void update_population_coi_p(int iteration);
     void update_population_coi_r(int iteration);
     void update_population_responsibility_vector(int iteration);
     void initialize_parameters();
+    /// Validation diagnostic: max |eCOI-core - production| transmission log-lik
+    /// over the current latent supports (Stage 3a gate). See chain_likelihood.cpp.
+    double ecoi_transmission_selfcheck();
+    /// Per-sample marginalized transmission log-likelihood at effective COI e:
+    /// LSE_p[ log pi_p + LSE_m( log w(m|e) + sum_l t_l(s,p,m,r(m,e)) ) ]
+    /// (continuous part, e > 1). Reads current latent supports + p.
+    double ecoi_sample_marginal_transmission_llik(std::size_t sample_idx, double e);
+    /// Recompute every per-sample marginal log M(G_s, e_s) into `out` and return
+    /// their sum. Used by moves that change p / population params / hyperparams
+    /// (which shift all samples' marginals at once).
+    double recompute_collapsed_marginals(std::vector<float> &out);
+    /// Populate ecoi_sample_marg_ / ecoi_marg_sum_ from the current state and set
+    /// llik = obs_llik_sum_new_ + ecoi_marg_sum_ (fully-collapsed init).
+    void initialize_collapsed_marginal_cache();
+    /// Validation diagnostic (Stage 3b gate): max |Chain assembly - production
+    /// brute-force| of the per-sample marginal at the current eff_coi.
+    double ecoi_assembly_selfcheck();
     float get_llik();
     float get_prior();
     float get_posterior();
