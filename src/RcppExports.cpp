@@ -10,6 +10,109 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// ecoi_log_marginal_e_cpp
+double ecoi_log_marginal_e_cpp(Rcpp::List loci_freqs, double coi_p, double coi_r, double r_alpha, double r_beta, double e, int max_coi);
+RcppExport SEXP _moire_ecoi_log_marginal_e_cpp(SEXP loci_freqsSEXP, SEXP coi_pSEXP, SEXP coi_rSEXP, SEXP r_alphaSEXP, SEXP r_betaSEXP, SEXP eSEXP, SEXP max_coiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type loci_freqs(loci_freqsSEXP);
+    Rcpp::traits::input_parameter< double >::type coi_p(coi_pSEXP);
+    Rcpp::traits::input_parameter< double >::type coi_r(coi_rSEXP);
+    Rcpp::traits::input_parameter< double >::type r_alpha(r_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type r_beta(r_betaSEXP);
+    Rcpp::traits::input_parameter< double >::type e(eSEXP);
+    Rcpp::traits::input_parameter< int >::type max_coi(max_coiSEXP);
+    rcpp_result_gen = Rcpp::wrap(ecoi_log_marginal_e_cpp(loci_freqs, coi_p, coi_r, r_alpha, r_beta, e, max_coi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ecoi_log_atom1_cpp
+double ecoi_log_atom1_cpp(Rcpp::List loci_freqs, double coi_p, double coi_r, double r_alpha, double r_beta, int max_coi);
+RcppExport SEXP _moire_ecoi_log_atom1_cpp(SEXP loci_freqsSEXP, SEXP coi_pSEXP, SEXP coi_rSEXP, SEXP r_alphaSEXP, SEXP r_betaSEXP, SEXP max_coiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type loci_freqs(loci_freqsSEXP);
+    Rcpp::traits::input_parameter< double >::type coi_p(coi_pSEXP);
+    Rcpp::traits::input_parameter< double >::type coi_r(coi_rSEXP);
+    Rcpp::traits::input_parameter< double >::type r_alpha(r_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type r_beta(r_betaSEXP);
+    Rcpp::traits::input_parameter< int >::type max_coi(max_coiSEXP);
+    rcpp_result_gen = Rcpp::wrap(ecoi_log_atom1_cpp(loci_freqs, coi_p, coi_r, r_alpha, r_beta, max_coi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ecoi_conditional_m_cpp
+Rcpp::List ecoi_conditional_m_cpp(Rcpp::List loci_freqs, double coi_p, double coi_r, double r_alpha, double r_beta, double e, int max_coi);
+RcppExport SEXP _moire_ecoi_conditional_m_cpp(SEXP loci_freqsSEXP, SEXP coi_pSEXP, SEXP coi_rSEXP, SEXP r_alphaSEXP, SEXP r_betaSEXP, SEXP eSEXP, SEXP max_coiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type loci_freqs(loci_freqsSEXP);
+    Rcpp::traits::input_parameter< double >::type coi_p(coi_pSEXP);
+    Rcpp::traits::input_parameter< double >::type coi_r(coi_rSEXP);
+    Rcpp::traits::input_parameter< double >::type r_alpha(r_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type r_beta(r_betaSEXP);
+    Rcpp::traits::input_parameter< double >::type e(eSEXP);
+    Rcpp::traits::input_parameter< int >::type max_coi(max_coiSEXP);
+    rcpp_result_gen = Rcpp::wrap(ecoi_conditional_m_cpp(loci_freqs, coi_p, coi_r, r_alpha, r_beta, e, max_coi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ecoi_log_marginal_e_from_indices_cpp
+double ecoi_log_marginal_e_from_indices_cpp(Rcpp::List p_full, Rcpp::List support_idx, double coi_p, double coi_r, double r_alpha, double r_beta, double e, int max_coi);
+RcppExport SEXP _moire_ecoi_log_marginal_e_from_indices_cpp(SEXP p_fullSEXP, SEXP support_idxSEXP, SEXP coi_pSEXP, SEXP coi_rSEXP, SEXP r_alphaSEXP, SEXP r_betaSEXP, SEXP eSEXP, SEXP max_coiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type p_full(p_fullSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type support_idx(support_idxSEXP);
+    Rcpp::traits::input_parameter< double >::type coi_p(coi_pSEXP);
+    Rcpp::traits::input_parameter< double >::type coi_r(coi_rSEXP);
+    Rcpp::traits::input_parameter< double >::type r_alpha(r_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type r_beta(r_betaSEXP);
+    Rcpp::traits::input_parameter< double >::type e(eSEXP);
+    Rcpp::traits::input_parameter< int >::type max_coi(max_coiSEXP);
+    rcpp_result_gen = Rcpp::wrap(ecoi_log_marginal_e_from_indices_cpp(p_full, support_idx, coi_p, coi_r, r_alpha, r_beta, e, max_coi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ecoi_sample_log_marginal_e_cpp
+double ecoi_sample_log_marginal_e_cpp(Rcpp::List pops, Rcpp::NumericVector log_pi, double coi_p, double coi_r, double r_alpha, double r_beta, double e, int max_coi);
+RcppExport SEXP _moire_ecoi_sample_log_marginal_e_cpp(SEXP popsSEXP, SEXP log_piSEXP, SEXP coi_pSEXP, SEXP coi_rSEXP, SEXP r_alphaSEXP, SEXP r_betaSEXP, SEXP eSEXP, SEXP max_coiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type pops(popsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type log_pi(log_piSEXP);
+    Rcpp::traits::input_parameter< double >::type coi_p(coi_pSEXP);
+    Rcpp::traits::input_parameter< double >::type coi_r(coi_rSEXP);
+    Rcpp::traits::input_parameter< double >::type r_alpha(r_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type r_beta(r_betaSEXP);
+    Rcpp::traits::input_parameter< double >::type e(eSEXP);
+    Rcpp::traits::input_parameter< int >::type max_coi(max_coiSEXP);
+    rcpp_result_gen = Rcpp::wrap(ecoi_sample_log_marginal_e_cpp(pops, log_pi, coi_p, coi_r, r_alpha, r_beta, e, max_coi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ecoi_sample_log_atom1_cpp
+double ecoi_sample_log_atom1_cpp(Rcpp::List pops, Rcpp::NumericVector log_pi, double coi_p, double coi_r, double r_alpha, double r_beta, int max_coi);
+RcppExport SEXP _moire_ecoi_sample_log_atom1_cpp(SEXP popsSEXP, SEXP log_piSEXP, SEXP coi_pSEXP, SEXP coi_rSEXP, SEXP r_alphaSEXP, SEXP r_betaSEXP, SEXP max_coiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type pops(popsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type log_pi(log_piSEXP);
+    Rcpp::traits::input_parameter< double >::type coi_p(coi_pSEXP);
+    Rcpp::traits::input_parameter< double >::type coi_r(coi_rSEXP);
+    Rcpp::traits::input_parameter< double >::type r_alpha(r_alphaSEXP);
+    Rcpp::traits::input_parameter< double >::type r_beta(r_betaSEXP);
+    Rcpp::traits::input_parameter< int >::type max_coi(max_coiSEXP);
+    rcpp_result_gen = Rcpp::wrap(ecoi_sample_log_atom1_cpp(pops, log_pi, coi_p, coi_r, r_alpha, r_beta, max_coi));
+    return rcpp_result_gen;
+END_RCPP
+}
 // run_mcmc
 Rcpp::List run_mcmc(Rcpp::List args);
 RcppExport SEXP _moire_run_mcmc(SEXP argsSEXP) {
@@ -105,6 +208,12 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_moire_ecoi_log_marginal_e_cpp", (DL_FUNC) &_moire_ecoi_log_marginal_e_cpp, 7},
+    {"_moire_ecoi_log_atom1_cpp", (DL_FUNC) &_moire_ecoi_log_atom1_cpp, 6},
+    {"_moire_ecoi_conditional_m_cpp", (DL_FUNC) &_moire_ecoi_conditional_m_cpp, 7},
+    {"_moire_ecoi_log_marginal_e_from_indices_cpp", (DL_FUNC) &_moire_ecoi_log_marginal_e_from_indices_cpp, 8},
+    {"_moire_ecoi_sample_log_marginal_e_cpp", (DL_FUNC) &_moire_ecoi_sample_log_marginal_e_cpp, 8},
+    {"_moire_ecoi_sample_log_atom1_cpp", (DL_FUNC) &_moire_ecoi_sample_log_atom1_cpp, 7},
     {"_moire_run_mcmc", (DL_FUNC) &_moire_run_mcmc, 1},
     {"_moire_tbb_enabled", (DL_FUNC) &_moire_tbb_enabled, 0},
     {"_moire_compare_mobius_inclusion_exclusion", (DL_FUNC) &_moire_compare_mobius_inclusion_exclusion, 3},
