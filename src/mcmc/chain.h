@@ -172,6 +172,14 @@ class Chain
 
     float calc_new_likelihood();
     float calc_new_prior();
+    /// Reassemble the global running sums (obs_llik_sum_new_, tx_llik_sum_new,
+    /// per-sample prior sums) from their per-sample slot arrays after a
+    /// parallel-over-samples move, then refresh llik/prior and invalidate the
+    /// update_p locus group caches. Must run serially on the dispatch thread.
+    void reduce_likelihood_sums_after_parallel_sample_move();
+    /// Ensure the incremental transmission cache and population-log cache are
+    /// built so worker threads never trigger a lazy rebuild inside the region.
+    void prewarm_caches_for_parallel_sample_move();
     float calc_transmission_llik_sum();
     /// eCOI mode: marginalized transmission log-lik summed over samples
     /// (from scratch). Used by calc_new_likelihood when params.marginal_ecoi.
@@ -375,6 +383,20 @@ class Chain
     float eps_pos_locus_prior_sum_new_{0.f};
     float relatedness_prior_sum_new_{0.f};
 
+    // When true, the per-sample likelihood/prior helpers update only their
+    // per-sample slots (observation_llik_new[s], tx_sample_logsumexp_new[s],
+    // *_prior_new[s]) and SKIP the global running-sum updates
+    // (obs_llik_sum_new_, tx_llik_sum_new, *_prior_sum_new_) and the per-locus
+    // update_p group-cache invalidation. Set only for the duration of a
+    // parallel-over-samples move (update_m / update_eff_coi / update_samples),
+    // where many worker threads touch distinct per-sample slots concurrently;
+    // racing on the shared scalars / per-locus caches would corrupt them.
+    // The running sums are reassembled serially after the parallel region (see
+    // reduce_likelihood_sums_after_parallel_sample_move), and the update_p
+    // caches are invalidated wholesale. Flag is set on the single dispatch
+    // thread before the region and cleared after, so workers only ever read it.
+    bool in_parallel_sample_region_{false};
+
     // Reused buffers for update_p SALT proposals (sized to max alleles per locus).
     std::vector<float> update_p_prev_p_ws_{};
 
@@ -539,6 +561,12 @@ class Chain
     /// marginals and accepts against the full marginal likelihood + hyperpriors.
     void update_population_e(int iteration);
     void update_p(int iteration);
+    /// Single-population, non-marginal allele-frequency update parallelized over
+    /// loci. Each locus proposal only perturbs its own transmission column, and
+    /// (single population) the total transmission llik is additively separable
+    /// across loci, so loci update independently with column-local MH ratios;
+    /// the global transmission sums are rebuilt once afterward.
+    void update_p_standard_parallel(int iteration);
     void update_eps(int iteration);
     void update_eps_pos(int iteration);
     /// Per-locus pooled false-positive update (marginal_ecoi). Proposes one

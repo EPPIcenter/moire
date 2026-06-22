@@ -21,9 +21,10 @@
 constexpr float min_sampled = std::numeric_limits<float>::min();
 
 namespace {
-// Per-worker RNG stream for the parallel per-sample eCOI moves. Samples are
-// independent in the collapsed likelihood, so each worker thread draws all of
-// its proposals (eCOI jumps, latent-genotype reproposals) from its own stream.
+// Per-worker RNG stream for the parallel per-sample moves (collapsed eCOI moves
+// and the standard COI / eff-COI / sample moves). Samples are independent given
+// the shared parameters held fixed during each move, so each worker thread draws
+// all of its proposals (jumps, latent-genotype reproposals) from its own stream.
 // This lets the proposal draws -- previously a serial pre-draw phase -- run
 // inside the parallel-over-samples region with no shared-RNG contention: each
 // stream is touched by one thread at a time, so it stays race-free, and every
@@ -33,7 +34,7 @@ namespace {
 // used sequentially -- the same cost profile as the old shared-sampler pre-draw.
 // Like the rest of the C++ sampler, it is NOT seeded by R's set.seed, so runs
 // are nondeterministic regardless of thread count.
-Sampler &ecoi_worker_rng()
+Sampler &worker_rng()
 {
     static thread_local Sampler rng;
     return rng;
@@ -43,236 +44,211 @@ Sampler &ecoi_worker_rng()
 void Chain::update_m(int iteration)
 {
     ProfileScope scope("Chain::update_m");
-    auto indices = std::vector<std::size_t>(genotyping_data.num_samples);
-    std::iota(indices.begin(), indices.end(), 0);
-    sampler.shuffle_vec(indices);
+    const std::size_t N = genotyping_data.num_samples;
+    const std::size_t n_loci = genotyping_data.num_loci;
 
-    for (const auto sample_idx : indices)
-    {
-        const std::size_t prop_m = m.at({sample_idx}) + sampler.sample_coi_delta(2);
-        if (prop_m > 0 and prop_m <= params.max_coi)
-        {
-            const int prev_m = m.at({sample_idx});
-            const float prev_r = r.at({sample_idx});
-            m.at({sample_idx}) = prop_m;
-            calculate_coi_likelihood(sample_idx);
-
-            float adj_ratio = 0;
-
-            // First, sample latent genotypes for pop_idx == 0 (sequential, uses sampler)
-            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-            {
-                const auto& lg = observation_model_->sample_latent_genotype(
-                    sampler,
-                    genotyping_data.get_observed_alleles(sample_idx, locus_idx), 
-                    m.at({sample_idx}), 
-                    eps_pos.at({sample_idx}), 
-                    eps_neg.at({sample_idx})
-                );
-                assign_latent_genotype_new(sample_idx, locus_idx, lg.value);
-                lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
-                adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
-            }
-            moire_parallel::recalc_parallel_for(0, genotyping_data.num_loci, [&](std::size_t locus_idx) {
-                calculate_observation_likelihood(sample_idx, locus_idx);
-            });
-            sync_obs_sum_for_sample(sample_idx);
-
-            float new_llik;
-            if (pam_fast_paths::tx_opts_enabled()) {
-                recalculate_transmission_for_sample_incremental(
-                    sample_idx, prev_m, prev_r);
-                new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
-            } else {
-                invalidate_transmission_llik_cache();
-                moire_parallel::recalc_parallel_for_2d(0, params.num_populations, 0, genotyping_data.num_loci,
-                    [&](std::size_t pop_idx, std::size_t locus_idx) {
-                        calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-                    });
-                new_llik = calc_new_likelihood();
-            }
-            const float new_prior = calc_new_prior();
-            const float new_post = new_llik * temp + new_prior;
-            const float alpha = sampler.sample_log_mh_acceptance();
-            const float mh_ratio = new_post - get_posterior() + adj_ratio;
-            if (std::isfinite(new_post) && alpha <= mh_ratio)
-            // Accept
-            {
-                llik = new_llik;
-                prior = new_prior;
-
-                save_coi_likelihood(sample_idx);
-                // Save observation likelihoods for pop_idx == 0 (parallel over loci)
-                moire_parallel::parallel_for(0, genotyping_data.num_loci, [&](std::size_t locus_idx) {
-                    save_observation_likelihood(sample_idx, locus_idx);
-                    lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
-                    auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
-                    std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
-                });
-                // Save transmission likelihoods across all populations/loci
-                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
-                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
-                        save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-                    }
-                }
-                m_accept.at({sample_idx}) = m_accept.at({sample_idx}) + 1;
-            }
-            else
-            // Reject
-            {
-                m.at({sample_idx}) = prev_m;
-                restore_coi_likelihood(sample_idx);
-                // Restore observation likelihoods for pop_idx == 0 (parallel over loci)
-                moire_parallel::parallel_for(0, genotyping_data.num_loci, [&](std::size_t locus_idx) {
-                    restore_observation_likelihood(sample_idx, locus_idx);
-                    lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
-                    restore_latent_genotype_new(sample_idx, locus_idx);
-                });
-                sync_obs_sum_for_sample(sample_idx);
-                if (pam_fast_paths::tx_opts_enabled()) {
-                    restore_transmission_for_sample_incremental(sample_idx);
-                } else {
-                    for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
-                        for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
-                            restore_transmission_likelihood(sample_idx, pop_idx, locus_idx);
-                        }
-                    }
-                    invalidate_transmission_llik_cache();
-                }
-            }
+    // Samples are independent given the shared parameters held fixed here: a
+    // COI move on sample s changes only s's observation row, s's transmission
+    // term, and s's COI prior (which is folded into the transmission logsumexp,
+    // not calc_new_prior), so the MH ratio reduces to
+    //   temp * (delta_obs_s + delta_tx_s) + latent-proposal adjustment,
+    // with the global llik / prior cancelling. Each sample evaluates this from
+    // its own per-sample slots using a private RNG stream, so the whole move --
+    // proposal draws, latent reproposals, likelihood recompute, accept/reject --
+    // runs inside one parallel-over-samples region. The deferred global sums and
+    // update_p caches are reconciled serially afterward.
+    prewarm_caches_for_parallel_sample_move();
+    in_parallel_sample_region_ = true;
+    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t sample_idx) {
+        Sampler &rng = worker_rng();
+        const std::size_t prop_m =
+            m.at({sample_idx}) + rng.sample_coi_delta(2);
+        if (prop_m == 0 || prop_m > params.max_coi) {
+            return;
         }
-    }
+
+        const int prev_m = m.at({sample_idx});
+        const float prev_r = r.at({sample_idx});
+        const float old_contrib =
+            obs_row_sum_new_[sample_idx] + tx_sample_logsumexp_new.at({sample_idx});
+
+        m.at({sample_idx}) = prop_m;
+        calculate_coi_likelihood(sample_idx);
+
+        float adj_ratio = 0.f;
+        for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
+            const auto &lg = observation_model_->sample_latent_genotype(
+                rng,
+                genotyping_data.get_observed_alleles(sample_idx, locus_idx),
+                m.at({sample_idx}), eps_pos.at({sample_idx}),
+                eps_neg.at({sample_idx}));
+            assign_latent_genotype_new(sample_idx, locus_idx, lg.value);
+            lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
+            adj_ratio += lg_adj_new.at({sample_idx, locus_idx}) -
+                         lg_adj_old.at({sample_idx, locus_idx});
+            calculate_observation_likelihood(sample_idx, locus_idx);
+        }
+        sync_obs_sum_for_sample(sample_idx);
+        recalculate_transmission_for_sample_incremental(sample_idx, prev_m,
+                                                        prev_r);
+
+        const float new_contrib =
+            obs_row_sum_new_[sample_idx] + tx_sample_logsumexp_new.at({sample_idx});
+        const float mh_ratio = temp * (new_contrib - old_contrib) + adj_ratio;
+        const float alpha = rng.sample_log_mh_acceptance();
+
+        if (std::isfinite(new_contrib) && alpha <= mh_ratio) {
+            // Accept: promote the per-sample new state into the old buffers.
+            save_coi_likelihood(sample_idx);
+            for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
+                save_observation_likelihood(sample_idx, locus_idx);
+                lg_adj_old.at({sample_idx, locus_idx}) =
+                    lg_adj_new.at({sample_idx, locus_idx});
+                auto [begin, end] =
+                    latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end,
+                          latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
+            }
+            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
+                    save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
+                }
+            }
+            m_accept.at({sample_idx}) += 1;
+        } else {
+            // Reject: restore the per-sample old state.
+            m.at({sample_idx}) = prev_m;
+            restore_coi_likelihood(sample_idx);
+            for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
+                restore_observation_likelihood(sample_idx, locus_idx);
+                lg_adj_new.at({sample_idx, locus_idx}) =
+                    lg_adj_old.at({sample_idx, locus_idx});
+                restore_latent_genotype_new(sample_idx, locus_idx);
+            }
+            sync_obs_sum_for_sample(sample_idx);
+            restore_transmission_for_sample_incremental(sample_idx);
+        }
+    });
+    in_parallel_sample_region_ = false;
+    reduce_likelihood_sums_after_parallel_sample_move();
 }
 
 void Chain::update_eff_coi(int iteration)
 {
     ProfileScope scope("Chain::update_eff_coi");
-    auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
-    std::iota(sample_indices.begin(), sample_indices.end(), 0);
-    sampler.shuffle_vec(sample_indices);
+    const std::size_t N = genotyping_data.num_samples;
+    const std::size_t n_loci = genotyping_data.num_loci;
 
-    for (const auto sample_idx : sample_indices)
-    {
-        const float curr_eff_coi = (m.at({sample_idx}) - 1) * (1.0f - r.at({sample_idx})) + 1.0f;
-        const auto prop_adj = sampler.sample_constrained(
+    // Joint (m, r) move via a continuous effective-COI proposal. As with
+    // update_m the samples are independent: the move changes only sample s's
+    // observation row, transmission term (which folds in s's COI prior) and s's
+    // relatedness prior, so the MH ratio is
+    //   temp * (delta_obs_s + delta_tx_s) + delta_relatedness_prior_s + adj,
+    // entirely from s's own slots. Run in parallel over samples with a private
+    // RNG; reconcile the deferred global sums serially afterward.
+    prewarm_caches_for_parallel_sample_move();
+    in_parallel_sample_region_ = true;
+    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t sample_idx) {
+        Sampler &rng = worker_rng();
+        const float curr_eff_coi =
+            (m.at({sample_idx}) - 1) * (1.0f - r.at({sample_idx})) + 1.0f;
+        const auto prop_adj = rng.sample_constrained(
             curr_eff_coi, m_r_var.at({sample_idx}), 1, params.max_coi);
 
         const float prop_eff_coi = std::get<0>(prop_adj);
         const float adj = std::get<1>(prop_adj);
 
-        const std::size_t prop_m = m.at({sample_idx}) + sampler.sample_coi_delta(2);
+        const std::size_t prop_m = m.at({sample_idx}) + rng.sample_coi_delta(2);
         const float prop_r = 1.0f - (prop_eff_coi - 1.0f) / (prop_m - 1.0f);
 
-        if (prop_m <= 0 || prop_m > params.max_coi || prop_r > .99999 || prop_r < .00001 || !std::isfinite(prop_r)) {
-            continue;
+        if (prop_m <= 0 || prop_m > params.max_coi || prop_r > .99999 ||
+            prop_r < .00001 || !std::isfinite(prop_r)) {
+            return;
         }
 
         const int prev_m = m.at({sample_idx});
         const float prev_r = r.at({sample_idx});
+        const float old_lik =
+            obs_row_sum_new_[sample_idx] + tx_sample_logsumexp_new.at({sample_idx});
+        const float old_rel_prior = relatedness_prior_new.at({sample_idx});
+
         m.at({sample_idx}) = prop_m;
         r.at({sample_idx}) = prop_r;
-
 
         float adj_ratio = adj;
         calculate_relatedness_likelihood(sample_idx);
         calculate_coi_likelihood(sample_idx);
 
-        for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-        {
+        for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
             const auto &lg = observation_model_->sample_latent_genotype(
-                sampler,
+                rng,
                 genotyping_data.get_observed_alleles(sample_idx, locus_idx),
-                m.at({sample_idx}),
-                eps_pos.at({sample_idx}),
-                eps_neg.at({sample_idx})
-            );
+                m.at({sample_idx}), eps_pos.at({sample_idx}),
+                eps_neg.at({sample_idx}));
             assign_latent_genotype_new(sample_idx, locus_idx, lg.value);
             lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
-            adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
-        }
-        moire_parallel::parallel_for(0, genotyping_data.num_loci, [&](std::size_t locus_idx) {
+            adj_ratio += lg_adj_new.at({sample_idx, locus_idx}) -
+                         lg_adj_old.at({sample_idx, locus_idx});
             calculate_observation_likelihood(sample_idx, locus_idx);
-        });
-        sync_obs_sum_for_sample(sample_idx);
-
-        float new_llik;
-        if (pam_fast_paths::tx_opts_enabled()) {
-            recalculate_transmission_for_sample_incremental(
-                sample_idx, prev_m, prev_r);
-            new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
-        } else {
-            invalidate_transmission_llik_cache();
-            moire_parallel::recalc_parallel_for_2d(0, params.num_populations, 0, genotyping_data.num_loci,
-                [&](std::size_t pop_idx, std::size_t locus_idx) {
-                    calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-                });
-            new_llik = calc_new_likelihood();
         }
+        sync_obs_sum_for_sample(sample_idx);
+        recalculate_transmission_for_sample_incremental(sample_idx, prev_m,
+                                                        prev_r);
 
-        const float new_prior = calc_new_prior();
-        const float new_post = new_llik * temp + new_prior;
-        const double mh_ratio = new_post - get_posterior() + adj_ratio;
-        const double alpha = sampler.sample_log_mh_acceptance();
+        const float new_lik =
+            obs_row_sum_new_[sample_idx] + tx_sample_logsumexp_new.at({sample_idx});
+        const float new_rel_prior = relatedness_prior_new.at({sample_idx});
+        const float mh_ratio = temp * (new_lik - old_lik) +
+                               (new_rel_prior - old_rel_prior) + adj_ratio;
+        const float alpha = rng.sample_log_mh_acceptance();
 
-        // Reject
-        if (!std::isfinite(new_post) || !std::isfinite(mh_ratio) || alpha > mh_ratio)
-        {
+        if (!std::isfinite(new_lik) || !std::isfinite(mh_ratio) ||
+            alpha > mh_ratio) {
+            // Reject: restore per-sample state.
             m.at({sample_idx}) = prev_m;
             r.at({sample_idx}) = prev_r;
             restore_relatedness_likelihood(sample_idx);
             restore_coi_likelihood(sample_idx);
-            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-            {
-                lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
+            for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
+                lg_adj_new.at({sample_idx, locus_idx}) =
+                    lg_adj_old.at({sample_idx, locus_idx});
                 restore_latent_genotype_new(sample_idx, locus_idx);
                 restore_observation_likelihood(sample_idx, locus_idx);
             }
             sync_obs_sum_for_sample(sample_idx);
-            if (pam_fast_paths::tx_opts_enabled()) {
-                restore_transmission_for_sample_incremental(sample_idx);
-            } else {
-                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
-                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
-                        restore_transmission_likelihood(sample_idx, pop_idx, locus_idx);
-                    }
-                }
-                invalidate_transmission_llik_cache();
-            }
-        }
-        // Accept
-        else
-        {
-            llik = new_llik;
-            prior = new_prior;
+            restore_transmission_for_sample_incremental(sample_idx);
+        } else {
+            // Accept: promote the per-sample new state into the old buffers.
             save_relatedness_likelihood(sample_idx);
             save_coi_likelihood(sample_idx);
-            // Save observation likelihoods for pop_idx == 0 (sequential)
-            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-            {
-                lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
-                const auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
-                std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
+            for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
+                lg_adj_old.at({sample_idx, locus_idx}) =
+                    lg_adj_new.at({sample_idx, locus_idx});
+                const auto [begin, end] =
+                    latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end,
+                          latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
                 save_observation_likelihood(sample_idx, locus_idx);
             }
-            // Save transmission likelihoods across all populations/loci
             for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
+                for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
                     save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
                 }
             }
             ++m_r_accept.at({sample_idx});
         }
 
-        if (iteration < params.burnin and
-            iteration > 15)  // don't start adapting until there are
-                             // at least a few samples
-        {
-            const float acceptanceRate = m_r_accept.at({sample_idx}) / float(iteration);
+        if (iteration < params.burnin && iteration > 15) {
+            const float acceptanceRate =
+                m_r_accept.at({sample_idx}) / float(iteration);
             const float update =
                 (acceptanceRate - .23) / std::pow(iteration + 1, .5);
-            m_r_var.at({sample_idx}) = std::max(m_r_var.at({sample_idx}) + update, .01f);
+            m_r_var.at({sample_idx}) =
+                std::max(m_r_var.at({sample_idx}) + update, .01f);
         }
-    }
+    });
+    in_parallel_sample_region_ = false;
+    reduce_likelihood_sums_after_parallel_sample_move();
 }
 
 // Fully-collapsed effective-COI move. The discrete COI is integrated out, so the
@@ -302,7 +278,7 @@ void Chain::update_ecoi(int iteration)
     // proposal draws and the (expensive) marginal evaluations both run on the
     // worker thread -- no serial pre-draw phase, no shared-RNG contention.
     moire_parallel::recalc_parallel_for(0, N, [&](std::size_t s) {
-        Sampler &rng = ecoi_worker_rng();
+        Sampler &rng = worker_rng();
         float curr_e = eff_coi.at({s});
         double cur_marg = static_cast<double>(ecoi_sample_marg_[s]);
         int accepted = 0;
@@ -442,7 +418,7 @@ void Chain::update_latent_marginal(int iteration)
     // (genotypes, obs-llik rows, obs_row_sum_new_, ecoi_sample_marg_,
     // sample_accept) or the sample's own support-cache column.
     moire_parallel::recalc_parallel_for(0, N, [&](std::size_t s) {
-        Sampler &rng = ecoi_worker_rng();
+        Sampler &rng = worker_rng();
         const float eps_neg_s = eps_neg.at({s});
 
         // Propose new latent genotypes for this sample from its own RNG stream.
@@ -558,7 +534,7 @@ void Chain::update_ecoi_latent_joint(int iteration)
     // draw), matching the sequential version. Every write is to per-sample
     // storage or the sample's own support-cache column.
     moire_parallel::recalc_parallel_for(0, N, [&](std::size_t s) {
-        Sampler &rng = ecoi_worker_rng();
+        Sampler &rng = worker_rng();
         const float curr_e = eff_coi.at({s});
         // rgamma(shape, scale) draws Gamma(k0, mu0/k0) == the thread-unsafe
         // R::rgamma(k0, scale = mu0/k0) the serial version used.
@@ -731,132 +707,62 @@ void Chain::update_population_e(int iteration)
 void Chain::update_r(int iteration)
 {
     ProfileScope scope("Chain::update_r");
-    // Observation likelihood is unchanged across proposals in this update; its
-    // running sum is maintained incrementally elsewhere.
-    const float obs_llik = obs_llik_sum_new_;
-    if (!tx_llik_cache_valid_) {
-        rebuild_transmission_llik_cache();
-    }
+    const std::size_t N = genotyping_data.num_samples;
 
-    auto sample_indices = std::vector<size_t>(genotyping_data.num_samples);
-    std::iota(sample_indices.begin(), sample_indices.end(), 0);
-    sampler.shuffle_vec(sample_indices);
-
-    for (const auto sample_idx : sample_indices)
-    {
-        const auto prop_adj =
-            sampler.sample_constrained(r.at({sample_idx}), r_var.at({sample_idx}), .00001, .99999);
+    // Relatedness enters only the transmission process (which folds in s's COI
+    // prior); the observation row is unchanged and cancels. Per-sample MH ratio
+    // is temp*(delta_tx_s) + delta_relatedness_prior_s + adj, all from s's own
+    // slots, so samples update independently in parallel. The incremental
+    // transmission recompute uses s's current COI (unchanged here) and the new
+    // relatedness value.
+    prewarm_caches_for_parallel_sample_move();
+    in_parallel_sample_region_ = true;
+    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t sample_idx) {
+        Sampler &rng = worker_rng();
+        const auto prop_adj = rng.sample_constrained(
+            r.at({sample_idx}), r_var.at({sample_idx}), .00001, .99999);
         const float prop_r = std::get<0>(prop_adj);
         const float adj = std::get<1>(prop_adj);
+
+        const float old_tx = tx_sample_logsumexp_new.at({sample_idx});
+        const float old_rel_prior = relatedness_prior_new.at({sample_idx});
 
         const float prev_r = r.at({sample_idx});
         r.at({sample_idx}) = prop_r;
         calculate_relatedness_likelihood(sample_idx);
+        recalculate_transmission_for_sample_incremental(
+            sample_idx, static_cast<int>(m.at({sample_idx})), prev_r);
 
-        if (!pam_fast_paths::tx_opts_enabled()) {
-            invalidate_transmission_llik_cache();
-            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
-                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
-                    calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-                }
-            }
-            const float new_llik = calc_new_likelihood();
-            const float new_prior = calc_new_prior();
-            const float new_post = new_llik * temp + new_prior;
-            if (!std::isfinite(new_post) or sampler.sample_log_mh_acceptance() >
-                                            (new_post - get_posterior() + adj)) {
-                r.at({sample_idx}) = prev_r;
-                restore_relatedness_likelihood(sample_idx);
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
-                    for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
-                        restore_transmission_likelihood(sample_idx, pop_idx, locus_idx);
-                    }
-                }
-            } else {
-                llik = new_llik;
-                prior = new_prior;
-                save_relatedness_likelihood(sample_idx);
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
-                    for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
-                        save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-                    }
-                }
-                ++r_accept.at({sample_idx});
-            }
+        const float new_tx = tx_sample_logsumexp_new.at({sample_idx});
+        const float mh_ratio =
+            temp * (new_tx - old_tx) +
+            (relatedness_prior_new.at({sample_idx}) - old_rel_prior) + adj;
+
+        if (!std::isfinite(new_tx) || rng.sample_log_mh_acceptance() > mh_ratio) {
+            r.at({sample_idx}) = prev_r;
+            restore_relatedness_likelihood(sample_idx);
+            restore_transmission_for_sample_incremental(sample_idx);
         } else {
-            ProfileScope scope("Chain::update_r::recalc_transmission");
-            moire_parallel::parallel_for_2d(
-                0, params.num_populations, 0, genotyping_data.num_loci,
-                [&](std::size_t pop_idx, std::size_t locus_idx) {
-                    calculate_transmission_likelihood_after_r_change(
-                        pop_idx, sample_idx, locus_idx);
-                });
+            save_relatedness_likelihood(sample_idx);
             for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
                 for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci;
                      ++locus_idx) {
-                    const float old_cell =
-                        transmission_llik_old.unchecked_at({sample_idx, pop_idx, locus_idx});
-                    const float new_cell =
-                        transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx});
-                    apply_transmission_cell_change(sample_idx, pop_idx, old_cell, new_cell);
+                    save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
                 }
             }
-
-            float new_llik;
-            float new_prior;
-            float new_post;
-            {
-                ProfileScope scope("Chain::update_r::calc_post");
-                new_llik = obs_llik + tx_llik_sum_new;
-                new_prior = calc_new_prior();
-                new_post = new_llik * temp + new_prior;
-            }
-
-            if (!std::isfinite(new_post) or sampler.sample_log_mh_acceptance() >
-                                            (new_post - get_posterior() + adj))
-            {
-                ProfileScope scope("Chain::update_r::reject_restore");
-                r.at({sample_idx}) = prev_r;
-                restore_relatedness_likelihood(sample_idx);
-                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
-                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci;
-                         ++locus_idx) {
-                        const float proposed =
-                            transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx});
-                        const float old_cell =
-                            transmission_llik_old.unchecked_at({sample_idx, pop_idx, locus_idx});
-                        apply_transmission_cell_change(
-                            sample_idx, pop_idx, proposed, old_cell);
-                        transmission_llik_new.unchecked_at({sample_idx, pop_idx, locus_idx}) =
-                            old_cell;
-                    }
-                }
-            }
-            else
-            {
-                ProfileScope scope("Chain::update_r::accept_save");
-                llik = new_llik;
-                prior = new_prior;
-                save_relatedness_likelihood(sample_idx);
-                moire_parallel::parallel_for_2d(
-                    0, params.num_populations, 0, genotyping_data.num_loci,
-                    [&](std::size_t pop_idx, std::size_t locus_idx) {
-                        save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-                    });
-                ++r_accept.at({sample_idx});
-            }
+            ++r_accept.at({sample_idx});
         }
 
-        if (iteration < params.burnin and
-            iteration > 15)  // don't start adapting until there are
-                             // at least a few samples
-        {
+        if (iteration < params.burnin && iteration > 15) {
             const float acceptanceRate = r_accept.at({sample_idx}) / float(iteration);
             const float update =
                 (acceptanceRate - .23) / std::pow(iteration + 1, .5);
-            r_var.at({sample_idx}) = std::max(r_var.at({sample_idx}) + update, .0001f);
+            r_var.at({sample_idx}) =
+                std::max(r_var.at({sample_idx}) + update, .0001f);
         }
-    }
+    });
+    in_parallel_sample_region_ = false;
+    reduce_likelihood_sums_after_parallel_sample_move();
 }
 
 void Chain::update_m_r(int iteration)
@@ -988,9 +894,158 @@ void Chain::update_m_r(int iteration)
  * SALT Sampler approach.
  * https://doi.org/10.1080/00949655.2017.1376063
  */
+void Chain::update_p_standard_parallel(int iteration)
+{
+    ProfileScope scope("Chain::update_p");
+    const std::size_t pop_idx = 0;
+    const std::size_t n_loci = genotyping_data.num_loci;
+    const std::size_t n_samples = genotyping_data.num_samples;
+
+    // Prewarm shared caches on the dispatch thread: the per-locus group cache is
+    // built lazily otherwise, and the transmission cache must be valid before the
+    // region so no worker triggers a rebuild mid-flight.
+    if (!tx_llik_cache_valid_) {
+        rebuild_transmission_llik_cache();
+    }
+    for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
+        ensure_update_p_locus_group_cache(locus_idx);
+    }
+
+    // Each locus owns its transmission column [*, 0, locus] and its (pop, locus)
+    // p column, group cache and PAM slots; the 3 reps for a locus run serially on
+    // one worker exactly like the serial path. A proposal changes only locus L's
+    // column, and with one population sample s's logsumexp == coi_prior_s +
+    // loci_sum_s, so the change to the total transmission llik is exactly the
+    // column-sum delta. Score each proposal against that delta (obs and prior are
+    // invariant under p moves), defer the global tx-sum bookkeeping, and rebuild
+    // it once after the region.
+    in_parallel_sample_region_ = true;
+    moire_parallel::recalc_parallel_for(0, n_loci, [&](std::size_t locus_idx) {
+        // Already parallel over loci; keep the inner per-sample transmission
+        // recompute serial to avoid nested spawning.
+        const bool prev_disable = moire_parallel::disable_nested_parallelism;
+        moire_parallel::disable_nested_parallelism = true;
+        Sampler &rng = worker_rng();
+
+        const std::size_t num_alleles = p.ragged_dimensions(locus_idx);
+        const auto [begin, end] = p.inner_iterators({pop_idx, locus_idx});
+
+        thread_local std::vector<float> prev_p_ws;
+        thread_local std::vector<float> old_col;
+        old_col.assign(n_samples, 0.f);
+        float col_sum = 0.f;
+        for (std::size_t s = 0; s < n_samples; ++s) {
+            old_col[s] = transmission_llik_new.unchecked_at({s, pop_idx, locus_idx});
+            col_sum += old_col[s];
+        }
+
+        std::size_t rep = 3;
+        while (rep-- > 0) {
+            const std::size_t allele_idx =
+                rng.sample_random_int(0, num_alleles - 1);
+            ++p_attempt.at({pop_idx, locus_idx, allele_idx});
+
+            auto logitPropP = UtilFunctions::logitVec(begin, end);
+            const float logitCurr = logitPropP[allele_idx];
+            const float logitProp = rng.sample_epsilon(
+                logitCurr, p_prop_var.at({pop_idx, locus_idx, allele_idx}));
+
+            const auto currLogPQ = UtilFunctions::log_pq(logitCurr);
+            const auto propLogPQ = UtilFunctions::log_pq(logitProp);
+
+            logitPropP.erase(logitPropP.begin() + allele_idx);
+            const float ls = propLogPQ.second - UtilFunctions::logitSum(logitPropP);
+            logitPropP = UtilFunctions::logitScale(logitPropP, ls);
+            logitPropP.insert(logitPropP.begin() + allele_idx, logitProp);
+
+            const float logAdj =
+                (currLogPQ.first - propLogPQ.first) +
+                (num_alleles - 1) * (currLogPQ.second - propLogPQ.second);
+
+            const auto prop_p = UtilFunctions::expitVec(logitPropP);
+            bool sub_threshold_flag = false;
+            for (const auto el : prop_p) {
+                if (el < 1e-4 || !std::isfinite(el)) {
+                    sub_threshold_flag = true;
+                    break;
+                }
+            }
+            if (sub_threshold_flag) {
+                break;
+            }
+
+            prev_p_ws.assign(begin, end);
+            p.inner_fill({pop_idx, locus_idx}, prop_p);
+            recalculate_transmission_at_locus_after_p_change(
+                pop_idx, locus_idx,
+                std::span<const float>(prev_p_ws.data(), prev_p_ws.size()),
+                allele_idx);
+
+            float new_col_sum = 0.f;
+            for (std::size_t s = 0; s < n_samples; ++s) {
+                new_col_sum +=
+                    transmission_llik_new.unchecked_at({s, pop_idx, locus_idx});
+            }
+            const float mh_ratio = temp * (new_col_sum - col_sum) + logAdj;
+
+            if (!std::isfinite(new_col_sum) ||
+                rng.sample_log_mh_acceptance() > mh_ratio) {
+                // Reject: restore p and the transmission column.
+                p.inner_fill({pop_idx, locus_idx}, prev_p_ws);
+                for (std::size_t s = 0; s < n_samples; ++s) {
+                    transmission_llik_new.unchecked_at({s, pop_idx, locus_idx}) =
+                        old_col[s];
+                }
+            } else {
+                // Accept: column already holds the new values.
+                col_sum = new_col_sum;
+                for (std::size_t s = 0; s < n_samples; ++s) {
+                    old_col[s] =
+                        transmission_llik_new.unchecked_at({s, pop_idx, locus_idx});
+                }
+                ++p_accept.at({pop_idx, locus_idx, allele_idx});
+            }
+
+            if (iteration < params.burnin &&
+                p_attempt.at({pop_idx, locus_idx, allele_idx}) > 15) {
+                const float acceptanceRate =
+                    (p_accept.at({pop_idx, locus_idx, allele_idx}) + 1) /
+                    (float(p_attempt.at({pop_idx, locus_idx, allele_idx})) + 1);
+                p_prop_var.at({pop_idx, locus_idx, allele_idx}) +=
+                    (acceptanceRate - .23) /
+                    std::pow(p_attempt.at({pop_idx, locus_idx, allele_idx}) + 1, .5);
+                p_prop_var.at({pop_idx, locus_idx, allele_idx}) =
+                    std::max(p_prop_var.at({pop_idx, locus_idx, allele_idx}), .01f);
+            }
+        }
+
+        // Sync the committed column into the old buffer so subsequent moves'
+        // per-sample restore sees a consistent baseline.
+        for (std::size_t s = 0; s < n_samples; ++s) {
+            transmission_llik_old.unchecked_at({s, pop_idx, locus_idx}) =
+                transmission_llik_new.unchecked_at({s, pop_idx, locus_idx});
+        }
+        moire_parallel::disable_nested_parallelism = prev_disable;
+    });
+    in_parallel_sample_region_ = false;
+
+    // Rebuild the global transmission sums from the per-locus columns and refresh
+    // the chain likelihood. Prior is invariant under allele-frequency moves.
+    rebuild_transmission_llik_cache();
+    llik = calc_new_likelihood();
+}
+
 void Chain::update_p(int iteration)
 {
     ProfileScope scope("Chain::update_p");
+    // Single-population, non-marginal allele frequencies parallelize cleanly over
+    // loci (the transmission llik is additively separable across loci when there
+    // is one population), so use the loci-parallel path there.
+    if (!params.marginal_ecoi && params.num_populations == 1 &&
+        pam_fast_paths::tx_opts_enabled()) {
+        update_p_standard_parallel(iteration);
+        return;
+    }
     // Observation and prior are unchanged across proposals within this update.
     const float obs_llik = obs_llik_sum_new_;
     if (!tx_llik_cache_valid_) {
@@ -1284,68 +1339,67 @@ void Chain::update_eps_pos(int iteration)
         update_eps_pos_locus(iteration);
         return;
     }
-    auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
-    std::iota(sample_indices.begin(), sample_indices.end(), 0);
-    sampler.shuffle_vec(sample_indices);
+    const std::size_t N = genotyping_data.num_samples;
+    const std::size_t n_loci = genotyping_data.num_loci;
 
-    for (const auto sample_idx : sample_indices)
-    {
-        const auto prop_adj = sampler.sample_constrained(
+    // eps_pos enters only the observation model, so the move changes sample s's
+    // observation row and its eps_pos prior; the transmission term is untouched
+    // and cancels. Per-sample MH ratio is temp*(delta_obs_s) + delta_prior_s +
+    // adj, all from s's own slots, so samples update independently in parallel.
+    prewarm_caches_for_parallel_sample_move();
+    in_parallel_sample_region_ = true;
+    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t sample_idx) {
+        Sampler &rng = worker_rng();
+        const auto prop_adj = rng.sample_constrained(
             eps_pos.at({sample_idx}), eps_pos_var.at({sample_idx}), min_sampled, 1);
         const float prop_eps_pos = std::get<0>(prop_adj);
         const float adj = std::get<1>(prop_adj);
 
-        if (prop_eps_pos < 1 && prop_eps_pos > 1e-32)
-        {
+        if (prop_eps_pos < 1 && prop_eps_pos > 1e-32) {
+            const float old_obs = obs_row_sum_new_[sample_idx];
+            const float old_prior = eps_pos_prior_new.at({sample_idx});
+
             const float prev_eps_pos = eps_pos.at({sample_idx});
             eps_pos.at({sample_idx}) = prop_eps_pos;
             calculate_eps_pos_likelihood(sample_idx);
-
-            moire_parallel::parallel_for(0, genotyping_data.num_loci, [&](std::size_t locus_idx) {
+            for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
                 calculate_observation_likelihood(sample_idx, locus_idx);
-            });
+            }
             sync_obs_sum_for_sample(sample_idx);
 
-            const float new_llik = calc_new_likelihood();
-            const float new_prior = calc_new_prior();
-            const float new_post = new_llik * temp + new_prior;
+            const float new_obs = obs_row_sum_new_[sample_idx];
+            const float mh_ratio =
+                temp * (new_obs - old_obs) +
+                (eps_pos_prior_new.at({sample_idx}) - old_prior) + adj;
 
-            // Reject
-            if (!std::isfinite(new_post) or sampler.sample_log_mh_acceptance() >
-                                            (new_post - get_posterior() + adj))
-            {
+            if (!std::isfinite(new_obs) ||
+                rng.sample_log_mh_acceptance() > mh_ratio) {
                 eps_pos.at({sample_idx}) = prev_eps_pos;
                 restore_eps_pos_likelihood(sample_idx);
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                {
+                for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
                     restore_observation_likelihood(sample_idx, locus_idx);
                 }
                 sync_obs_sum_for_sample(sample_idx);
-            }
-            else
-            {
-                llik = new_llik;
-                prior = new_prior;
+            } else {
                 save_eps_pos_likelihood(sample_idx);
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                {
+                for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
                     save_observation_likelihood(sample_idx, locus_idx);
                 }
                 ++eps_pos_accept.at({sample_idx});
             }
 
-            if (iteration < params.burnin and
-                iteration > 15)  // don't start adapting until there are
-                                 // at least a few samples
-            {
+            if (iteration < params.burnin && iteration > 15) {
                 const float acceptanceRate =
                     eps_pos_accept.at({sample_idx}) / float(iteration);
                 const float update =
                     (acceptanceRate - .23) / std::pow(iteration + 1, .5);
-                eps_pos_var.at({sample_idx}) = std::max(eps_pos_var.at({sample_idx}) + update, .0001f);
+                eps_pos_var.at({sample_idx}) =
+                    std::max(eps_pos_var.at({sample_idx}) + update, .0001f);
             }
         }
-    }
+    });
+    in_parallel_sample_region_ = false;
+    reduce_likelihood_sums_after_parallel_sample_move();
 }
 
 void Chain::update_eps_pos_locus(int iteration)
@@ -1428,217 +1482,211 @@ void Chain::update_eps_pos_locus(int iteration)
 void Chain::update_eps_neg(int iteration)
 {
     ProfileScope scope("Chain::update_eps_neg");
-    auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
-    std::iota(sample_indices.begin(), sample_indices.end(), 0);
-    sampler.shuffle_vec(sample_indices);
+    const std::size_t N = genotyping_data.num_samples;
+    const std::size_t n_loci = genotyping_data.num_loci;
 
-    for (const auto sample_idx : sample_indices)
-    {
-        const auto prop_adj = sampler.sample_constrained(
+    // eps_neg enters only the observation model, so the move changes sample s's
+    // observation row and its eps_neg prior; the transmission term is untouched
+    // and cancels. Per-sample MH ratio is temp*(delta_obs_s) + delta_prior_s +
+    // adj, all from s's own slots, so samples update independently in parallel.
+    prewarm_caches_for_parallel_sample_move();
+    in_parallel_sample_region_ = true;
+    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t sample_idx) {
+        Sampler &rng = worker_rng();
+        const auto prop_adj = rng.sample_constrained(
             eps_neg.at({sample_idx}), eps_neg_var.at({sample_idx}), min_sampled, 1);
         const float prop_eps_neg = std::get<0>(prop_adj);
         const float adj = std::get<1>(prop_adj);
 
-        if (prop_eps_neg < 1 && prop_eps_neg > 1e-32)
-        {
+        if (prop_eps_neg < 1 && prop_eps_neg > 1e-32) {
+            const float old_obs = obs_row_sum_new_[sample_idx];
+            const float old_prior = eps_neg_prior_new.at({sample_idx});
+
             const float prev_eps_neg = eps_neg.at({sample_idx});
             eps_neg.at({sample_idx}) = prop_eps_neg;
             calculate_eps_neg_likelihood(sample_idx);
-
-            moire_parallel::parallel_for(0, genotyping_data.num_loci, [&](std::size_t locus_idx) {
+            for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
                 calculate_observation_likelihood(sample_idx, locus_idx);
-            });
+            }
             sync_obs_sum_for_sample(sample_idx);
 
-            const float new_llik = calc_new_likelihood();
-            const float new_prior = calc_new_prior();
-            const float new_post = new_llik * temp + new_prior;
+            const float new_obs = obs_row_sum_new_[sample_idx];
+            const float mh_ratio =
+                temp * (new_obs - old_obs) +
+                (eps_neg_prior_new.at({sample_idx}) - old_prior) + adj;
 
-            // Reject
-            if (!std::isfinite(new_post) or sampler.sample_log_mh_acceptance() >
-                                            (new_post - get_posterior() + adj))
-            {
+            if (!std::isfinite(new_obs) ||
+                rng.sample_log_mh_acceptance() > mh_ratio) {
                 eps_neg.at({sample_idx}) = prev_eps_neg;
                 restore_eps_neg_likelihood(sample_idx);
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                {
+                for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
                     restore_observation_likelihood(sample_idx, locus_idx);
                 }
                 sync_obs_sum_for_sample(sample_idx);
-            }
-            else
-            {
-                llik = new_llik;
-                prior = new_prior;
+            } else {
                 save_eps_neg_likelihood(sample_idx);
-                for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-                {
+                for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
                     save_observation_likelihood(sample_idx, locus_idx);
                 }
                 ++eps_neg_accept.at({sample_idx});
             }
 
-            if (iteration < params.burnin and
-                iteration > 15)  // don't start adapting until there are
-                                 // at least a few samples
-            {
+            if (iteration < params.burnin && iteration > 15) {
                 const float acceptanceRate =
                     eps_neg_accept.at({sample_idx}) / float(iteration);
                 const float update =
                     (acceptanceRate - .23) / std::pow(iteration + 1, .5);
-                eps_neg_var.at({sample_idx}) = std::max(eps_neg_var.at({sample_idx}) + update, .0001f);
+                eps_neg_var.at({sample_idx}) =
+                    std::max(eps_neg_var.at({sample_idx}) + update, .0001f);
             }
         }
-    }
+    });
+    in_parallel_sample_region_ = false;
+    reduce_likelihood_sums_after_parallel_sample_move();
 }
 
 void Chain::update_samples(int iteration)
 {
     ProfileScope scope("Chain::update_samples");
-    auto sample_indices = std::vector<std::size_t>(genotyping_data.num_samples);
-    std::iota(sample_indices.begin(), sample_indices.end(), 0);
-    sampler.shuffle_vec(sample_indices);
+    const std::size_t N = genotyping_data.num_samples;
+    const std::size_t n_loci = genotyping_data.num_loci;
 
-    for (const auto sample_idx : sample_indices)
-    {
-        const auto eps_neg_prop_adj = sampler.sample_constrained(
+    // Joint per-sample move over (eps_neg, eps_pos, r, m). Independent across
+    // samples: the move changes only sample s's observation row, transmission
+    // term (folds in s's COI prior) and s's eps_neg / eps_pos / relatedness
+    // priors, so the MH ratio is
+    //   temp * (delta_obs_s + delta_tx_s)
+    //        + delta_eps_neg_prior_s + delta_eps_pos_prior_s
+    //        + delta_relatedness_prior_s + adj,
+    // from s's own slots. Parallel over samples with a private RNG; reconcile
+    // the deferred global sums serially afterward.
+    prewarm_caches_for_parallel_sample_move();
+    in_parallel_sample_region_ = true;
+    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t sample_idx) {
+        Sampler &rng = worker_rng();
+        const auto eps_neg_prop_adj = rng.sample_constrained(
             eps_neg.at({sample_idx}), eps_neg_var.at({sample_idx}), min_sampled, 1);
         const float prop_eps_neg = std::get<0>(eps_neg_prop_adj);
         const float eps_neg_adj = std::get<1>(eps_neg_prop_adj);
-        const bool valid_prop_eps_neg =
-            prop_eps_neg < 1 && prop_eps_neg > 1e-32;
+        const bool valid_prop_eps_neg = prop_eps_neg < 1 && prop_eps_neg > 1e-32;
 
-        const auto eps_pos_prop_adj = sampler.sample_constrained(
+        const auto eps_pos_prop_adj = rng.sample_constrained(
             eps_pos.at({sample_idx}), eps_pos_var.at({sample_idx}), min_sampled, 1);
         const float prop_eps_pos = std::get<0>(eps_pos_prop_adj);
         const float eps_pos_adj = std::get<1>(eps_pos_prop_adj);
-        const bool valid_prop_eps_pos =
-            prop_eps_pos < 1 && prop_eps_pos > 1e-32;
+        const bool valid_prop_eps_pos = prop_eps_pos < 1 && prop_eps_pos > 1e-32;
 
         float prop_r = 0;
         float r_adj = 0;
         bool valid_prop_r = true;
-        if (params.allow_relatedness)
-        {
-            auto r_prop_adj =
-                sampler.sample_constrained(r.at({sample_idx}), r_var.at({sample_idx}), min_sampled, .99);
+        if (params.allow_relatedness) {
+            auto r_prop_adj = rng.sample_constrained(
+                r.at({sample_idx}), r_var.at({sample_idx}), min_sampled, .99);
             prop_r = std::get<0>(r_prop_adj);
             r_adj = std::get<1>(r_prop_adj);
             valid_prop_r = prop_r < 1 && prop_r > 1e-32;
         }
 
-        const std::size_t prop_m = m.at({sample_idx}) + sampler.sample_coi_delta(2);
+        const std::size_t prop_m = m.at({sample_idx}) + rng.sample_coi_delta(2);
         const bool valid_prop_m = prop_m > 0 && prop_m <= params.max_coi;
 
-        if (valid_prop_eps_neg && valid_prop_eps_pos && valid_prop_r &&
-            valid_prop_m)
-        {
-            const float prev_eps_pos = eps_pos.at({sample_idx});
-            eps_pos.at({sample_idx}) = prop_eps_pos;
-            calculate_eps_pos_likelihood(sample_idx);
-
-            const float prev_eps_neg = eps_neg.at({sample_idx});
-            eps_neg.at({sample_idx}) = prop_eps_neg;
-            calculate_eps_neg_likelihood(sample_idx);
-
-            const float prev_r = r.at({sample_idx});
-            r.at({sample_idx}) = prop_r;
-            calculate_relatedness_likelihood(sample_idx);
-
-            const float prev_m = m.at({sample_idx});
-            m.at({sample_idx}) = prop_m;
-
-            float adj_ratio = eps_neg_adj + eps_pos_adj + r_adj;
-
-            calculate_coi_likelihood(sample_idx);
-            // First, sample latent genotypes for pop_idx == 0 (sequential, uses sampler)
-            for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx)
-            {
-                auto lg = observation_model_->sample_latent_genotype(
-                    sampler,
-                    genotyping_data.get_observed_alleles(sample_idx, locus_idx), m.at({sample_idx}),
-                    eps_pos.at({sample_idx}), eps_neg.at({sample_idx}));
-                assign_latent_genotype_new(sample_idx, locus_idx, lg.value);
-                lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
-                adj_ratio = adj_ratio + lg_adj_new.at({sample_idx, locus_idx}) - lg_adj_old.at({sample_idx, locus_idx});
-            }
-            moire_parallel::recalc_parallel_for(0, genotyping_data.num_loci, [&](std::size_t locus_idx) {
-                calculate_observation_likelihood(sample_idx, locus_idx);
-            });
-            sync_obs_sum_for_sample(sample_idx);
-
-            float new_llik;
-            if (pam_fast_paths::tx_opts_enabled()) {
-                recalculate_transmission_for_sample_incremental(
-                    sample_idx, static_cast<int>(prev_m), prev_r);
-                new_llik = obs_llik_sum_new_ + tx_llik_sum_new;
-            } else {
-                invalidate_transmission_llik_cache();
-                moire_parallel::recalc_parallel_for_2d(0, params.num_populations, 0, genotyping_data.num_loci,
-                    [&](std::size_t pop_idx, std::size_t locus_idx) {
-                        calculate_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-                    });
-                new_llik = calc_new_likelihood();
-            }
-
-            const float new_prior = calc_new_prior();
-            const float new_post = new_llik * temp + new_prior;
-            const float alpha = sampler.sample_log_mh_acceptance();
-
-            if (std::isfinite(new_post) and
-                alpha <= (new_post - get_posterior() + adj_ratio))
-            {
-                llik = new_llik;
-                prior = new_prior;
-                save_eps_neg_likelihood(sample_idx);
-                save_eps_pos_likelihood(sample_idx);
-                save_relatedness_likelihood(sample_idx);
-                save_coi_likelihood(sample_idx);
-                // Save observation likelihoods for pop_idx == 0 (parallel over loci)
-                moire_parallel::parallel_for(0, genotyping_data.num_loci, [&](std::size_t locus_idx) {
-                    save_observation_likelihood(sample_idx, locus_idx);
-                    lg_adj_old.at({sample_idx, locus_idx}) = lg_adj_new.at({sample_idx, locus_idx});
-                    auto [begin, end] = latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
-                    std::copy(begin, end, latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
-                });
-                // Save transmission likelihoods across all populations/loci
-                for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
-                    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
-                        save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
-                    }
-                }
-                ++sample_accept.at({sample_idx});
-            }
-            else
-            {
-                m.at({sample_idx}) = prev_m;
-                eps_pos.at({sample_idx}) = prev_eps_pos;
-                eps_neg.at({sample_idx}) = prev_eps_neg;
-                r.at({sample_idx}) = prev_r;
-                restore_eps_neg_likelihood(sample_idx);
-                restore_eps_pos_likelihood(sample_idx);
-                restore_relatedness_likelihood(sample_idx);
-                restore_coi_likelihood(sample_idx);
-                // Restore observation likelihoods for pop_idx == 0 (parallel over loci)
-                moire_parallel::parallel_for(0, genotyping_data.num_loci, [&](std::size_t locus_idx) {
-                    restore_observation_likelihood(sample_idx, locus_idx);
-                    lg_adj_new.at({sample_idx, locus_idx}) = lg_adj_old.at({sample_idx, locus_idx});
-                    restore_latent_genotype_new(sample_idx, locus_idx);
-                });
-                sync_obs_sum_for_sample(sample_idx);
-                if (pam_fast_paths::tx_opts_enabled()) {
-                    restore_transmission_for_sample_incremental(sample_idx);
-                } else {
-                    for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
-                        for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
-                            restore_transmission_likelihood(sample_idx, pop_idx, locus_idx);
-                        }
-                    }
-                    invalidate_transmission_llik_cache();
-                }
-            }
+        if (!(valid_prop_eps_neg && valid_prop_eps_pos && valid_prop_r &&
+              valid_prop_m)) {
+            return;
         }
-    }
+
+        const float old_lik =
+            obs_row_sum_new_[sample_idx] + tx_sample_logsumexp_new.at({sample_idx});
+        const float old_eps_neg_prior = eps_neg_prior_new.at({sample_idx});
+        const float old_eps_pos_prior = eps_pos_prior_new.at({sample_idx});
+        const float old_rel_prior = relatedness_prior_new.at({sample_idx});
+
+        const float prev_eps_pos = eps_pos.at({sample_idx});
+        eps_pos.at({sample_idx}) = prop_eps_pos;
+        calculate_eps_pos_likelihood(sample_idx);
+
+        const float prev_eps_neg = eps_neg.at({sample_idx});
+        eps_neg.at({sample_idx}) = prop_eps_neg;
+        calculate_eps_neg_likelihood(sample_idx);
+
+        const float prev_r = r.at({sample_idx});
+        r.at({sample_idx}) = prop_r;
+        calculate_relatedness_likelihood(sample_idx);
+
+        const float prev_m = m.at({sample_idx});
+        m.at({sample_idx}) = prop_m;
+
+        float adj_ratio = eps_neg_adj + eps_pos_adj + r_adj;
+        calculate_coi_likelihood(sample_idx);
+
+        for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
+            auto lg = observation_model_->sample_latent_genotype(
+                rng, genotyping_data.get_observed_alleles(sample_idx, locus_idx),
+                m.at({sample_idx}), eps_pos.at({sample_idx}),
+                eps_neg.at({sample_idx}));
+            assign_latent_genotype_new(sample_idx, locus_idx, lg.value);
+            lg_adj_new.at({sample_idx, locus_idx}) = lg.log_prob;
+            adj_ratio += lg_adj_new.at({sample_idx, locus_idx}) -
+                         lg_adj_old.at({sample_idx, locus_idx});
+            calculate_observation_likelihood(sample_idx, locus_idx);
+        }
+        sync_obs_sum_for_sample(sample_idx);
+        recalculate_transmission_for_sample_incremental(
+            sample_idx, static_cast<int>(prev_m), prev_r);
+
+        const float new_lik =
+            obs_row_sum_new_[sample_idx] + tx_sample_logsumexp_new.at({sample_idx});
+        const float prior_delta =
+            (eps_neg_prior_new.at({sample_idx}) - old_eps_neg_prior) +
+            (eps_pos_prior_new.at({sample_idx}) - old_eps_pos_prior) +
+            (relatedness_prior_new.at({sample_idx}) - old_rel_prior);
+        const float mh_ratio =
+            temp * (new_lik - old_lik) + prior_delta + adj_ratio;
+        const float alpha = rng.sample_log_mh_acceptance();
+
+        if (std::isfinite(new_lik) && alpha <= mh_ratio) {
+            // Accept.
+            save_eps_neg_likelihood(sample_idx);
+            save_eps_pos_likelihood(sample_idx);
+            save_relatedness_likelihood(sample_idx);
+            save_coi_likelihood(sample_idx);
+            for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
+                save_observation_likelihood(sample_idx, locus_idx);
+                lg_adj_old.at({sample_idx, locus_idx}) =
+                    lg_adj_new.at({sample_idx, locus_idx});
+                auto [begin, end] =
+                    latent_genotypes_new.inner_iterators({sample_idx, locus_idx});
+                std::copy(begin, end,
+                          latent_genotypes_old.inner_begin({sample_idx, locus_idx}));
+            }
+            for (std::size_t pop_idx = 0; pop_idx < params.num_populations; ++pop_idx) {
+                for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
+                    save_transmission_likelihood(pop_idx, sample_idx, locus_idx);
+                }
+            }
+            ++sample_accept.at({sample_idx});
+        } else {
+            // Reject.
+            m.at({sample_idx}) = prev_m;
+            eps_pos.at({sample_idx}) = prev_eps_pos;
+            eps_neg.at({sample_idx}) = prev_eps_neg;
+            r.at({sample_idx}) = prev_r;
+            restore_eps_neg_likelihood(sample_idx);
+            restore_eps_pos_likelihood(sample_idx);
+            restore_relatedness_likelihood(sample_idx);
+            restore_coi_likelihood(sample_idx);
+            for (std::size_t locus_idx = 0; locus_idx < n_loci; ++locus_idx) {
+                restore_observation_likelihood(sample_idx, locus_idx);
+                lg_adj_new.at({sample_idx, locus_idx}) =
+                    lg_adj_old.at({sample_idx, locus_idx});
+                restore_latent_genotype_new(sample_idx, locus_idx);
+            }
+            sync_obs_sum_for_sample(sample_idx);
+            restore_transmission_for_sample_incremental(sample_idx);
+        }
+    });
+    in_parallel_sample_region_ = false;
+    reduce_likelihood_sums_after_parallel_sample_move();
 }
 
 void Chain::update_population_coi_p(int iteration)

@@ -6,6 +6,7 @@
 #include <Rmath.h>
 #include <cmath>
 #include <algorithm>
+#include <limits>
 #include <random>
 #include <tuple>
 #include <span>
@@ -26,7 +27,39 @@ Sampler::Sampler()
 
 float Sampler::dbeta(float x, float alpha, float beta, bool return_log)
 {
-    return R::dbeta(x, alpha, beta, return_log);
+    // Thread-safe Beta(alpha, beta) (log-)density. Implemented directly with
+    // std::lgamma/log1p rather than R::dbeta because R's C math API is not
+    // thread-safe, and this is evaluated inside the parallel-over-samples moves
+    // (relatedness / eps priors). For interior x (the only values the sampler
+    // proposes) it matches R::dbeta to float precision.
+    const float pos_inf = std::numeric_limits<float>::infinity();
+    const float neg_inf = -std::numeric_limits<float>::infinity();
+    const float log_beta_fn =
+        std::lgamma(alpha) + std::lgamma(beta) - std::lgamma(alpha + beta);
+    // Boundary densities, replicating R::dbeta at x == 0 and x == 1 (the
+    // relatedness prior is evaluated at r == 0 when relatedness is disabled).
+    auto edge = [&](float a, float b) -> float {
+        float log_density;
+        if (a < 1.0f) {
+            log_density = pos_inf;  // density blows up at the boundary
+        } else if (a == 1.0f) {
+            // x^(a-1) -> 1, so density = (1-x)^(b-1) / B(a, b); at the boundary
+            // (1-x)^(b-1) -> 1, leaving 1 / B(1, b) = b.
+            log_density = std::log(b);
+        } else {
+            log_density = neg_inf;  // density -> 0
+        }
+        return return_log ? log_density : std::exp(log_density);
+    };
+    if (!(x > 0.0f)) {
+        return edge(alpha, beta);
+    }
+    if (!(x < 1.0f)) {
+        return edge(beta, alpha);
+    }
+    const float log_density = (alpha - 1.0f) * std::log(x) +
+                              (beta - 1.0f) * std::log1p(-x) - log_beta_fn;
+    return return_log ? log_density : std::exp(log_density);
 }
 
 float Sampler::dpois(int x, float mean, bool return_log)

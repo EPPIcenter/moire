@@ -646,7 +646,9 @@ float Chain::apply_transmission_cell_change(
 
     tx_sample_logsumexp_new.at({sample_idx}) = new_L;
     const float delta = new_L - old_L;
-    tx_llik_sum_new += delta;
+    if (!in_parallel_sample_region_) {
+        tx_llik_sum_new += delta;
+    }
     return delta;
 }
 
@@ -722,7 +724,9 @@ void Chain::refresh_sample_tx_after_coi_change(std::size_t sample_idx)
     const float new_L = moire_fused::detail::population_logits_logsumexp(
         logits.data(), num_populations);
     tx_sample_logsumexp_new.at({sample_idx}) = new_L;
-    tx_llik_sum_new += new_L - old_L;
+    if (!in_parallel_sample_region_) {
+        tx_llik_sum_new += new_L - old_L;
+    }
 }
 
 void Chain::refresh_all_samples_tx_logsumexp()
@@ -1055,6 +1059,86 @@ float Chain::get_llik() { return llik; }
 float Chain::get_prior() { return prior; }
 float Chain::get_posterior() { return llik * temp + prior; }
 
+void Chain::prewarm_caches_for_parallel_sample_move()
+{
+    // Build the incremental transmission cache and the population-log cache on
+    // the dispatch thread so worker threads never hit a lazy rebuild (which
+    // would race on the shared caches and running sums) inside the region.
+    if (!tx_llik_cache_valid_) {
+        rebuild_transmission_llik_cache();
+    }
+    if (!population_responsibility_vector_log_valid_) {
+        population_responsibility_vector_log_ = population_responsibility_vector.log();
+        population_responsibility_vector_log_valid_ = true;
+    }
+}
+
+void Chain::reduce_likelihood_sums_after_parallel_sample_move()
+{
+    // The parallel region updated only per-sample slots; rebuild the global
+    // running sums from those slots, then refresh llik/prior. Done serially.
+    const std::size_t n_samples = genotyping_data.num_samples;
+
+    double obs_sum = 0.0;
+    double tx_sum = 0.0;
+    for (std::size_t s = 0; s < n_samples; ++s) {
+        obs_sum += static_cast<double>(obs_row_sum_new_[s]);
+        tx_sum += static_cast<double>(tx_sample_logsumexp_new.at({s}));
+    }
+    obs_llik_sum_new_ = static_cast<float>(obs_sum);
+    tx_llik_sum_new = static_cast<float>(tx_sum);
+
+    double eps_neg_sum = 0.0;
+    double eps_pos_sum = 0.0;
+    double rel_sum = 0.0;
+    for (std::size_t s = 0; s < n_samples; ++s) {
+        eps_neg_sum += static_cast<double>(eps_neg_prior_new.at({s}));
+        eps_pos_sum += static_cast<double>(eps_pos_prior_new.at({s}));
+        rel_sum += static_cast<double>(relatedness_prior_new.at({s}));
+    }
+    eps_neg_prior_sum_new_ = static_cast<float>(eps_neg_sum);
+    eps_pos_prior_sum_new_ = static_cast<float>(eps_pos_sum);
+    relatedness_prior_sum_new_ = static_cast<float>(rel_sum);
+
+    llik = calc_new_likelihood();
+    prior = calc_new_prior();
+
+    // Optional audit: rebuild the transmission cache from scratch (recomputes
+    // tx_loci_sum_new / tx_sample_logsumexp_new / tx_llik_sum_new directly from
+    // the per-sample transmission_llik_new + coi_prior_new slots) and confirm it
+    // matches the incrementally-maintained value. Catches any cross-sample slot
+    // corruption introduced by the parallel region.
+    if (std::getenv("MOIRE_STD_CHECK_MOVES") != nullptr) {
+        const float tx_incremental = tx_llik_sum_new;
+        const float obs_incremental = obs_llik_sum_new_;
+        rebuild_transmission_llik_cache();
+        const float tx_scratch = tx_llik_sum_new;
+        double obs_scratch = 0.0;
+        for (std::size_t s = 0; s < n_samples; ++s) {
+            const auto [b, e] = observation_llik_new.inner_iterators({s});
+            for (auto it = b; it != e; ++it) obs_scratch += static_cast<double>(*it);
+        }
+        Rcpp::Rcout << "[std-move-audit] |tx incr-scratch|="
+                    << std::abs(tx_incremental - tx_scratch)
+                    << " |obs incr-scratch|="
+                    << std::abs(obs_incremental - static_cast<float>(obs_scratch))
+                    << "\n";
+        llik = calc_new_likelihood();
+    }
+
+    // Latent genotypes changed for accepted samples, so every locus' update_p
+    // group cache is stale; invalidate wholesale (the per-locus invalidation
+    // was deferred to avoid the cross-sample race).
+    for (std::size_t locus_idx = 0; locus_idx < genotyping_data.num_loci; ++locus_idx) {
+        if (locus_idx < update_p_locus_group_cache_.size()) {
+            update_p_locus_group_cache_[locus_idx].valid = false;
+            for (std::size_t pop_idx = 0; pop_idx < update_p_pam_slots_.size(); ++pop_idx) {
+                update_p_pam_slots_[pop_idx][locus_idx].clear();
+            }
+        }
+    }
+}
+
 void Chain::calculate_observation_likelihood(std::size_t sample_idx, std::size_t locus_idx) {
     ProfileScope scope("Chain::calculate_observation_likelihood");
     if (genotyping_data.is_missing(sample_idx, locus_idx)) {
@@ -1080,7 +1164,9 @@ void Chain::sync_obs_sum_for_sample(std::size_t sample_idx)
     for (auto it = begin; it != end; ++it) {
         row += *it;
     }
-    obs_llik_sum_new_ += row - obs_row_sum_new_[sample_idx];
+    if (!in_parallel_sample_region_) {
+        obs_llik_sum_new_ += row - obs_row_sum_new_[sample_idx];
+    }
     obs_row_sum_new_[sample_idx] = row;
 }
 
@@ -1126,6 +1212,13 @@ void Chain::invalidate_update_p_locus_group_cache(std::size_t locus_idx)
     // cross-sample write hazard, since the marginal latent moves invalidate
     // genotypes in parallel over samples (many samples touch the same locus).
     if (params.marginal_ecoi) {
+        return;
+    }
+    // Same cross-sample hazard for the standard parallel-over-samples moves:
+    // worker threads mutating latent genotypes for different samples would race
+    // clearing the same per-locus slot vectors. Defer to a wholesale
+    // invalidation after the parallel region (reduce_likelihood_sums_...).
+    if (in_parallel_sample_region_) {
         return;
     }
     if (locus_idx < update_p_locus_group_cache_.size()) {
@@ -1311,7 +1404,9 @@ void Chain::calculate_eps_neg_likelihood(std::size_t sample_idx)
     ProfileScope scope("Chain::calculate_eps_neg_likelihood");
     const float val = sampler.get_beta_log_prior(
         eps_neg.at({sample_idx}), params.eps_neg_alpha, params.eps_neg_beta);
-    eps_neg_prior_sum_new_ += val - eps_neg_prior_new.at({sample_idx});
+    if (!in_parallel_sample_region_) {
+        eps_neg_prior_sum_new_ += val - eps_neg_prior_new.at({sample_idx});
+    }
     eps_neg_prior_new.at({sample_idx}) = val;
 }
 
@@ -1320,7 +1415,9 @@ void Chain::calculate_eps_pos_likelihood(std::size_t sample_idx)
     ProfileScope scope("Chain::calculate_eps_pos_likelihood");
     const float val = sampler.get_beta_log_prior(
         eps_pos.at({sample_idx}), params.eps_pos_alpha, params.eps_pos_beta);
-    eps_pos_prior_sum_new_ += val - eps_pos_prior_new.at({sample_idx});
+    if (!in_parallel_sample_region_) {
+        eps_pos_prior_sum_new_ += val - eps_pos_prior_new.at({sample_idx});
+    }
     eps_pos_prior_new.at({sample_idx}) = val;
 }
 
@@ -1338,7 +1435,9 @@ void Chain::calculate_relatedness_likelihood(std::size_t sample_idx)
     ProfileScope scope("Chain::calculate_relatedness_likelihood");
     const float val = sampler.get_relatedness_log_prior(
         r.at({sample_idx}), params.r_alpha, params.r_beta);
-    relatedness_prior_sum_new_ += val - relatedness_prior_new.at({sample_idx});
+    if (!in_parallel_sample_region_) {
+        relatedness_prior_sum_new_ += val - relatedness_prior_new.at({sample_idx});
+    }
     relatedness_prior_new.at({sample_idx}) = val;
 }
 
@@ -2166,14 +2265,18 @@ void Chain::restore_transmission_likelihood(std::size_t sample_idx, std::size_t 
 void Chain::restore_eps_neg_likelihood(std::size_t sample_idx)
 {
     const float old_val = eps_neg_prior_old.at({sample_idx});
-    eps_neg_prior_sum_new_ += old_val - eps_neg_prior_new.at({sample_idx});
+    if (!in_parallel_sample_region_) {
+        eps_neg_prior_sum_new_ += old_val - eps_neg_prior_new.at({sample_idx});
+    }
     eps_neg_prior_new.at({sample_idx}) = old_val;
 }
 
 void Chain::restore_eps_pos_likelihood(std::size_t sample_idx)
 {
     const float old_val = eps_pos_prior_old.at({sample_idx});
-    eps_pos_prior_sum_new_ += old_val - eps_pos_prior_new.at({sample_idx});
+    if (!in_parallel_sample_region_) {
+        eps_pos_prior_sum_new_ += old_val - eps_pos_prior_new.at({sample_idx});
+    }
     eps_pos_prior_new.at({sample_idx}) = old_val;
 }
 
@@ -2187,7 +2290,9 @@ void Chain::restore_eps_pos_locus_likelihood(std::size_t locus_idx)
 void Chain::restore_relatedness_likelihood(std::size_t sample_idx)
 {
     const float old_val = relatedness_prior_old.at({sample_idx});
-    relatedness_prior_sum_new_ += old_val - relatedness_prior_new.at({sample_idx});
+    if (!in_parallel_sample_region_) {
+        relatedness_prior_sum_new_ += old_val - relatedness_prior_new.at({sample_idx});
+    }
     relatedness_prior_new.at({sample_idx}) = old_val;
 }
 
