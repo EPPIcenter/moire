@@ -24,6 +24,7 @@
 
 #include "pam_fast_paths.h"
 
+#include <bit>
 #include <cmath>
 #include <cstddef>
 #include <limits>
@@ -33,6 +34,23 @@
 namespace ecoi_marginal {
 
 constexpr double kNegInf = -std::numeric_limits<double>::infinity();
+
+// Largest latent-support size for which the closed-form inclusion-exclusion
+// transmission term is precomputed and used. The closed form costs O(2^k) pow()
+// per (m, r) while the binomial mixture costs ~O(max_coi), so beyond this the
+// mixture is cheaper; correctness, however, holds for any k (the cancellation
+// gate below makes the closed form fall back to the mixture when it is
+// ill-conditioned). Tunable.
+inline constexpr int kClosedFormMaxK = 6;
+
+// Cancellation guard for the closed-form signed sum. The inclusion-exclusion
+// terms are evaluated in linear space, so when relatedness is high (r -> 1) the
+// true value is a tiny difference of O(T) terms and loses precision. Fall back
+// to the cancellation-free log-space mixture whenever sum|term| exceeds this
+// multiple of |sum| (i.e. more than ~8 of a double's ~15.9 digits are lost).
+// Validated in inst/scripts/validate_ecoi_closed_form.R: marginal L(e) error
+// < 5e-9 with a ~0.3% fallback rate at this threshold.
+inline constexpr double kClosedFormCondLimit = 1e8;
 
 // ---- numerics -------------------------------------------------------------
 
@@ -145,7 +163,14 @@ struct Hyperparams {
 struct LocusSupport {
     int k = 0;
     double logT = 0.0;
-    std::vector<double> logpas;  // length max_coi
+    std::vector<double> logpas;  // length max_coi (binomial-mixture path)
+    // Closed-form inclusion-exclusion terms, indexed by excluded-allele mask S:
+    //   subset_V[S] = sum of UNNORMALIZED support freqs NOT in S   (subset_V[0] = T).
+    // The per-(m, r) locus term then collapses (binomial theorem) to
+    //   t_l(m, r) = sum_S (-1)^popcount(S) * subset_V[S] * (r + (1-r) subset_V[S])^{m-1}.
+    // Empty when k > kClosedFormMaxK, in which case tx_loglik_locus uses the
+    // binomial mixture instead.
+    std::vector<double> subset_V;  // length 2^k when populated
 };
 
 // support_p: unnormalized allele frequencies restricted to the latent support.
@@ -158,6 +183,14 @@ inline LocusSupport precompute_locus(std::span<const float> support_p, int max_c
         total += static_cast<double>(v);
     }
     pre.logT = std::log(total);
+
+    // Closed-form inclusion-exclusion terms V_S = sum of (unnormalized) support
+    // freqs not in S. compute_subset_sums(support_p) returns exactly this,
+    // indexed by the excluded mask (subset_V[0] = total). Only populated when the
+    // support is small enough for 2^k to beat the mixture (see kClosedFormMaxK).
+    if (pre.k >= 1 && pre.k <= kClosedFormMaxK) {
+        pam_fast_paths::compute_subset_sums(support_p, pre.subset_V);
+    }
 
     std::vector<float> q;
     q.reserve(support_p.size());
@@ -194,6 +227,37 @@ inline double tx_loglik_locus(const LocusSupport& pre, int m, double r)
     if (m < pre.k || m < 1) {
         return kNegInf;
     }
+
+    // Closed-form path (exact binomial-theorem collapse of the IBD mixture):
+    //   t = sum_S (-1)^popcount(S) V_S (r + (1-r) V_S)^{m-1}.
+    // O(2^k) pow() vs the O(max_coi) mixture below. Guarded against catastrophic
+    // cancellation (r -> 1): if the signed sum has lost too much precision we
+    // fall through to the cancellation-free log-space mixture.
+    if (!pre.subset_V.empty()) {
+        const double exponent = static_cast<double>(m - 1);
+        const double one_minus_r = 1.0 - r;
+        double sum = 0.0;
+        double abs_sum = 0.0;
+        const std::size_t n_masks = pre.subset_V.size();
+        for (std::size_t mask = 0; mask < n_masks; ++mask) {
+            const double V = pre.subset_V[mask];
+            if (V <= 0.0) {
+                continue;  // V = 0 (full exclusion) contributes nothing
+            }
+            const double term = V * std::pow(r + one_minus_r * V, exponent);
+            abs_sum += term;
+            if (std::popcount(static_cast<unsigned>(mask)) & 1) {
+                sum -= term;
+            } else {
+                sum += term;
+            }
+        }
+        if (sum > 0.0 && abs_sum <= kClosedFormCondLimit * sum) {
+            return std::log(sum);
+        }
+        // else: ill-conditioned (or numerically <= 0) -> mixture fallback.
+    }
+
     const int n_terms = m - pre.k + 1;
     // r is constant across the mixture, so the binomial coefficient's
     // i*log(r) + (size-i)*log1p(-r) factors are computed from two hoisted

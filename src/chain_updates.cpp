@@ -20,6 +20,26 @@
 
 constexpr float min_sampled = std::numeric_limits<float>::min();
 
+namespace {
+// Per-worker RNG stream for the parallel per-sample eCOI moves. Samples are
+// independent in the collapsed likelihood, so each worker thread draws all of
+// its proposals (eCOI jumps, latent-genotype reproposals) from its own stream.
+// This lets the proposal draws -- previously a serial pre-draw phase -- run
+// inside the parallel-over-samples region with no shared-RNG contention: each
+// stream is touched by one thread at a time, so it stays race-free, and every
+// proposal is still an independent draw from the proposal kernel (valid
+// Metropolis-Hastings; correctness does not depend on which stream produces a
+// given sample's draws). At a single thread this collapses to one hot sampler
+// used sequentially -- the same cost profile as the old shared-sampler pre-draw.
+// Like the rest of the C++ sampler, it is NOT seeded by R's set.seed, so runs
+// are nondeterministic regardless of thread count.
+Sampler &ecoi_worker_rng()
+{
+    static thread_local Sampler rng;
+    return rng;
+}
+}  // namespace
+
 void Chain::update_m(int iteration)
 {
     ProfileScope scope("Chain::update_m");
@@ -278,46 +298,28 @@ void Chain::update_ecoi(int iteration)
 
     // Samples are independent in the collapsed marginal: each sample's MH ratio
     // reduces to temp*(new_marg - old_marg) + adjustment, with the global llik
-    // and prior cancelling out. So the two per-sample MH steps (random walk +
-    // prior independence) can be evaluated fully in parallel. To keep the RNG
-    // stream sequential/reproducible, all random draws are taken serially up
-    // front; only the (expensive) marginal evaluations run on worker threads.
-    struct EcoiDraw {
-        float prop_a;
-        float adj_a;
-        float u_a;
-        float prop_b;
-        float u_b;
-    };
-    std::vector<EcoiDraw> draws(N);
-    for (std::size_t s = 0; s < N; ++s) {
-        const float curr_e = eff_coi.at({s});
-        const auto prop_adj = sampler.sample_constrained(
-            curr_e, eff_coi_var.at({s}), 1, params.max_coi);
-        draws[s].prop_a = std::get<0>(prop_adj);
-        draws[s].adj_a = std::get<1>(prop_adj);
-        draws[s].u_a = sampler.sample_log_mh_acceptance();
-        draws[s].prop_b = 1.0f + sampler.rgamma2(k0, k0 / mu0);
-        draws[s].u_b = sampler.sample_log_mh_acceptance();
-    }
-
+    // and prior cancelling out. Each sample owns a private RNG stream, so its
+    // proposal draws and the (expensive) marginal evaluations both run on the
+    // worker thread -- no serial pre-draw phase, no shared-RNG contention.
     moire_parallel::recalc_parallel_for(0, N, [&](std::size_t s) {
+        Sampler &rng = ecoi_worker_rng();
         float curr_e = eff_coi.at({s});
         double cur_marg = static_cast<double>(ecoi_sample_marg_[s]);
         int accepted = 0;
 
         // (a) local random-walk step.
         {
-            const float prop_e = draws[s].prop_a;
+            const auto [prop_e, adj_a] = rng.sample_constrained(
+                curr_e, eff_coi_var.at({s}), 1, params.max_coi);
+            const float u_a = rng.sample_log_mh_acceptance();
             if ((prop_e > 1.0f) && prop_e <= params.max_coi &&
                 std::isfinite(prop_e)) {
                 const double new_marg = ecoi_sample_rel_marginal_llik(
                     s, static_cast<double>(prop_e));
                 if (std::isfinite(new_marg)) {
                     const float mh_ratio =
-                        static_cast<float>(temp * (new_marg - cur_marg)) +
-                        draws[s].adj_a;
-                    if (draws[s].u_a <= mh_ratio) {
+                        static_cast<float>(temp * (new_marg - cur_marg)) + adj_a;
+                    if (u_a <= mh_ratio) {
                         curr_e = prop_e;
                         cur_marg = new_marg;
                         ++accepted;
@@ -328,7 +330,11 @@ void Chain::update_ecoi(int iteration)
 
         // (b) independence step from the population-0 continuous prior.
         {
-            const float prop_e = draws[s].prop_b;
+            // rgamma(shape, scale) draws Gamma(k0, mu0/k0) == the thread-unsafe
+            // R::rgamma(k0, scale = mu0/k0) the serial version used, but from this
+            // sample's own engine so it is safe inside the parallel region.
+            const float prop_e = 1.0f + rng.rgamma(k0, mu0 / k0);
+            const float u_b = rng.sample_log_mh_acceptance();
             if ((prop_e > 1.0f) && prop_e <= params.max_coi &&
                 std::isfinite(prop_e)) {
                 const double new_marg = ecoi_sample_rel_marginal_llik(
@@ -340,7 +346,7 @@ void Chain::update_ecoi(int iteration)
                     const float mh_ratio =
                         static_cast<float>(temp * (new_marg - cur_marg)) +
                         static_cast<float>(logq_old - logq_new);
-                    if (draws[s].u_b <= mh_ratio) {
+                    if (u_b <= mh_ratio) {
                         curr_e = prop_e;
                         cur_marg = new_marg;
                         ++accepted;
@@ -428,17 +434,19 @@ void Chain::update_latent_marginal(int iteration)
     const std::size_t N = genotyping_data.num_samples;
     const std::size_t L = genotyping_data.num_loci;
 
-    // Phase 1 (serial RNG): propose new latent genotypes for every sample and
-    // draw the accept uniforms. Proposals consume the shared sampler, so they
-    // must stay sequential; the expensive obs-likelihood recompute + marginal
-    // evaluation run in parallel below. Samples are independent in the collapsed
-    // likelihood, so each sample's MH ratio reduces to its own (obs + marginal)
-    // delta -- the global llik and prior cancel.
-    std::vector<float> adj_ratio(N, 0.0f);
-    std::vector<float> accept_u(N, 0.0f);
-    for (std::size_t s = 0; s < N; ++s) {
+    // Samples are independent in the collapsed likelihood, so each sample's MH
+    // ratio reduces to its own (obs + marginal) delta (global llik and prior
+    // cancel). Each sample owns a private RNG stream, so the genotype-proposal
+    // draws (previously a serial pre-draw phase) and the obs/marginal recompute
+    // both run on the worker thread. Every write is to per-sample storage
+    // (genotypes, obs-llik rows, obs_row_sum_new_, ecoi_sample_marg_,
+    // sample_accept) or the sample's own support-cache column.
+    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t s) {
+        Sampler &rng = ecoi_worker_rng();
         const float eps_neg_s = eps_neg.at({s});
-        float adj = 0.0f;
+
+        // Propose new latent genotypes for this sample from its own RNG stream.
+        float adj_ratio = 0.0f;
         for (std::size_t l = 0; l < L; ++l) {
             if (genotyping_data.is_missing(s, l)) {
                 continue;
@@ -450,20 +458,14 @@ void Chain::update_latent_marginal(int iteration)
                 old_support, observed, eps_pos_l, eps_neg_s);
 
             const auto lg = observation_model_->propose_latent_genotype_marginal(
-                sampler, observed, eps_pos_l, eps_neg_s);
+                rng, observed, eps_pos_l, eps_neg_s);
             assign_latent_genotype_new(s, l, lg.value);
             lg_adj_new.at({s, l}) = lg.log_prob;
-            adj += rev_logq - lg.log_prob;
+            adj_ratio += rev_logq - lg.log_prob;
         }
-        adj_ratio[s] = adj;
-        accept_u[s] = sampler.sample_log_mh_acceptance();
-    }
+        const float accept_u = rng.sample_log_mh_acceptance();
 
-    // Phase 2 (parallel over samples): recompute obs likelihood + marginal for
-    // each proposed sample and accept/reject against its own delta. Every write
-    // is to per-sample storage (genotypes, obs-llik rows, obs_row_sum_new_,
-    // ecoi_sample_marg_, sample_accept) or its own cache column.
-    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t s) {
+        // Recompute obs likelihood + marginal for the proposal and accept/reject.
         ecoi_support_cache_invalidate_sample(s);
         for (std::size_t l = 0; l < L; ++l) {
             calculate_observation_likelihood(s, l);
@@ -483,10 +485,10 @@ void Chain::update_latent_marginal(int iteration)
         const float mh_ratio = static_cast<float>(
                                    temp * ((new_row - old_row) +
                                            (new_marg - old_marg))) +
-                               adj_ratio[s];
+                               adj_ratio;
 
         if (std::isfinite(new_marg) && std::isfinite(new_row) &&
-            accept_u[s] <= mh_ratio) {
+            accept_u <= mh_ratio) {
             for (std::size_t l = 0; l < L; ++l) {
                 if (genotyping_data.is_missing(s, l)) {
                     continue;
@@ -549,28 +551,30 @@ void Chain::update_ecoi_latent_joint(int iteration)
     const float k0 = ecoi_k.empty() ? 2.0f : ecoi_k[0];
     const float mu0 = ecoi_mu_plus.empty() ? 3.0f : ecoi_mu_plus[0];
 
-    // Phase 1 (serial RNG): per sample, draw the joint (e', latent-genotype)
-    // proposal. Samples with an invalid e' proposal are skipped entirely (no
-    // genotype proposal, no accept draw), matching the sequential version.
-    std::vector<char> skip(N, 1);
-    std::vector<float> prop_e(N, 0.0f);
-    std::vector<float> e_hastings(N, 0.0f);  // logq_old_e - logq_new_e
-    std::vector<float> adj_ratio(N, 0.0f);
-    std::vector<float> accept_u(N, 0.0f);
-    for (std::size_t s = 0; s < N; ++s) {
+    // Per sample (parallel, each on its own RNG stream): draw the joint
+    // (e', latent-genotype) proposal and accept/reject against this sample's own
+    // (obs + marginal) delta plus the genotype/e Hastings terms. Samples with an
+    // invalid e' proposal are skipped entirely (no genotype proposal, no accept
+    // draw), matching the sequential version. Every write is to per-sample
+    // storage or the sample's own support-cache column.
+    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t s) {
+        Sampler &rng = ecoi_worker_rng();
         const float curr_e = eff_coi.at({s});
-        const float pe = 1.0f + sampler.rgamma2(k0, k0 / mu0);
+        // rgamma(shape, scale) draws Gamma(k0, mu0/k0) == the thread-unsafe
+        // R::rgamma(k0, scale = mu0/k0) the serial version used.
+        const float pe = 1.0f + rng.rgamma(k0, mu0 / k0);
         if (!(pe > 1.0f) || pe > params.max_coi || !std::isfinite(pe)) {
-            continue;
+            return;
         }
         const double logq_old_e = ecoi_log_f(0, static_cast<double>(curr_e));
         const double logq_new_e = ecoi_log_f(0, static_cast<double>(pe));
         if (!std::isfinite(logq_new_e)) {
-            continue;
+            return;
         }
+        const float e_hastings = static_cast<float>(logq_old_e - logq_new_e);
 
         const float eps_neg_s = eps_neg.at({s});
-        float adj = 0.0f;
+        float adj_ratio = 0.0f;
         for (std::size_t l = 0; l < L; ++l) {
             if (genotyping_data.is_missing(s, l)) {
                 continue;
@@ -582,24 +586,13 @@ void Chain::update_ecoi_latent_joint(int iteration)
                 old_support, observed, eps_pos_l, eps_neg_s);
 
             const auto lg = observation_model_->propose_latent_genotype_marginal(
-                sampler, observed, eps_pos_l, eps_neg_s);
+                rng, observed, eps_pos_l, eps_neg_s);
             assign_latent_genotype_new(s, l, lg.value);
             lg_adj_new.at({s, l}) = lg.log_prob;
-            adj += rev_logq - lg.log_prob;
+            adj_ratio += rev_logq - lg.log_prob;
         }
-        skip[s] = 0;
-        prop_e[s] = pe;
-        e_hastings[s] = static_cast<float>(logq_old_e - logq_new_e);
-        adj_ratio[s] = adj;
-        accept_u[s] = sampler.sample_log_mh_acceptance();
-    }
+        const float accept_u = rng.sample_log_mh_acceptance();
 
-    // Phase 2 (parallel over samples): recompute obs + marginal at the proposed
-    // e' and accept/reject. Skipped samples are left untouched.
-    moire_parallel::recalc_parallel_for(0, N, [&](std::size_t s) {
-        if (skip[s]) {
-            return;
-        }
         ecoi_support_cache_invalidate_sample(s);
         for (std::size_t l = 0; l < L; ++l) {
             calculate_observation_likelihood(s, l);
@@ -613,15 +606,15 @@ void Chain::update_ecoi_latent_joint(int iteration)
         }
         const double old_row = static_cast<double>(obs_row_sum_new_[s]);
         const double new_marg =
-            ecoi_sample_rel_marginal_llik(s, static_cast<double>(prop_e[s]));
+            ecoi_sample_rel_marginal_llik(s, static_cast<double>(pe));
         const double old_marg = static_cast<double>(ecoi_sample_marg_[s]);
         const float mh_ratio = static_cast<float>(
                                    temp * ((new_row - old_row) +
                                            (new_marg - old_marg))) +
-                               adj_ratio[s] + e_hastings[s];
+                               adj_ratio + e_hastings;
 
         if (std::isfinite(new_marg) && std::isfinite(new_row) &&
-            accept_u[s] <= mh_ratio) {
+            accept_u <= mh_ratio) {
             for (std::size_t l = 0; l < L; ++l) {
                 if (genotyping_data.is_missing(s, l)) {
                     continue;
@@ -632,7 +625,7 @@ void Chain::update_ecoi_latent_joint(int iteration)
                 std::copy(begin, end, latent_genotypes_old.inner_begin({s, l}));
                 save_observation_likelihood(s, l);
             }
-            eff_coi.at({s}) = prop_e[s];
+            eff_coi.at({s}) = pe;
             obs_row_sum_new_[s] = static_cast<float>(new_row);
             ecoi_sample_marg_[s] = static_cast<float>(new_marg);
             ++sample_accept.at({s});
@@ -1040,6 +1033,17 @@ void Chain::update_p(int iteration)
             // Alternative: rep = num_alleles (fixed rep=3 used for tuning) 
             std::size_t rep = 3;
             const auto [begin, end] = p.inner_iterators({pop_idx, locus_idx});
+            // Fast path: the OLD per-(sample, m) transmission terms for this locus
+            // depend only on the locus' current p (not on which allele a proposal
+            // perturbs) and on the fixed e_s / latent support, so they are
+            // identical across this locus' reps. Derive them ONCE here rather than
+            // recomputing them on every proposal -- the dominant per-locus kernel.
+            // After an accepted proposal the freshly computed new terms (up_tnew_)
+            // are the current ones, so the accept branch copies them back into
+            // up_told_ to keep this invariant across reps.
+            if (ecoi_fast_active) {
+                ecoi_up_locus_terms(locus_idx, up_told_);
+            }
             while (rep-- > 0)
             {
                 const size_t allele_idx = sampler.sample_random_int(0, num_alleles - 1);
@@ -1093,12 +1097,6 @@ void Chain::update_p(int iteration)
 
                 update_p_prev_p_ws_.assign(begin, end);
 
-                // Fast path: capture the changed locus' OLD transmission terms
-                // (from the still-valid cache) before the proposal is applied.
-                if (ecoi_fast_active) {
-                    ecoi_up_locus_terms(locus_idx, up_told_);
-                }
-
                 p.inner_fill({pop_idx, locus_idx}, prop_p);
 
                 if (params.marginal_ecoi) {
@@ -1131,21 +1129,45 @@ void Chain::update_p(int iteration)
                     ProfileScope scope("Chain::update_p::calc_post");
                     if (ecoi_fast_active) {
                         // Incremental: only locus_idx's transmission term changed.
-                        ecoi_up_locus_terms(locus_idx, up_tnew_);
+                        // Fused new-locus-term + marginal reassembly: each sample
+                        // rebuilds its new LocusSupport for the changed locus,
+                        // computes the new per-m transmission terms (up_tnew_),
+                        // and folds the (new - old) delta straight into its
+                        // marginal LSE -- all in ONE parallel region instead of
+                        // two (locus_terms map + reassembly map). At small N the
+                        // per-proposal spawn/join overhead dominates this inner
+                        // loop (~3 spawns per proposal, ~hundreds of proposals per
+                        // sweep), so halving the spawns here is the win. Each
+                        // sample writes only its own up_tnew_ / up_newL_ slices
+                        // (thread_local scratch); the result is identical to the
+                        // unfused two-pass version.
                         const int max_coi = static_cast<int>(params.max_coi);
                         const std::size_t n_samples =
                             genotyping_data.num_samples;
-                        // Per-sample marginal reassembly: each sample reads its
-                        // own decomposition slice and writes up_newL_[s], so the
-                        // map is parallel-safe (thread_local scratch). Sum the
-                        // (independent) per-sample logliks afterwards.
+                        const std::size_t locus = locus_idx;
                         moire_parallel::recalc_parallel_for(
                             0, n_samples, [&](std::size_t s) {
                                 static thread_local std::vector<double> terms;
                                 terms.clear();
+                                const ecoi_marginal::LocusSupport *ls =
+                                    ecoi_cached_support(s, 0, locus);
+                                const double e =
+                                    static_cast<double>(eff_coi.at({s}));
                                 for (int m = up_mlo_[s]; m <= max_coi; ++m) {
                                     const std::size_t idx =
                                         s * up_stride + static_cast<std::size_t>(m);
+                                    // New per-locus transmission term (matches
+                                    // ecoi_up_locus_terms exactly).
+                                    double tnew = 0.0;
+                                    if (ls != nullptr) {
+                                        const double r = ecoi_marginal::r_of(m, e);
+                                        if (r > 0.0 && r < 1.0) {
+                                            const double t =
+                                                ecoi_marginal::tx_loglik_locus(*ls, m, r);
+                                            tnew = std::isfinite(t) ? t : 0.0;
+                                        }
+                                    }
+                                    up_tnew_[idx] = tnew;
                                     if (up_ninf_[idx] > 0 ||
                                         !std::isfinite(up_a_[idx])) {
                                         terms.push_back(ecoi_marginal::kNegInf);
@@ -1153,7 +1175,7 @@ void Chain::update_p(int iteration)
                                     }
                                     terms.push_back(
                                         up_a_[idx] + up_slog_[idx] +
-                                        (up_tnew_[idx] - up_told_[idx]));
+                                        (tnew - up_told_[idx]));
                                 }
                                 up_newL_[s] =
                                     up_foff_[s] +
@@ -1216,6 +1238,9 @@ void Chain::update_p(int iteration)
                                 const std::size_t idx =
                                     s * up_stride + static_cast<std::size_t>(m);
                                 up_slog_[idx] += (up_tnew_[idx] - up_told_[idx]);
+                                // Accepted: the new locus terms are now current,
+                                // so they become up_told_ for this locus' next rep.
+                                up_told_[idx] = up_tnew_[idx];
                             }
                             up_L_[s] = up_newL_[s];
                             ecoi_sample_marg_[s] = static_cast<float>(up_newL_[s]);

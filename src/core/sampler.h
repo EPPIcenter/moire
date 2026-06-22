@@ -29,7 +29,6 @@ class Sampler
    public:
     static std::random_device rd;
     std::ranlux24_base eng;
-    boost::random::mt19937 r;
 
     float get_beta_log_prior(float x, float alpha, float beta);
     float get_relatedness_log_prior(float x, float alpha, float beta);
