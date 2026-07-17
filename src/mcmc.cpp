@@ -5,6 +5,8 @@
 
 #include <Rcpp.h>
 
+#include <cmath>
+
 #ifdef _OPENMP
 #include <omp.h>
 #else
@@ -17,6 +19,25 @@
 #define omp_set_num_threads(a)
 #define omp_get_wtime() 0
 #endif
+
+namespace
+{
+void record_ill_conditioned_start(Chain &chain,
+                                  InitializationDiagnostics &local_diag)
+{
+    int sample_1based = 0;
+    int locus_1based = 0;
+    if (chain.first_nonfinite_genotyping_term(sample_1based, locus_1based))
+    {
+        local_diag.record_ill_conditioned(sample_1based, locus_1based);
+    }
+    else
+    {
+        local_diag.record_ill_conditioned(0, 0);
+    }
+    chain.collect_nonfinite_prior_terms(local_diag.prior_nonfinite_counts);
+}
+}  // namespace
 
 MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     : genotyping_data(genotyping_data), params(params)
@@ -38,36 +59,96 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
 
     omp_set_num_threads(params.pt_num_threads);
 
-    
     chains.resize(params.pt_chains.size());
     std::vector<bool> any_ill_conditioned(params.pt_chains.size(), false);
+    std::vector<InitializationDiagnostics> per_chain_diag(params.pt_chains.size());
+    std::vector<int> chains_attempted_flags(params.pt_chains.size(), 0);
     temp_gradient = params.pt_chains;
+
     #pragma omp parallel for
     for (size_t i = 0; i < params.pt_chains.size(); i++)
     {
-        if (std::any_of(any_ill_conditioned.begin(), any_ill_conditioned.end(), [](bool v) { return v; }))
+        if (std::any_of(any_ill_conditioned.begin(), any_ill_conditioned.end(),
+                        [](bool v) { return v; }))
         {
             continue;
         }
+
+        chains_attempted_flags[i] = 1;
         float temp = params.pt_chains[i];
         chains[i] = Chain(genotyping_data, params, temp);
-        
-        bool ill_conditioned = std::isnan(chains[i].get_llik());
-        int max_tries = params.max_initialization_tries;
 
+        bool ill_conditioned = !std::isfinite(chains[i].get_llik());
+        int ill_count = 0;
+        if (ill_conditioned)
+        {
+            record_ill_conditioned_start(chains[i], per_chain_diag[i]);
+            ++ill_count;
+        }
+
+        int max_tries = params.max_initialization_tries;
         while (ill_conditioned and max_tries > 0)
         {
             chains[i].initialize_parameters();
             max_tries--;
-            ill_conditioned = std::isnan(chains[i].get_llik());
+            ill_conditioned = !std::isfinite(chains[i].get_llik());
+            if (ill_conditioned)
+            {
+                record_ill_conditioned_start(chains[i], per_chain_diag[i]);
+                ++ill_count;
+            }
         }
 
+        per_chain_diag[i].ill_conditioned_per_chain.push_back(ill_count);
         any_ill_conditioned[i] = ill_conditioned;
     }
 
-    if (std::any_of(any_ill_conditioned.begin(), any_ill_conditioned.end(), [](bool v) { return v; }))
+    initialization_diagnostics.max_initialization_tries =
+        params.max_initialization_tries;
+    for (size_t i = 0; i < params.pt_chains.size(); ++i)
     {
-        Rcpp::stop("Initialization failed due to numerical instability, please check your input data or try increasing the maximum number of initialization tries. If you have a large number of alleles in some loci, consider removing extremely rare alleles.");
+        if (!chains_attempted_flags[i])
+        {
+            continue;
+        }
+        ++initialization_diagnostics.chains_attempted;
+        initialization_diagnostics.total_ill_conditioned +=
+            per_chain_diag[i].total_ill_conditioned;
+        initialization_diagnostics.unknown_genotyping_count +=
+            per_chain_diag[i].unknown_genotyping_count;
+        for (const auto &kv : per_chain_diag[i].locus_counts)
+        {
+            initialization_diagnostics.locus_counts[kv.first] += kv.second;
+        }
+        for (const auto &kv : per_chain_diag[i].sample_counts)
+        {
+            initialization_diagnostics.sample_counts[kv.first] += kv.second;
+        }
+        for (const auto &kv : per_chain_diag[i].prior_nonfinite_counts)
+        {
+            initialization_diagnostics.prior_nonfinite_counts[kv.first] +=
+                kv.second;
+        }
+        for (const auto &ex : per_chain_diag[i].examples)
+        {
+            if (initialization_diagnostics.examples.size() < 5)
+            {
+                initialization_diagnostics.examples.push_back(ex);
+            }
+        }
+        if (!per_chain_diag[i].ill_conditioned_per_chain.empty())
+        {
+            initialization_diagnostics.ill_conditioned_per_chain.push_back(
+                per_chain_diag[i].ill_conditioned_per_chain.front());
+        }
+    }
+
+    if (std::any_of(any_ill_conditioned.begin(), any_ill_conditioned.end(),
+                    [](bool v) { return v; }))
+    {
+        initialization_failed = true;
+        initialization_diagnostics.classify();
+        return;
     }
 
     std::iota(swap_indices.begin(), swap_indices.end(), 0);

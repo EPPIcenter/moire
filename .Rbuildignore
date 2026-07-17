@@ -21,3 +21,6 @@ data-raw
 ^README\.Rmd
 \.lintr
 scratch\.R
+^debug-data$
+^cpp$
+^CONTEXT\.md$

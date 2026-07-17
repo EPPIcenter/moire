@@ -134,3 +134,13 @@ state of the MCMC.}
 \description{
 Sample from the target distribution using MCMC
 }
+\section{Initialization failure}{
+
+If every Initialization retry yields a non-finite genotyping log-likelihood,
+\code{run_mcmc} stops with a classed error
+(\code{moire_initialization_failure}) whose message includes rule-based guidance
+and whose \verb{$diagnostics} field has Failure-locus counts and classification
+(Consistent failure cause vs Hard starting set). Inspect with
+\code{tryCatch(run_mcmc(...), error = function(e) e$diagnostics)}.
+}
+

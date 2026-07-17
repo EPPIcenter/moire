@@ -65,6 +65,14 @@
 #' @param max_runtime Maximum runtime in minutes. If the MCMC is running for
 #' more than this amount of time, the function will stop and return the current
 #' state of the MCMC.
+#'
+#' @section Initialization failure:
+#' If every Initialization retry yields a non-finite genotyping log-likelihood,
+#' `run_mcmc` stops with a classed error
+#' (`moire_initialization_failure`) whose message includes rule-based guidance
+#' and whose `$diagnostics` field has Failure-locus counts and classification
+#' (Consistent failure cause vs Hard starting set). Inspect with
+#' `tryCatch(run_mcmc(...), error = function(e) e$diagnostics)`.
 run_mcmc <-
   function(data,
            is_missing = FALSE,
@@ -135,6 +143,17 @@ run_mcmc <-
 
     res <- list()
     chains <- list()
+    handle_chain_result <- function(chain) {
+      if (isTRUE(chain$initialization_failed)) {
+        stop_initialization_failure(
+          chain$diagnostics,
+          sample_ids = mcmc_args$sample_ids,
+          loci = mcmc_args$loci
+        )
+      }
+      chain$mean_coi <- chain$lam_coi / (1 - exp(-chain$lam_coi))
+      chain
+    }
     if (num_chains > 1) {
       chains <- parallel::mclapply(
         1:num_chains,
@@ -142,9 +161,7 @@ run_mcmc <-
           mcmc_args$chain_number <- i
           mcmc_args$simple_verbose <- (mcmc_args$num_chains > 1)
           mcmc_args$samples <- round(mcmc_args$samples_per_chain)
-          chain <- run_mcmc_rcpp(mcmc_args)
-          chain$mean_coi <- chain$lam_coi / (1 - exp(-chain$lam_coi))
-          return(chain)
+          handle_chain_result(run_mcmc_rcpp(mcmc_args))
         },
         mc.cores = num_cores
       )
@@ -152,9 +169,7 @@ run_mcmc <-
       mcmc_args$chain_number <- 1
       mcmc_args$simple_verbose <- FALSE
       mcmc_args$samples <- mcmc_args$samples_per_chain
-      chain <- run_mcmc_rcpp(mcmc_args)
-      chain$mean_coi <- chain$lam_coi / (1 - exp(-chain$lam_coi))
-      chains[[1]] <- chain
+      chains[[1]] <- handle_chain_result(run_mcmc_rcpp(mcmc_args))
     }
 
     end_time <- Sys.time()

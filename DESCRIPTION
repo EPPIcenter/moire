@@ -1,6 +1,6 @@
 Package: moire
 Title: Multiplicity of Infection and Allele Frequency Recovery from Noisy Polyallelic Genetics Data
-Version: 3.5.0
+Version: 3.6.0
 Authors@R: c(
     person(given = "Maxwell",
            family = "Murphy",
@@ -37,7 +37,7 @@ Imports:
 URL: https://github.com/EPPIcenter/moire, https://eppicenter.github.io/moire/, https://eppicenter.ucsf.edu/resources
 BugReports: https://github.com/EPPIcenter/moire/issues
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.3
 Suggests: 
     knitr,
     rmarkdown,
@@ -47,5 +47,5 @@ Suggests:
     parallelly
 VignetteBuilder: knitr
 Depends: 
-    R (>= 4.0.0)
+    R (>= 4.1.0)
 Config/testthat/edition: 3

@@ -36,6 +36,15 @@ Rcpp::List run_mcmc(Rcpp::List args)
     Timer<events, std::chrono::minutes> timer;
 
     MCMC mcmc(genotyping_data, params);
+    if (mcmc.initialization_failed)
+    {
+        Rcpp::List failure = Rcpp::List::create(
+            Rcpp::Named("initialization_failed") = true,
+            Rcpp::Named("diagnostics") =
+                mcmc.initialization_diagnostics.to_list());
+        return failure;
+    }
+
     MCMCProgressBar pb(params.burnin, params.samples, params.use_message);
     Progress p(params.burnin + params.samples, params.verbose, pb);
     pb.set_llik(mcmc.get_llik());

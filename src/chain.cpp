@@ -83,7 +83,12 @@ void Chain::initialize_m()
     m.reserve(genotyping_data.num_samples);
     for (const auto coi : genotyping_data.observed_coi)
     {
-        int m_coi = std::clamp(coi + sampler.sample_coi_delta(3), 1, params.max_coi);
+        // Never start below the maximum number of alleles already observed in
+        // this sample. Downward COI jitter can make latent-genotype FP/FN
+        // constraints empty and yield a non-finite genotyping log-likelihood.
+        const int lower = std::clamp(coi, 1, params.max_coi);
+        const int m_coi =
+            std::clamp(coi + sampler.sample_coi_delta(3), lower, params.max_coi);
         m.push_back(m_coi);
     }
     m_accept.resize(genotyping_data.num_samples, 0);
@@ -880,10 +885,17 @@ float Chain::calc_transmission_process(
         k = k / constrained_set_total_prob;
     }
 
+    // Inclusion-exclusion in float can slightly overshoot 1 for large latent
+    // genotypes (pam = 1 + 1e-5). Clamp so log1p(-pam) stays finite.
+    auto clamp_pam = [](float x) {
+        constexpr float max_pam = 1.f - std::numeric_limits<float>::epsilon();
+        return std::min(max_pam, std::max(0.f, x));
+    };
+
     if (!params.allow_relatedness)
     {
-        return std::log(1 - probAnyMissing_(prVec_, coi)) +
-               log_constrained_set_total_prob * coi;
+        const float pam = clamp_pam(probAnyMissing_(prVec_, coi));
+        return std::log1p(-pam) + log_constrained_set_total_prob * coi;
     }
 
     // Only go up to coi - total_alleles because there must be at least
@@ -897,7 +909,8 @@ float Chain::calc_transmission_process(
         // prob of i related strains
         const float pr = sampler.dbinom(i, coi - 1, relatedness);
 
-        const float i_res = std::log(1 - pamVec[coi - i - 1]) +
+        const float pam = clamp_pam(pamVec[coi - i - 1]);
+        const float i_res = std::log1p(-pam) +
                             log_constrained_set_total_prob * (coi - i);
 
         res.push_back(pr + i_res);
@@ -1015,6 +1028,57 @@ float Chain::calc_new_prior()
 float Chain::get_llik() { return llik; }
 float Chain::get_prior() { return prior; }
 float Chain::get_posterior() { return llik * temp + prior; }
+
+bool Chain::first_nonfinite_genotyping_term(int &sample_1based,
+                                            int &locus_1based) const
+{
+    const int num_samples = static_cast<int>(genotyping_data.num_samples);
+    const int num_loci = static_cast<int>(genotyping_data.num_loci);
+    for (int sample = 0; sample < num_samples; ++sample)
+    {
+        const int row_idx = sample * num_loci;
+        for (int locus = 0; locus < num_loci; ++locus)
+        {
+            if (!std::isfinite(genotyping_llik_new[row_idx + locus]))
+            {
+                sample_1based = sample + 1;
+                locus_1based = locus + 1;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void Chain::collect_nonfinite_prior_terms(
+    std::map<std::string, int> &counts) const
+{
+    auto bump = [&counts](const char *term) { ++counts[term]; };
+
+    for (size_t i = 0; i < eps_neg_prior_new.size(); ++i)
+    {
+        if (!std::isfinite(eps_neg_prior_new[i]))
+        {
+            bump("eps_neg_prior");
+        }
+        if (!std::isfinite(eps_pos_prior_new[i]))
+        {
+            bump("eps_pos_prior");
+        }
+        if (!std::isfinite(relatedness_prior_new[i]))
+        {
+            bump("relatedness_prior");
+        }
+        if (!std::isfinite(coi_prior_new[i]))
+        {
+            bump("coi_prior");
+        }
+    }
+    if (!std::isfinite(mean_coi_hyper_prior_new))
+    {
+        bump("mean_coi_hyper_prior");
+    }
+}
 
 float Chain::get_llik(int sample) { 
     int idx = sample * genotyping_data.num_loci;

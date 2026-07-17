@@ -11,6 +11,9 @@
 
 #include <Rcpp.h>
 
+#include <map>
+#include <string>
+
 class Chain
 {
    private:
@@ -157,6 +160,15 @@ class Chain
     float get_llik(int sample);
     float get_prior(int sample);
     float get_posterior(int sample);
+
+    /// First non-finite genotyping term as 1-based (sample, locus).
+    /// Returns false if every genotyping term is finite.
+    bool first_nonfinite_genotyping_term(int &sample_1based,
+                                         int &locus_1based) const;
+
+    /// Append counts of non-finite prior terms into `counts` (secondary signal).
+    void collect_nonfinite_prior_terms(
+        std::map<std::string, int> &counts) const;
 
     void set_llik(float llik);
     void set_temp(float temp);

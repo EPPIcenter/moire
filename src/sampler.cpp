@@ -5,8 +5,9 @@
 
 #include <Rcpp.h>
 #include <Rmath.h>
-#include <cmath>
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <random>
 #include <tuple>
 
@@ -273,13 +274,24 @@ LatentGenotype Sampler::sample_latent_genotype(
         total_true_negatives *
             std::log(1 - (epsilon_neg / obs_genotype.size()));
 
-    // if the observed number of positives exceeds the COI, then some number of
-    // them must be false positives
+    // Latent genotype size is (obs_pos - fp) + fn. Enforce
+    // 1 <= |latent| <= coi, which implies:
+    //   min_fp = max(0, obs_pos + fn - coi)
+    //   max_fp = min(obs_pos, obs_pos + fn - 1)
+    // The old max_fp = fn/2 bound was stricter than this and left an empty
+    // feasible region when m ≈ obs_pos and fn >= 1, producing non-finite llik.
     int min_false_positives =
         std::max(0, (total_obs_positives + total_false_negatives) - coi);
 
-    int max_false_positives =
-        std::min(total_obs_positives, total_false_negatives / 2);
+    int max_false_positives = std::min(
+        total_obs_positives, total_obs_positives + total_false_negatives - 1);
+
+    if (max_false_positives < min_false_positives)
+    {
+        // Should be unreachable when fn <= coi and coi >= 1; avoid NaN.
+        return LatentGenotype{
+            {}, -std::numeric_limits<float>::infinity()};
+    }
 
     int total_false_positives = min_false_positives;
     for (int ii = total_false_positives; ii < max_false_positives; ++ii)

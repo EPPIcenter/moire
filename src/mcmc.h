@@ -5,6 +5,7 @@
 
 #include "chain.h"
 #include "genotyping_data.h"
+#include "initialization_diagnostics.h"
 #include "parameters.h"
 
 #include <Rcpp.h>
@@ -18,6 +19,8 @@ class MCMC
     GenotypingData genotyping_data;
     Parameters params;
     std::vector<Chain> chains{};
+    bool initialization_failed = false;
+    InitializationDiagnostics initialization_diagnostics{};
 
     std::vector<std::vector<int>> m_store{};
     std::vector<std::vector<std::vector<float>>> p_store{};

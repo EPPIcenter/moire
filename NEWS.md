@@ -1,3 +1,31 @@
+# moire 3.6.0
+
+## New Features
+
+* Richer Initialization failure diagnostics in `run_mcmc()`
+  - Failures now raise a classed `moire_initialization_failure` condition with
+    structured `$diagnostics` (Failure-locus counts, classification, examples)
+  - Stop message distinguishes a Consistent failure cause from a Hard starting
+    set and includes short rule-based guidance
+  - Inspect with `tryCatch(run_mcmc(...), error = function(e) e$diagnostics)`
+
+## Bug Fixes
+
+* Treat non-finite genotyping log-likelihood (`NaN` or `±Inf`) as an
+  Ill-conditioned start during Initialization retries (previously only `NaN`)
+* Do not initialize sample COI below the maximum number of alleles already
+  observed in that sample
+* Fix latent-genotype false-positive bound used when sampling starting
+  genotypes (`max_fp` now follows `1 ≤ |latent| ≤ COI` instead of `fn / 2`)
+* Stabilize transmission coverage probability for large latent genotypes
+  - Adaptive `prob_any_missing`: float inclusion-exclusion for small `k`,
+    exact closed form when `n == k`, and EGF product for large `k`
+  - Guard `log(1 - pam)` against float inclusion-exclusion overshoot
+
+## Other Changes
+
+* Raised R dependency to `R (>= 4.1.0)` (package already uses `|>`)
+
 # moire 3.5.0
 
 ## New Features
