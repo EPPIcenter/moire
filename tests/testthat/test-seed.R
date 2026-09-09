@@ -26,11 +26,17 @@ run_tiny <- function(...) {
   do.call(moire::run_mcmc, args)
 }
 
-test_that("NULL seed leaves room for per-chain offsets", {
-  res <- run_tiny(seed = NULL, num_chains = 3, num_cores = 1)
+test_that("independent chains are spaced by the PT replica count", {
+  res <- run_tiny(seed = NULL, num_chains = 3, num_cores = 1, pt_chains = 4)
   expect_false(anyNA(res$chain_seeds))
-  expect_equal(res$chain_seeds, res$seed + c(0L, 1000L, 2000L))
+  expect_equal(res$chain_seeds, res$seed + c(0L, 4L, 8L))
   expect_lte(max(res$chain_seeds), .Machine$integer.max)
+
+  temps <- seq(1, 0, length.out = 5)
+  res_vec <- run_tiny(
+    seed = 10L, num_chains = 2, num_cores = 1, pt_chains = temps
+  )
+  expect_equal(res_vec$chain_seeds, c(10L, 15L))
 })
 
 test_that("user seed that would overflow chain offsets is rejected", {

@@ -63,7 +63,8 @@
 #' @param max_initialization_tries Number of times to try to initialize the
 #' chain before giving up
 #' @param seed Integer seed. `NULL` draws from the current R RNG a value that
-#'  still fits after per-chain offsets. The value used is returned as `$seed`
+#'  still fits after per-chain offsets. Independent MCMCs are spaced by the
+#'  number of parallel-tempering replicas. The value used is returned as `$seed`
 #'  and printed if the run errors; per-chain offsets are `$chain_seeds`.
 #'  Replay needs the same sampler settings; `num_cores` does not affect the
 #'  draws.
@@ -111,7 +112,12 @@ run_mcmc <-
            max_runtime = Inf,
            seed = NULL) {
     start_time <- Sys.time()
-    seeds <- resolve_mcmc_seeds(seed, num_chains)
+    n_pt <- if (length(pt_chains) == 1L) {
+      as.integer(pt_chains)
+    } else {
+      length(pt_chains)
+    }
+    seeds <- resolve_mcmc_seeds(seed, num_chains, n_pt)
     seed <- seeds$seed
     chain_seeds <- seeds$chain_seeds
 
@@ -204,12 +210,19 @@ run_mcmc <-
     res
   }
 
-# Must stay in sync with Seed::independent_chain_stride in src/seed.h.
 # PT replicas use parent+0, parent+1, ... so independent MCMCs are spaced
-# this far apart.
-resolve_mcmc_seeds <- function(seed, num_chains) {
-  seed_stride <- 1000L
-  max_seed <- .Machine$integer.max - seed_stride * max(num_chains - 1L, 0L)
+# by the replica count. See Seed::pt_replica in src/seed.h.
+resolve_mcmc_seeds <- function(seed, num_chains, n_pt) {
+  n_pt <- as.integer(n_pt)
+  if (length(n_pt) != 1L || is.na(n_pt) || n_pt < 1L) {
+    stop("`pt_chains` must specify at least one temperature")
+  }
+  seed_stride <- n_pt
+  offset_span <- as.double(seed_stride) * max(num_chains - 1L, 0L)
+  if (offset_span > .Machine$integer.max - 1) {
+    stop("`num_chains` is too large to form integer chain seeds")
+  }
+  max_seed <- as.integer(.Machine$integer.max - offset_span)
   if (max_seed < 1L) {
     stop("`num_chains` is too large to form integer chain seeds")
   }
@@ -223,7 +236,7 @@ resolve_mcmc_seeds <- function(seed, num_chains) {
   if (seed > max_seed) {
     stop(
       "`seed` is too large for num_chains = ", num_chains,
-      "; maximum is ", max_seed
+      " with ", n_pt, " parallel-tempering replicas; maximum is ", max_seed
     )
   }
   list(

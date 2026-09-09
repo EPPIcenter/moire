@@ -133,7 +133,8 @@ more than this amount of time, the function will stop and return the current
 state of the MCMC.}
 
 \item{seed}{Integer seed. \code{NULL} draws from the current R RNG a value that
-still fits after per-chain offsets. The value used is returned as \verb{$seed}
+still fits after per-chain offsets. Independent MCMCs are spaced by the
+number of parallel-tempering replicas. The value used is returned as \verb{$seed}
 and printed if the run errors; per-chain offsets are \verb{$chain_seeds}.
 Replay needs the same sampler settings; \code{num_cores} does not affect the
 draws.}
