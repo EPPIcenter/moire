@@ -34,7 +34,8 @@ run_mcmc(
   pre_adapt_steps = 25,
   temp_adapt_steps = 25,
   max_initialization_tries = 10000,
-  max_runtime = Inf
+  max_runtime = Inf,
+  seed = NULL
 )
 }
 \arguments{
@@ -130,6 +131,18 @@ chain before giving up}
 \item{max_runtime}{Maximum runtime in minutes. If the MCMC is running for
 more than this amount of time, the function will stop and return the current
 state of the MCMC.}
+
+\item{seed}{Integer seed for reproducible sampling. \code{NULL} (the default)
+draws a seed with \code{\link[=sample.int]{sample.int()}} and passes that to the sampler, so behaviour
+is non-deterministic across sessions but a preceding \code{\link[=set.seed]{set.seed()}} is an
+equally valid way to get a reproducible run. Supplying a seed here also calls
+\code{\link[=set.seed]{set.seed()}} and switches to the \code{"L'Ecuyer-CMRG"} generator (restored on
+exit), because the parallel-tempering swap step draws from R's RNG and
+\code{num_chains > 1} forks via \code{\link[parallel:mclapply]{parallel::mclapply()}}.
+
+The seed actually used is always returned as \verb{$seed}, with the per-chain
+offsets as \verb{$chain_seeds}. If the run errors before returning, the seed is
+reported in a message so the failure can be reproduced.}
 }
 \description{
 Sample from the target distribution using MCMC
