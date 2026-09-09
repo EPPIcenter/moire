@@ -19,8 +19,6 @@ Sampler::Sampler()
     init_common();
 }
 
-// Deterministic counterpart of the default constructor: identical state, but the
-// engine is seeded from the caller instead of std::random_device.
 Sampler::Sampler(std::uint32_t seed)
 {
     eng = std::ranlux24_base(seed);

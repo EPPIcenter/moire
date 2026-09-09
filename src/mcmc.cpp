@@ -22,6 +22,8 @@
 
 namespace
 {
+constexpr std::uint32_t kSwapRngSalt = 0x9E3779B9u;
+
 void record_ill_conditioned_start(Chain &chain,
                                   InitializationDiagnostics &local_diag)
 {
@@ -40,7 +42,9 @@ void record_ill_conditioned_start(Chain &chain,
 }  // namespace
 
 MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
-    : genotyping_data(genotyping_data), params(params)
+    : genotyping_data(genotyping_data),
+      params(params),
+      swap_sampler(params.seed ^ kSwapRngSalt)
 {
     p_store.resize(genotyping_data.num_loci);
     latent_genotypes_store.resize(genotyping_data.num_samples);
@@ -76,8 +80,6 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
 
         chains_attempted_flags[i] = 1;
         float temp = params.pt_chains[i];
-        // Seed per chain index, not per thread: the loop is parallel, so a
-        // shared draw order would make results depend on scheduling.
         chains[i] = Chain(genotyping_data, params, temp,
                           params.seed + static_cast<std::uint32_t>(i));
 
@@ -212,7 +214,7 @@ void MCMC::swap_chains(int step, bool burnin)
             swap_barriers[i] += 1.0 - acceptanceRate;
         }
 
-        float u = log(R::runif(0, 1));
+        float u = swap_sampler.sample_log_mh_acceptance();
 
         if ((acceptanceRatio > 0 || u < acceptanceRatio) and
             !std::isnan(acceptanceRatio))

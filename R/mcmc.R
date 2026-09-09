@@ -62,17 +62,10 @@
 #' adaptation steps. Only used if `adapt_temp` is TRUE.
 #' @param max_initialization_tries Number of times to try to initialize the
 #' chain before giving up
-#' @param seed Integer seed for reproducible sampling. `NULL` (the default)
-#'  draws a seed with [sample.int()] and passes that to the sampler, so behaviour
-#'  is non-deterministic across sessions but a preceding [set.seed()] is an
-#'  equally valid way to get a reproducible run. Supplying a seed here also calls
-#'  [set.seed()] and switches to the `"L'Ecuyer-CMRG"` generator (restored on
-#'  exit), because the parallel-tempering swap step draws from R's RNG and
-#'  `num_chains > 1` forks via [parallel::mclapply()].
-#'
-#'  The seed actually used is always returned as `$seed`, with the per-chain
-#'  offsets as `$chain_seeds`. If the run errors before returning, the seed is
-#'  reported in a message so the failure can be reproduced.
+#' @param seed Integer seed. `NULL` draws one that still fits after per-chain
+#'  offsets. The value used is returned as `$seed`, with those offsets as
+#'  `$chain_seeds`. Replay also needs the same `num_chains` and
+#'  parallel-tempering layout.
 #' @param max_runtime Maximum runtime in minutes. If the MCMC is running for
 #' more than this amount of time, the function will stop and return the current
 #' state of the MCMC.
@@ -117,28 +110,26 @@ run_mcmc <-
            max_runtime = Inf,
            seed = NULL) {
     start_time <- Sys.time()
-    # NULL seed means to randomly generated from sample.int(.Machine$integer.max, 1L)
-    # no seed set, generate one at random, this is determined by the R current
-    # seed, so another way to seed is to set.seed() prior to calling moire
-    # 
+    seed_stride <- 1000L
+    max_seed <- .Machine$integer.max - seed_stride * max(num_chains - 1L, 0L)
+    if (max_seed < 1L) {
+      stop("`num_chains` is too large to form integer chain seeds")
+    }
     if (is.null(seed)) {
-      seed <- sample.int(.Machine$integer.max, 1L)
+      seed <- sample.int(max_seed, 1L)
     }
     seed <- as.integer(seed)
+    if (length(seed) != 1L || is.na(seed)) {
+      stop("`seed` must be a single integer")
+    }
+    if (seed > max_seed) {
+      stop(
+        "`seed` is too large for num_chains = ", num_chains,
+        "; maximum is ", max_seed
+      )
+    }
+    chain_seeds <- seed + (seq_len(num_chains) - 1L) * seed_stride
 
-    # Both engines are seeded from this one value, on every path. The C++ sampler
-    # is not the only source of randomness: the parallel-tempering swap draws
-    # R::runif(), and num_chains > 1 forks via mclapply(), whose child streams are
-    # only reproducible under L'Ecuyer-CMRG. Seeding C++ but leaving R's stream
-    # ambient would make `seed` guarantee less on the NULL path than when a seed
-    # is passed, and would leave $seed insufficient to reproduce a run.
-    # RNGkind is restored on exit; the stream is deliberately left advanced, so
-    # that consecutive seed = NULL calls still draw different seeds.
-    old_kind <- RNGkind("L'Ecuyer-CMRG")
-    on.exit(RNGkind(old_kind[1]), add = TRUE)
-    set.seed(seed)
-    # Report the seed if we exit without returning: a user who hits an error can
-    # then re-run with seed = <value> and reproduce it.
     .moire_completed <- FALSE
     on.exit({
       if (!.moire_completed) {
@@ -202,7 +193,7 @@ run_mcmc <-
         1:num_chains,
         function(i) {
           mcmc_args$chain_number <- i
-          mcmc_args$seed <- as.integer(seed + (i - 1L) * 1000L)
+          mcmc_args$seed <- chain_seeds[[i]]
           mcmc_args$simple_verbose <- (mcmc_args$num_chains > 1)
           mcmc_args$samples <- round(mcmc_args$samples_per_chain)
           handle_chain_result(run_mcmc_rcpp(mcmc_args))
@@ -221,11 +212,8 @@ run_mcmc <-
     res$runtime <- end_time - start_time
     res$chains <- chains
     res$args <- args
-    # Top-level so it survives regardless of what `args` carries, and so
-    # `result$seed` is the obvious thing to reach for when reproducing a run.
     res$seed <- seed
-    # Each independent chain is offset by the same stride used above.
-    res$chain_seeds <- as.integer(seed + (seq_len(num_chains) - 1L) * 1000L)
+    res$chain_seeds <- chain_seeds
 
     .moire_completed <- TRUE
     res

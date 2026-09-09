@@ -18,6 +18,7 @@ class MCMC
    public:
     GenotypingData genotyping_data;
     Parameters params;
+    Sampler swap_sampler;
     std::vector<Chain> chains{};
     bool initialization_failed = false;
     InitializationDiagnostics initialization_diagnostics{};
