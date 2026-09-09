@@ -1,6 +1,7 @@
 #ifndef SAMPLER_H_
 #define SAMPLER_H_
 
+#include <cstdint>
 #include <algorithm>
 
 #include <boost/random.hpp>
@@ -28,6 +29,7 @@ class Sampler
 
     std::vector<float> rdirichlet(std::vector<float> const &shape_vec);
     std::vector<float> rlogit_norm(std::vector<float> const &p, float variance);
+    void init_common();
 
    public:
     static std::random_device rd;
@@ -74,6 +76,7 @@ class Sampler
                                           float epsilon_neg);
 
     Sampler();
+    explicit Sampler(std::uint32_t seed);
 };
 
 #endif  // SAMPLER_H_

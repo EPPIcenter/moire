@@ -16,6 +16,19 @@ std::random_device Sampler::rd;
 Sampler::Sampler()
 {
     eng = std::ranlux24_base(rd());
+    init_common();
+}
+
+// Deterministic counterpart of the default constructor: identical state, but the
+// engine is seeded from the caller instead of std::random_device.
+Sampler::Sampler(std::uint32_t seed)
+{
+    eng = std::ranlux24_base(seed);
+    init_common();
+}
+
+void Sampler::init_common()
+{
     unif_distr = std::uniform_real_distribution<float>(0, 1);
     ber_distr = std::bernoulli_distribution(.5);
 

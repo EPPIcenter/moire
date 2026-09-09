@@ -1,6 +1,7 @@
 #ifndef PARAMETERS_H_
 #define PARAMETERS_H_
 
+#include <cstdint>
 #include <Rcpp.h>
 #include <vector>
 
@@ -18,6 +19,7 @@ class Parameters
     int samples;
     std::vector<float> pt_chains;
     int pt_num_threads;
+    std::uint32_t seed;
     bool adapt_temp;
     int pre_adapt_steps;
     int temp_adapt_steps;

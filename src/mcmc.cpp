@@ -76,7 +76,10 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
 
         chains_attempted_flags[i] = 1;
         float temp = params.pt_chains[i];
-        chains[i] = Chain(genotyping_data, params, temp);
+        // Seed per chain index, not per thread: the loop is parallel, so a
+        // shared draw order would make results depend on scheduling.
+        chains[i] = Chain(genotyping_data, params, temp,
+                          params.seed + static_cast<std::uint32_t>(i));
 
         bool ill_conditioned = !std::isfinite(chains[i].get_llik());
         int ill_count = 0;

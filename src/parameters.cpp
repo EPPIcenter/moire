@@ -16,6 +16,7 @@ Parameters::Parameters(const Rcpp::List &args)
     samples = UtilFunctions::r_to_int(args["samples"]);
     pt_chains = UtilFunctions::r_to_vector_float(args["pt_chains"]);
     pt_num_threads = UtilFunctions::r_to_int(args["pt_num_threads"]);
+    seed = static_cast<std::uint32_t>(UtilFunctions::r_to_int(args["seed"]));
     adapt_temp = UtilFunctions::r_to_bool(args["adapt_temp"]);
     pre_adapt_steps = UtilFunctions::r_to_int(args["pre_adapt_steps"]);
     temp_adapt_steps = UtilFunctions::r_to_int(args["temp_adapt_steps"]);

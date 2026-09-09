@@ -1291,8 +1291,9 @@ void Chain::set_temp(float temp) { this->temp = temp; }
 
 float Chain::get_temp() { return this->temp; }
 
-Chain::Chain(GenotypingData genotyping_data, Parameters params, float temp)
-    : genotyping_data(genotyping_data), params(params), sampler()
+Chain::Chain(GenotypingData genotyping_data, Parameters params, float temp,
+             std::uint32_t seed)
+    : genotyping_data(genotyping_data), params(params), sampler(seed)
 
 {
     p_prop_var = std::vector<std::vector<float>>(genotyping_data.num_loci);
