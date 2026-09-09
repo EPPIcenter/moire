@@ -96,9 +96,9 @@ the size of the output object significantly.}
 
 \item{num_chains}{Total number of chains to run, possibly simultaneously}
 
-\item{num_cores}{Total OMP parallel threads to use to run chains.
-num_cores * pt_num_threads should not exceed the number of cores available
-on your system.}
+\item{num_cores}{How many independent chains to run at once, passed to
+\code{\link[parallel:mclapply]{parallel::mclapply()}} as \code{mc.cores}. \code{num_cores * pt_num_threads} should
+not exceed the number of cores available on your system.}
 
 \item{pt_chains}{Total number of chains to run with parallel tempering or a
 vector containing the temperatures that should be used for parallel tempering.}
@@ -132,10 +132,11 @@ chain before giving up}
 more than this amount of time, the function will stop and return the current
 state of the MCMC.}
 
-\item{seed}{Integer seed. \code{NULL} draws one that still fits after per-chain
-offsets. The value used is returned as \verb{$seed}, with those offsets as
-\verb{$chain_seeds}. Replay also needs the same \code{num_chains} and
-parallel-tempering layout.}
+\item{seed}{Integer seed. \code{NULL} draws from the current R RNG a value that
+still fits after per-chain offsets. The value used is returned as \verb{$seed}
+and printed if the run errors; per-chain offsets are \verb{$chain_seeds}.
+Replay needs the same sampler settings; \code{num_cores} does not affect the
+draws.}
 }
 \description{
 Sample from the target distribution using MCMC

@@ -69,7 +69,7 @@ mcmc_results <- moire::run_mcmc(
   simulated_data,
   verbose = TRUE, burnin = burnin, samples_per_chain = num_samples,
   pt_chains = pt_chains, pt_num_threads = pt_num_threads,
-  adapt_temp = TRUE
+  adapt_temp = TRUE, seed = 17325
 )
 ```
 

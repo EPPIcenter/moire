@@ -2,10 +2,10 @@
 
 ## New Features
 
-* `run_mcmc(seed =)` sets the sampler seed. `NULL` draws a value that still
-  fits after per-chain offsets; the seed used is returned as `$seed`.
-  Parallel-tempering swaps use that seed rather than R's RNG, so replay does
-  not depend on `num_cores`.
+* `run_mcmc(seed =)` sets the sampler seed. `NULL` draws from the current R RNG
+  a value that still fits after per-chain offsets. The seed used is returned as
+  `$seed` (printed if the run errors), with offsets as `$chain_seeds`. Replay
+  needs the same sampler settings; `num_cores` does not affect the draws.
 
 # moire 3.6.0
 

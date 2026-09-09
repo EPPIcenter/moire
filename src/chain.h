@@ -142,8 +142,8 @@ class Chain
 
     std::vector<int> sample_accept{};
 
-    Chain(GenotypingData genotyping_data, Parameters params, float temp = 1.0,
-          std::uint32_t seed = 0);
+    Chain(GenotypingData genotyping_data, Parameters params, float temp,
+          std::uint32_t seed);
     Chain() {};
     void update_m(int iteration);
     void update_r(int iteration);

@@ -2,6 +2,7 @@
 
 #include "include/spline/src/spline.h"
 #include "mcmc_utils.h"
+#include "seed.h"
 
 #include <Rcpp.h>
 
@@ -22,8 +23,6 @@
 
 namespace
 {
-constexpr std::uint32_t kSwapRngSalt = 0x9E3779B9u;
-
 void record_ill_conditioned_start(Chain &chain,
                                   InitializationDiagnostics &local_diag)
 {
@@ -44,7 +43,7 @@ void record_ill_conditioned_start(Chain &chain,
 MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
     : genotyping_data(genotyping_data),
       params(params),
-      swap_sampler(params.seed ^ kSwapRngSalt)
+      swap_sampler(Seed::swap_sampler(params.seed))
 {
     p_store.resize(genotyping_data.num_loci);
     latent_genotypes_store.resize(genotyping_data.num_samples);
@@ -81,7 +80,7 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
         chains_attempted_flags[i] = 1;
         float temp = params.pt_chains[i];
         chains[i] = Chain(genotyping_data, params, temp,
-                          params.seed + static_cast<std::uint32_t>(i));
+                          Seed::pt_replica(params.seed, i));
 
         bool ill_conditioned = !std::isfinite(chains[i].get_llik());
         int ill_count = 0;

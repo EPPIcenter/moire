@@ -16,16 +16,16 @@ std::random_device Sampler::rd;
 Sampler::Sampler()
 {
     eng = std::ranlux24_base(rd());
-    init_common();
+    init_distributions();
 }
 
 Sampler::Sampler(std::uint32_t seed)
 {
     eng = std::ranlux24_base(seed);
-    init_common();
+    init_distributions();
 }
 
-void Sampler::init_common()
+void Sampler::init_distributions()
 {
     unif_distr = std::uniform_real_distribution<float>(0, 1);
     ber_distr = std::bernoulli_distribution(.5);

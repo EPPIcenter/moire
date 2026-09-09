@@ -29,7 +29,7 @@ class Sampler
 
     std::vector<float> rdirichlet(std::vector<float> const &shape_vec);
     std::vector<float> rlogit_norm(std::vector<float> const &p, float variance);
-    void init_common();
+    void init_distributions();
 
    public:
     static std::random_device rd;

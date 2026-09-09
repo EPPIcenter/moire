@@ -38,9 +38,9 @@
 #' the latent genotypes at each step of the MCMC. WARNING: This will increase
 #' the size of the output object significantly.
 #' @param num_chains Total number of chains to run, possibly simultaneously
-#' @param num_cores Total OMP parallel threads to use to run chains.
-#'  num_cores * pt_num_threads should not exceed the number of cores available
-#'  on your system.
+#' @param num_cores How many independent chains to run at once, passed to
+#'  [parallel::mclapply()] as `mc.cores`. `num_cores * pt_num_threads` should
+#'  not exceed the number of cores available on your system.
 #' @param pt_chains Total number of chains to run with parallel tempering or a
 #' vector containing the temperatures that should be used for parallel tempering.
 #' @param pt_grad Power to raise parallel tempering chains to. A value of 1
@@ -62,10 +62,11 @@
 #' adaptation steps. Only used if `adapt_temp` is TRUE.
 #' @param max_initialization_tries Number of times to try to initialize the
 #' chain before giving up
-#' @param seed Integer seed. `NULL` draws one that still fits after per-chain
-#'  offsets. The value used is returned as `$seed`, with those offsets as
-#'  `$chain_seeds`. Replay also needs the same `num_chains` and
-#'  parallel-tempering layout.
+#' @param seed Integer seed. `NULL` draws from the current R RNG a value that
+#'  still fits after per-chain offsets. The value used is returned as `$seed`
+#'  and printed if the run errors; per-chain offsets are `$chain_seeds`.
+#'  Replay needs the same sampler settings; `num_cores` does not affect the
+#'  draws.
 #' @param max_runtime Maximum runtime in minutes. If the MCMC is running for
 #' more than this amount of time, the function will stop and return the current
 #' state of the MCMC.
@@ -110,37 +111,21 @@ run_mcmc <-
            max_runtime = Inf,
            seed = NULL) {
     start_time <- Sys.time()
-    seed_stride <- 1000L
-    max_seed <- .Machine$integer.max - seed_stride * max(num_chains - 1L, 0L)
-    if (max_seed < 1L) {
-      stop("`num_chains` is too large to form integer chain seeds")
-    }
-    if (is.null(seed)) {
-      seed <- sample.int(max_seed, 1L)
-    }
-    seed <- as.integer(seed)
-    if (length(seed) != 1L || is.na(seed)) {
-      stop("`seed` must be a single integer")
-    }
-    if (seed > max_seed) {
-      stop(
-        "`seed` is too large for num_chains = ", num_chains,
-        "; maximum is ", max_seed
-      )
-    }
-    chain_seeds <- seed + (seq_len(num_chains) - 1L) * seed_stride
+    seeds <- resolve_mcmc_seeds(seed, num_chains)
+    seed <- seeds$seed
+    chain_seeds <- seeds$chain_seeds
 
-    .moire_completed <- FALSE
+    run_completed <- FALSE
     on.exit({
-      if (!.moire_completed) {
+      if (!run_completed) {
         message(sprintf(
           "moire::run_mcmc() did not complete. Re-run with seed = %d to reproduce.",
           seed
         ))
       }
     }, add = TRUE)
-    args <- as.list(environment())
-    mcmc_args <- as.list(environment())
+    args <- mget(names(formals()), envir = environment(), inherits = FALSE)
+    mcmc_args <- args
     mcmc_args$data <- data$data
     mcmc_args$sample_ids <- data$sample_ids
     mcmc_args$loci <- data$loci
@@ -215,6 +200,34 @@ run_mcmc <-
     res$seed <- seed
     res$chain_seeds <- chain_seeds
 
-    .moire_completed <- TRUE
+    run_completed <- TRUE
     res
   }
+
+# Must stay in sync with Seed::independent_chain_stride in src/seed.h.
+# PT replicas use parent+0, parent+1, ... so independent MCMCs are spaced
+# this far apart.
+resolve_mcmc_seeds <- function(seed, num_chains) {
+  seed_stride <- 1000L
+  max_seed <- .Machine$integer.max - seed_stride * max(num_chains - 1L, 0L)
+  if (max_seed < 1L) {
+    stop("`num_chains` is too large to form integer chain seeds")
+  }
+  if (is.null(seed)) {
+    seed <- sample.int(max_seed, 1L)
+  }
+  seed <- as.integer(seed)
+  if (length(seed) != 1L || is.na(seed)) {
+    stop("`seed` must be a single integer")
+  }
+  if (seed > max_seed) {
+    stop(
+      "`seed` is too large for num_chains = ", num_chains,
+      "; maximum is ", max_seed
+    )
+  }
+  list(
+    seed = seed,
+    chain_seeds = seed + (seq_len(num_chains) - 1L) * seed_stride
+  )
+}

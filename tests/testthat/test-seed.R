@@ -49,6 +49,15 @@ test_that("user seed that would overflow chain offsets is rejected", {
   )
 })
 
+test_that("resolved seed is stored without leaking internals into args", {
+  res <- run_tiny(seed = NULL)
+  expect_equal(res$args$seed, res$seed)
+  expect_false("run_completed" %in% names(res$args))
+  expect_false(".moire_completed" %in% names(res$args))
+  expect_false("chain_seeds" %in% names(res$args))
+  expect_named(res$args, names(formals(moire::run_mcmc)), ignore.order = TRUE)
+})
+
 test_that("the same seed replays a serial chain", {
   a <- run_tiny(seed = 42L)
   b <- run_tiny(seed = 42L)
