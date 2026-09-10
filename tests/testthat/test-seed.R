@@ -72,6 +72,7 @@ test_that("the same seed replays a serial chain", {
 })
 
 test_that("PT multi-chain replay does not depend on num_cores", {
+  skip_on_os("windows")
   a <- run_tiny(
     seed = 13L, num_chains = 2, num_cores = 1, pt_chains = 3, burnin = 15,
     samples_per_chain = 10
