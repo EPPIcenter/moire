@@ -1,3 +1,13 @@
+# moire (development version)
+
+## New Features
+
+* `run_mcmc(seed =)` sets the sampler seed. `NULL` draws from the current R RNG
+  a value that still fits after per-chain offsets. Independent MCMCs are spaced
+  by the number of parallel-tempering replicas. The seed used is returned as
+  `$seed` (printed if the run errors), with offsets as `$chain_seeds`. Replay
+  needs the same sampler settings; `num_cores` does not affect the draws.
+
 # moire 3.6.0
 
 ## New Features

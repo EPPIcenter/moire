@@ -38,9 +38,9 @@
 #' the latent genotypes at each step of the MCMC. WARNING: This will increase
 #' the size of the output object significantly.
 #' @param num_chains Total number of chains to run, possibly simultaneously
-#' @param num_cores Total OMP parallel threads to use to run chains.
-#'  num_cores * pt_num_threads should not exceed the number of cores available
-#'  on your system.
+#' @param num_cores How many independent chains to run at once, passed to
+#'  [parallel::mclapply()] as `mc.cores`. `num_cores * pt_num_threads` should
+#'  not exceed the number of cores available on your system.
 #' @param pt_chains Total number of chains to run with parallel tempering or a
 #' vector containing the temperatures that should be used for parallel tempering.
 #' @param pt_grad Power to raise parallel tempering chains to. A value of 1
@@ -62,6 +62,12 @@
 #' adaptation steps. Only used if `adapt_temp` is TRUE.
 #' @param max_initialization_tries Number of times to try to initialize the
 #' chain before giving up
+#' @param seed Integer seed. `NULL` draws from the current R RNG a value that
+#'  still fits after per-chain offsets. Independent MCMCs are spaced by the
+#'  number of parallel-tempering replicas. The value used is returned as `$seed`
+#'  and printed if the run errors; per-chain offsets are `$chain_seeds`.
+#'  Replay needs the same sampler settings; `num_cores` does not affect the
+#'  draws.
 #' @param max_runtime Maximum runtime in minutes. If the MCMC is running for
 #' more than this amount of time, the function will stop and return the current
 #' state of the MCMC.
@@ -103,10 +109,29 @@ run_mcmc <-
            pre_adapt_steps = 25,
            temp_adapt_steps = 25,
            max_initialization_tries = 10000,
-           max_runtime = Inf) {
+           max_runtime = Inf,
+           seed = NULL) {
     start_time <- Sys.time()
-    args <- as.list(environment())
-    mcmc_args <- as.list(environment())
+    n_pt <- if (length(pt_chains) == 1L) {
+      as.integer(pt_chains)
+    } else {
+      length(pt_chains)
+    }
+    seeds <- resolve_mcmc_seeds(seed, num_chains, n_pt)
+    seed <- seeds$seed
+    chain_seeds <- seeds$chain_seeds
+
+    run_completed <- FALSE
+    on.exit({
+      if (!run_completed) {
+        message(sprintf(
+          "moire::run_mcmc() did not complete. Re-run with seed = %d to reproduce.",
+          seed
+        ))
+      }
+    }, add = TRUE)
+    args <- mget(names(formals()), envir = environment(), inherits = FALSE)
+    mcmc_args <- args
     mcmc_args$data <- data$data
     mcmc_args$sample_ids <- data$sample_ids
     mcmc_args$loci <- data$loci
@@ -159,6 +184,7 @@ run_mcmc <-
         1:num_chains,
         function(i) {
           mcmc_args$chain_number <- i
+          mcmc_args$seed <- chain_seeds[[i]]
           mcmc_args$simple_verbose <- (mcmc_args$num_chains > 1)
           mcmc_args$samples <- round(mcmc_args$samples_per_chain)
           handle_chain_result(run_mcmc_rcpp(mcmc_args))
@@ -177,6 +203,44 @@ run_mcmc <-
     res$runtime <- end_time - start_time
     res$chains <- chains
     res$args <- args
+    res$seed <- seed
+    res$chain_seeds <- chain_seeds
 
+    run_completed <- TRUE
     res
   }
+
+# PT replicas use parent+0, parent+1, ... so independent MCMCs are spaced
+# by the replica count. See Seed::pt_replica in src/seed.h.
+resolve_mcmc_seeds <- function(seed, num_chains, n_pt) {
+  n_pt <- as.integer(n_pt)
+  if (length(n_pt) != 1L || is.na(n_pt) || n_pt < 1L) {
+    stop("`pt_chains` must specify at least one temperature")
+  }
+  seed_stride <- n_pt
+  offset_span <- as.double(seed_stride) * max(num_chains - 1L, 0L)
+  if (offset_span > .Machine$integer.max - 1) {
+    stop("`num_chains` is too large to form integer chain seeds")
+  }
+  max_seed <- as.integer(.Machine$integer.max - offset_span)
+  if (max_seed < 1L) {
+    stop("`num_chains` is too large to form integer chain seeds")
+  }
+  if (is.null(seed)) {
+    seed <- sample.int(max_seed, 1L)
+  }
+  seed <- as.integer(seed)
+  if (length(seed) != 1L || is.na(seed)) {
+    stop("`seed` must be a single integer")
+  }
+  if (seed > max_seed) {
+    stop(
+      "`seed` is too large for num_chains = ", num_chains,
+      " with ", n_pt, " parallel-tempering replicas; maximum is ", max_seed
+    )
+  }
+  list(
+    seed = seed,
+    chain_seeds = seed + (seq_len(num_chains) - 1L) * seed_stride
+  )
+}
