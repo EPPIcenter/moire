@@ -11,17 +11,8 @@
 #include <random>
 #include <tuple>
 
-std::random_device Sampler::rd;
-
-Sampler::Sampler()
+Sampler::Sampler(std::uint32_t seed) : eng(seed)
 {
-    eng = std::ranlux24_base(rd());
-    init_distributions();
-}
-
-Sampler::Sampler(std::uint32_t seed)
-{
-    eng = std::ranlux24_base(seed);
     init_distributions();
 }
 
@@ -82,11 +73,6 @@ float Sampler::rgamma(float alpha, float beta)
     return x;
 };
 
-float Sampler::rgamma2(float shape, float rate)
-{
-    return R::rgamma(shape, 1 / rate);
-}
-
 std::vector<float> Sampler::rdirichlet(std::vector<float> const &shape_vec)
 {
     int n = shape_vec.size();
@@ -107,33 +93,6 @@ std::vector<float> Sampler::rdirichlet(std::vector<float> const &shape_vec)
 
     return res;
 };
-
-std::vector<float> Sampler::rlogit_norm(std::vector<float> const &p,
-                                        float variance)
-{
-    int n = p.size() - 1;
-
-    std::vector<float> ret(n + 1);
-
-    float tmp1 = 0;
-    for (int i = 0; i < n; i++)
-    {
-        norm_distr.param(std::normal_distribution<float>::param_type(
-            log(p[i] / p[n]), variance));
-        ret[i] = exp(norm_distr(eng));
-        tmp1 += ret[i];
-    }
-
-    float tmp2 = 1.0 / (1.0 + tmp1);
-    for (int i = 0; i < n; i++)
-    {
-        ret[i] *= tmp2;
-    }
-
-    ret[n] = tmp2;
-
-    return ret;
-}
 
 float Sampler::sample_mean_coi(float mean_shape, float mean_scale)
 {
@@ -221,12 +180,6 @@ std::vector<float> Sampler::sample_allele_frequencies(
     }
 
     return rdirichlet(shape_vec);
-};
-
-std::vector<float> Sampler::sample_allele_frequencies2(
-    std::vector<float> const &curr_allele_frequencies, float variance)
-{
-    return rlogit_norm(curr_allele_frequencies, variance);
 };
 
 void Sampler::shuffle_vec(std::vector<int> &vec)

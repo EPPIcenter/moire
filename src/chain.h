@@ -144,7 +144,6 @@ class Chain
 
     Chain(GenotypingData genotyping_data, Parameters params, float temp,
           std::uint32_t seed);
-    Chain() {};
     void update_m(int iteration);
     void update_r(int iteration);
     void update_m_r(int iteration);

@@ -7,6 +7,7 @@
 #include <Rcpp.h>
 
 #include <cmath>
+#include <memory>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -62,14 +63,15 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
 
     omp_set_num_threads(params.pt_num_threads);
 
-    chains.resize(params.pt_chains.size());
-    std::vector<bool> any_ill_conditioned(params.pt_chains.size(), false);
-    std::vector<InitializationDiagnostics> per_chain_diag(params.pt_chains.size());
-    std::vector<int> chains_attempted_flags(params.pt_chains.size(), 0);
+    const size_t n_pt = params.pt_chains.size();
+    std::vector<std::unique_ptr<Chain>> constructed(n_pt);
+    std::vector<bool> any_ill_conditioned(n_pt, false);
+    std::vector<InitializationDiagnostics> per_chain_diag(n_pt);
+    std::vector<int> chains_attempted_flags(n_pt, 0);
     temp_gradient = params.pt_chains;
 
     #pragma omp parallel for
-    for (size_t i = 0; i < params.pt_chains.size(); i++)
+    for (size_t i = 0; i < n_pt; i++)
     {
         if (std::any_of(any_ill_conditioned.begin(), any_ill_conditioned.end(),
                         [](bool v) { return v; }))
@@ -79,26 +81,26 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
 
         chains_attempted_flags[i] = 1;
         float temp = params.pt_chains[i];
-        chains[i] = Chain(genotyping_data, params, temp,
-                          Seed::pt_replica(params.seed, i));
+        constructed[i] = std::make_unique<Chain>(
+            genotyping_data, params, temp, Seed::pt_replica(params.seed, i));
 
-        bool ill_conditioned = !std::isfinite(chains[i].get_llik());
+        bool ill_conditioned = !std::isfinite(constructed[i]->get_llik());
         int ill_count = 0;
         if (ill_conditioned)
         {
-            record_ill_conditioned_start(chains[i], per_chain_diag[i]);
+            record_ill_conditioned_start(*constructed[i], per_chain_diag[i]);
             ++ill_count;
         }
 
         int max_tries = params.max_initialization_tries;
         while (ill_conditioned and max_tries > 0)
         {
-            chains[i].initialize_parameters();
+            constructed[i]->initialize_parameters();
             max_tries--;
-            ill_conditioned = !std::isfinite(chains[i].get_llik());
+            ill_conditioned = !std::isfinite(constructed[i]->get_llik());
             if (ill_conditioned)
             {
-                record_ill_conditioned_start(chains[i], per_chain_diag[i]);
+                record_ill_conditioned_start(*constructed[i], per_chain_diag[i]);
                 ++ill_count;
             }
         }
@@ -153,6 +155,12 @@ MCMC::MCMC(GenotypingData genotyping_data, Parameters params)
         initialization_failed = true;
         initialization_diagnostics.classify();
         return;
+    }
+
+    chains.reserve(n_pt);
+    for (auto &p : constructed)
+    {
+        chains.push_back(std::move(*p));
     }
 
     std::iota(swap_indices.begin(), swap_indices.end(), 0);

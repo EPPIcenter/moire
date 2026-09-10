@@ -4,8 +4,6 @@
 #include <cstdint>
 #include <algorithm>
 
-#include <boost/random.hpp>
-
 #include <random>
 #include <array>
 
@@ -21,20 +19,16 @@ class Sampler
     std::uniform_int_distribution<int> unif_int_distr;
     std::normal_distribution<float> norm_distr;
     std::gamma_distribution<float> gamma_distr;
-    std::discrete_distribution<int> discrete_distr;
     std::uniform_real_distribution<float> unif_distr;
     std::bernoulli_distribution ber_distr;
     std::geometric_distribution<int> geom_distr;
     std::array<float, 128> lgamma_lut{};
 
     std::vector<float> rdirichlet(std::vector<float> const &shape_vec);
-    std::vector<float> rlogit_norm(std::vector<float> const &p, float variance);
     void init_distributions();
 
    public:
-    static std::random_device rd;
     std::ranlux24_base eng;
-    boost::random::mt19937 r;
 
     float get_epsilon_log_prior(float x, float alpha, float beta);
     float get_relatedness_log_prior(float x, float alpha, float beta);
@@ -54,10 +48,6 @@ class Sampler
     int sample_random_int(int lower, int upper);
     std::vector<float> sample_allele_frequencies(
         std::vector<float> const &curr_allele_frequencies, float alpha);
-    std::vector<float> sample_allele_frequencies2(
-        std::vector<float> const &curr_allele_frequencies, float variance);
-    std::vector<std::vector<int>> &sample_genotype(
-        int coi, std::vector<float> const &allele_frequencies, int num_samples);
 
     float sample_log_mh_acceptance();
     float sample_unif();
@@ -69,13 +59,11 @@ class Sampler
     float dztpois(int x, float mean);
     float dgamma(float x, float shape, float scale, bool return_log);
     float rgamma(float alpha, float beta);
-    float rgamma2(float shape, float rate);
 
     LatentGenotype sample_latent_genotype(const std::vector<int> &obs_genotype,
                                           int coi, float epsilon_pos,
                                           float epsilon_neg);
 
-    Sampler();
     explicit Sampler(std::uint32_t seed);
 };
 
