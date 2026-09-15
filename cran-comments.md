@@ -18,6 +18,3 @@ when it is not (for example on CRAN's macOS builders). All OpenMP flags come
 from `$(SHLIB_OPENMP_CXXFLAGS)`. Threading is controlled by the
 `pt_num_threads` argument to `run_mcmc()`, which defaults to 1; tests and
 examples never use more than 2 cores.
-
-`src/include/spline/spline.h` is a bundled header-only cubic spline library
-by Tino Kluge, licensed GPL-2 or later and listed as `cph` in `Authors@R`.

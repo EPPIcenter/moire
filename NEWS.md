@@ -16,6 +16,11 @@
   `simulate_observed_allele()`.
 * `parallel` is now declared in `Imports`; `markdown` was dropped from
   `Suggests` as nothing used it.
+* Parallel tempering temperature adaptation now interpolates temperature as a
+  function of cumulative communication barrier with a monotone cubic Hermite
+  scheme (`src/monotone_interpolator.h`), replacing the bundled third-party
+  `spline.h` and its root solving. Adapted ladders differ slightly from
+  earlier versions; if no barrier has been observed yet the update is skipped.
 
 # moire 3.6.0
 

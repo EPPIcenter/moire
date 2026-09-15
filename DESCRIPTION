@@ -11,11 +11,7 @@ Authors@R: c(
            family = "Greenhouse",
            role = c("aut", "ths"),
            email = "bryan.greenhouse@ucsf.edu",
-           comment = c(ORCID = "0000-0003-0287-9111")),
-    person(given = "Tino",
-           family = "Kluge",
-           role = "cph",
-           comment = "Author of the bundled cubic spline library (src/include/spline)"))
+           comment = c(ORCID = "0000-0003-0287-9111")))
 Description: A Markov Chain Monte Carlo (MCMC) based approach to Bayesian
     estimation of individual level multiplicity of infection, within host
     relatedness, and population allele frequencies from polyallelic genetic
