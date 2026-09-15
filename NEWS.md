@@ -1,4 +1,4 @@
-# moire (development version)
+# moire 3.7.0
 
 ## New Features
 

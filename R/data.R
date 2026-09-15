@@ -22,7 +22,7 @@
 #'   \item{locus}{Genetic locus}
 #'   \item{allele}{Allele observed}
 #' }
-#' @source \url{https://doi.org/10.7554/eLife.43510.018}
+#' @source \doi{10.7554/eLife.43510.018}
 "namibia_data"
 
 #' Allele frequencies for different regions
