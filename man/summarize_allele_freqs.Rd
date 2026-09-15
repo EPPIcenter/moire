@@ -22,10 +22,19 @@ to return}
 
 \item{merge_chains}{boolean indicating that all chain results should be merged}
 }
+\value{
+Data frame with one row per allele (per chain if \code{merge_chains} is
+\code{FALSE}) giving posterior quantiles and mean of its frequency, along with
+\code{locus} and \code{allele} identifiers.
+}
 \description{
 Summarize allele frequencies
 }
 \details{
 Summarize individual allele frequencies from the posterior
 distribution of sampled allele frequencies
+}
+\examples{
+allele_freq_summary <- summarize_allele_freqs(mcmc_results)
+head(allele_freq_summary)
 }

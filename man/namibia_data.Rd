@@ -17,7 +17,7 @@ A data frame with 7 columns and 97214 rows:
 }
 }
 \source{
-\url{https://doi.org/10.7554/eLife.43510.018}
+\doi{10.7554/eLife.43510.018}
 }
 \usage{
 namibia_data

@@ -11,9 +11,16 @@ simulate_sample_coi(num_samples, mean_coi)
 
 \item{mean_coi}{mean multiplicity of infection}
 }
+\value{
+Integer vector of length \code{num_samples} with a COI of at least 1
+for each sample.
+}
 \description{
 Simulate sample COI
 }
 \details{
 Simulate sample COIs from a zero-truncated Poisson distribution
+}
+\examples{
+simulate_sample_coi(num_samples = 10, mean_coi = 2)
 }

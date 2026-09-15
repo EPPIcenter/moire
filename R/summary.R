@@ -12,6 +12,13 @@
 #' @param mcmc_results Result of calling run_mcmc()
 #'
 #' @param merge_chains boolean indicating that all chain results should be merged
+#'
+#' @return If `merge_chains` is `TRUE`, a named list with one numeric vector of
+#'  allele frequencies per locus. Otherwise a list with one such list per chain.
+#'
+#' @examples
+#' med_freqs <- calculate_med_allele_freqs(mcmc_results)
+#' med_freqs[[1]]
 calculate_med_allele_freqs <- function(mcmc_results, merge_chains = TRUE) {
   if (merge_chains) {
     chains <- mcmc_results$chains
@@ -51,6 +58,11 @@ calculate_med_allele_freqs <- function(mcmc_results, merge_chains = TRUE) {
 #' element is a collection of observations across samples at a
 #' single genetic locus.
 #' @param offset Numeric offset -- n'th highest number of observed alleles
+#'
+#' @return Numeric vector with one naive COI estimate per sample.
+#'
+#' @examples
+#' calculate_naive_coi_offset(simulated_data$data, offset = 2)
 calculate_naive_coi_offset <- function(data, offset) {
   num_alleles_by_locus <- lapply(data, function(locus) {
     lapply(locus, sum)
@@ -79,6 +91,11 @@ calculate_naive_coi_offset <- function(data, offset) {
 #' @param data List of lists of numeric vectors, where each list
 #' element is a collection of observations across samples at a
 #' single genetic locus.
+#'
+#' @return Numeric vector with one naive COI estimate per sample.
+#'
+#' @examples
+#' calculate_naive_coi(simulated_data$data)
 calculate_naive_coi <- function(data) {
   num_alleles_by_locus <- lapply(data, function(locus) {
     lapply(locus, sum)
@@ -108,6 +125,12 @@ calculate_naive_coi <- function(data) {
 #'
 #' @param data List of lists of numeric vectors, where each list element
 #' is a collection of observations across samples at a single genetic locus
+#'
+#' @return List with one numeric vector of allele frequencies per locus.
+#'
+#' @examples
+#' naive_freqs <- calculate_naive_allele_frequencies(simulated_data$data)
+#' naive_freqs[[1]]
 calculate_naive_allele_frequencies <- function(data) {
   allele_freqs <- lapply(data, function(locus) {
     allele_counts <- purrr::reduce(locus, function(f1, f2) f1 + f2)
@@ -120,6 +143,11 @@ calculate_naive_allele_frequencies <- function(data) {
 #' @export
 #'
 #' @param allele_freqs Simplex of allele frequencies
+#'
+#' @return Numeric scalar, the expected heterozygosity `1 - sum(p^2)`.
+#'
+#' @examples
+#' calculate_he(c(0.5, 0.3, 0.2))
 calculate_he <- function(allele_freqs) {
   if (any(is.na(allele_freqs))) {
     allele_freqs <- replace(allele_freqs, which(is.na(allele_freqs)), 0)
@@ -146,6 +174,14 @@ calculate_he <- function(allele_freqs) {
 #'  distribution to return
 #' @param naive_offset Offset used in calculate_naive_coi_offset
 #' @param merge_chains boolean indicating that all chain results should be merged
+#'
+#' @return Data frame with one row per sample (per chain if `merge_chains` is
+#'  `FALSE`) giving posterior quantiles and mean of COI, naive estimates, and
+#'  the posterior probability that the sample is polyclonal.
+#'
+#' @examples
+#' coi_summary <- summarize_coi(mcmc_results)
+#' head(coi_summary)
 summarize_coi <- function(mcmc_results, lower_quantile = .025,
                           upper_quantile = .975, naive_offset = 2, merge_chains = TRUE) {
   naive_coi <- calculate_naive_coi(mcmc_results$args$data$data)
@@ -221,6 +257,13 @@ summarize_coi <- function(mcmc_results, lower_quantile = .025,
 #' @param upper_quantile The upper quantile of the posterior
 #'  distribution to return
 #' @param merge_chains boolean indicating that all chain results should be merged
+#'
+#' @return Data frame with one row per sample (per chain if `merge_chains` is
+#'  `FALSE`) giving posterior quantiles and mean of the false negative rate.
+#'
+#' @examples
+#' eps_neg_summary <- summarize_epsilon_neg(mcmc_results)
+#' head(eps_neg_summary)
 summarize_epsilon_neg <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
   if (merge_chains) {
     epsilon_neg <- lapply(1:length(mcmc_results$args$data$sample_ids), function(x) c())
@@ -285,6 +328,13 @@ summarize_epsilon_neg <- function(mcmc_results, lower_quantile = .025, upper_qua
 #' @param upper_quantile The upper quantile of the posterior
 #'  distribution to return
 #' @param merge_chains boolean indicating that all chain results should be merged
+#'
+#' @return Data frame with one row per sample (per chain if `merge_chains` is
+#'  `FALSE`) giving posterior quantiles and mean of the false positive rate.
+#'
+#' @examples
+#' eps_pos_summary <- summarize_epsilon_pos(mcmc_results)
+#' head(eps_pos_summary)
 summarize_epsilon_pos <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
   if (merge_chains) {
     epsilon_pos <- lapply(1:length(mcmc_results$args$data$sample_ids), function(x) c())
@@ -350,6 +400,15 @@ summarize_epsilon_pos <- function(mcmc_results, lower_quantile = .025, upper_qua
 #' @param upper_quantile The upper quantile of the posterior distribution
 #'  to return
 #' @param merge_chains boolean indicating that all chain results should be merged
+#'
+#' @return Data frame with one row per locus (per chain if `merge_chains` is
+#'  `FALSE`) giving posterior quantiles and mean of `fn` applied to the sampled
+#'  allele frequencies.
+#'
+#' @examples
+#' # Posterior summary of the major allele frequency at each locus
+#' major_allele <- summarize_allele_freq_fn(mcmc_results, fn = max)
+#' head(major_allele)
 summarize_allele_freq_fn <- function(mcmc_results, fn,
                                      lower_quantile = .025,
                                      upper_quantile = .975, merge_chains = TRUE) {
@@ -430,6 +489,13 @@ summarize_allele_freq_fn <- function(mcmc_results, fn,
 #' to return
 #' @param merge_chains Merge the results of multiple chains into a single
 #' summary
+#'
+#' @return Data frame with one row per locus (per chain if `merge_chains` is
+#'  `FALSE`) giving posterior quantiles and mean of expected heterozygosity.
+#'
+#' @examples
+#' he_summary <- summarize_he(mcmc_results)
+#' head(he_summary)
 summarize_he <- function(mcmc_results,
                          lower_quantile = .025,
                          upper_quantile = .975, merge_chains = TRUE) {
@@ -468,6 +534,14 @@ names_or_idxs <- function(vec) {
 #' @param upper_quantile The upper quantile of the posterior distribution
 #' to return
 #' @param merge_chains boolean indicating that all chain results should be merged
+#'
+#' @return Data frame with one row per allele (per chain if `merge_chains` is
+#'  `FALSE`) giving posterior quantiles and mean of its frequency, along with
+#'  `locus` and `allele` identifiers.
+#'
+#' @examples
+#' allele_freq_summary <- summarize_allele_freqs(mcmc_results)
+#' head(allele_freq_summary)
 summarize_allele_freqs <- function(mcmc_results,
                                    lower_quantile = .025,
                                    upper_quantile = .975,
@@ -587,6 +661,14 @@ summarize_allele_freqs <- function(mcmc_results,
 #' @param upper_quantile The upper quantile of the posterior
 #'  distribution to return
 #' @param merge_chains boolean indicating that all chain results should be merged
+#'
+#' @return Data frame with one row per sample (per chain if `merge_chains` is
+#'  `FALSE`) giving posterior quantiles and mean of within-host relatedness,
+#'  computed over draws where COI is greater than 1.
+#'
+#' @examples
+#' relatedness_summary <- summarize_relatedness(mcmc_results)
+#' head(relatedness_summary)
 summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
   if (merge_chains) {
     relatedness <- lapply(1:length(mcmc_results$args$data$sample_ids), function(x) c())
@@ -660,6 +742,14 @@ summarize_relatedness <- function(mcmc_results, lower_quantile = .025, upper_qua
 #' @param upper_quantile The upper quantile of the posterior
 #'  distribution to return
 #' @param merge_chains boolean indicating that all chain results should be merged
+#'
+#' @return Data frame with one row per sample (per chain if `merge_chains` is
+#'  `FALSE`) giving posterior quantiles and mean of effective COI,
+#'  `(1 - relatedness) * (COI - 1) + 1`.
+#'
+#' @examples
+#' effective_coi_summary <- summarize_effective_coi(mcmc_results)
+#' head(effective_coi_summary)
 summarize_effective_coi <- function(mcmc_results, lower_quantile = .025, upper_quantile = .975, merge_chains = TRUE) {
   if (merge_chains) {
     effective_coi <- lapply(1:length(mcmc_results$args$data$sample_ids), function(x) c())

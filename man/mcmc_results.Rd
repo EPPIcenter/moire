@@ -5,7 +5,10 @@
 \alias{mcmc_results}
 \title{MCMC results from using the packaged simulated data and calling \code{run_mcmc()}}
 \format{
-An object of class \code{list} of length 3.
+A list as returned by \code{\link[=run_mcmc]{run_mcmc()}} on \link{simulated_data}: a single
+chain with 1000 burnin and 1000 sampling iterations, using 80 parallel
+tempering replicas with adaptive temperatures. The \code{mcmc_demo} vignette
+shows the call.
 }
 \usage{
 mcmc_results

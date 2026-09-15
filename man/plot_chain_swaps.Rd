@@ -10,7 +10,7 @@ plot_chain_swaps(mcmc_results)
 \item{mcmc_results}{list of results from \code{run_mcmc}}
 }
 \value{
-list of ggplot objects
+list of ggplot objects, one per chain
 }
 \description{
 Plot chain swap acceptance rates
@@ -19,4 +19,8 @@ Plot chain swap acceptance rates
 Plot the swap acceptance rates for each chain.
 The x-axis is the temperature, and the y-axis is the swap acceptance rate.
 The dashed lines indicate the temperatures used for parallel tempering.
+}
+\examples{
+plots <- plot_chain_swaps(mcmc_results)
+plots[[1]]
 }

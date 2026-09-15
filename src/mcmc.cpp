@@ -1,7 +1,7 @@
 #include "mcmc.h"
 
-#include "include/spline/src/spline.h"
 #include "mcmc_utils.h"
+#include "monotone_interpolator.h"
 #include "seed.h"
 
 #include <Rcpp.h>
@@ -253,53 +253,60 @@ void MCMC::swap_chains(int step, bool burnin)
 
 int MCMC::get_hot_chain() { return swap_indices[0]; }
 
+// Re-space the temperature ladder so that every adjacent pair of chains has
+// the same accumulated communication barrier (expected swap rejections).
+// Temperatures are interpolated as a function of cumulative barrier, so the
+// new ladder is read off an even barrier grid directly.
 void MCMC::adapt_temp()
 {
-    // swap rate starts at t = 1 so we need to reverse the swap rate
-    const std::vector<float> reversed_swap_barriers{swap_barriers.rbegin(),
-                                                    swap_barriers.rend()};
+    const size_t n = temp_gradient.size();
 
-    // cumulative swap rate starts from t = 0
-    std::vector<float> cumulative_swap_rate(params.pt_chains.size(), 0.0);
-    for (size_t i = 1; i < cumulative_swap_rate.size(); i++)
+    // Cumulative barrier from the cold end (temp_gradient[0] == 1). The
+    // per-swap normalisation cancels out of the interpolation, so raw sums
+    // are used.
+    std::vector<double> barrier(n, 0.0);
+    for (size_t i = 1; i < n; i++)
     {
-        cumulative_swap_rate[i] = cumulative_swap_rate[i - 1] + 
-            reversed_swap_barriers[i - 1] / (static_cast<float>(num_swaps) / 2.0f);
+        barrier[i] = barrier[i - 1] + static_cast<double>(swap_barriers[i - 1]);
+    }
+    if (!std::isfinite(barrier.back()) || barrier.back() <= 0.0)
+    {
+        return;  // nothing observed yet; keep accumulating
     }
 
-    // gradient starts at t = 1 so we need to reverse the gradient
-    const std::vector<float> reversed_gradient(temp_gradient.rbegin(), temp_gradient.rend());
-
-    const tk::spline s(reversed_gradient, cumulative_swap_rate, tk::spline::cspline, true);
-
-    // target swap rates
-    std::vector<float> cumulative_swap_grid = std::vector<float>(cumulative_swap_rate.size(), 0.0f);
-    
-    cumulative_swap_grid.back() = cumulative_swap_rate.back();
-    float step = cumulative_swap_rate.back() / (cumulative_swap_grid.size() - 1);
-
-    for (size_t i = 1; i < cumulative_swap_grid.size() - 1; i++)
+    // Adjacent chains that never rejected a swap share a barrier value.
+    // Collapse each such run into one knot at its mean temperature so the
+    // knots are strictly increasing in barrier.
+    std::vector<double> knot_x;
+    std::vector<double> knot_y;
+    for (size_t i = 0; i < n;)
     {
-        cumulative_swap_grid[i] = cumulative_swap_grid[0] + i * step;
-    }
-
-    std::vector<float> new_temp_gradient(temp_gradient.size());
-    new_temp_gradient[0] = temp_gradient.back();
-    new_temp_gradient[temp_gradient.size() - 1] = 1.0;
-    for (size_t i = 1; i < temp_gradient.size() - 1; i++)
-    {
-        new_temp_gradient[i] = s.solve_one(cumulative_swap_grid[i]);
-    }
-
-    std::reverse(new_temp_gradient.begin(), new_temp_gradient.end());
-
-    // check if any new temperatures are NAN, bail on the update if so and keep updating the swap barriers
-    for (size_t i = 0; i < new_temp_gradient.size(); i++)
-    {
-        if (std::isnan(new_temp_gradient[i]))
+        size_t j = i;
+        double temp_sum = 0.0;
+        while (j < n && barrier[j] == barrier[i])
         {
-            return;
+            temp_sum += temp_gradient[j];
+            ++j;
         }
+        knot_x.push_back(barrier[i]);
+        knot_y.push_back(temp_sum / static_cast<double>(j - i));
+        i = j;
+    }
+    if (knot_x.size() < 2)
+    {
+        return;
+    }
+
+    const MonotoneCubicInterpolator temp_at_barrier(knot_x, knot_y);
+
+    std::vector<float> new_temp_gradient(n);
+    new_temp_gradient.front() = temp_gradient.front();
+    new_temp_gradient.back() = temp_gradient.back();
+    const double step = barrier.back() / static_cast<double>(n - 1);
+    for (size_t i = 1; i + 1 < n; i++)
+    {
+        new_temp_gradient[i] =
+            static_cast<float>(temp_at_barrier(static_cast<double>(i) * step));
     }
 
     // update the temperatures using the new gradient

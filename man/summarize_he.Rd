@@ -23,10 +23,18 @@ to return}
 \item{merge_chains}{Merge the results of multiple chains into a single
 summary}
 }
+\value{
+Data frame with one row per locus (per chain if \code{merge_chains} is
+\code{FALSE}) giving posterior quantiles and mean of expected heterozygosity.
+}
 \description{
 Summarize locus heterozygosity
 }
 \details{
 Summarize locus heterozygosity from the posterior distribution
 of sampled allele frequencies.
+}
+\examples{
+he_summary <- summarize_he(mcmc_results)
+head(he_summary)
 }

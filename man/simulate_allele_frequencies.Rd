@@ -11,10 +11,17 @@ simulate_allele_frequencies(alpha, num_loci)
 
 \item{num_loci}{total number of loci to draw}
 }
+\value{
+Numeric matrix with \code{length(alpha)} rows and \code{num_loci} columns;
+each column is an allele frequency vector for one locus.
+}
 \description{
 Simulate allele frequencies
 }
 \details{
 Simulate allele frequency vectors as a draw from a Dirichlet
 distribution
+}
+\examples{
+simulate_allele_frequencies(alpha = c(1, 1, 1, 1), num_loci = 3)
 }

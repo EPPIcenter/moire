@@ -26,10 +26,20 @@ to return}
 
 \item{merge_chains}{boolean indicating that all chain results should be merged}
 }
+\value{
+Data frame with one row per locus (per chain if \code{merge_chains} is
+\code{FALSE}) giving posterior quantiles and mean of \code{fn} applied to the sampled
+allele frequencies.
+}
 \description{
 Summarize Function of Allele Frequencies
 }
 \details{
 General function to summarize the posterior distribution of
 functions of the sampled allele frequencies
+}
+\examples{
+# Posterior summary of the major allele frequency at each locus
+major_allele <- summarize_allele_freq_fn(mcmc_results, fn = max)
+head(major_allele)
 }

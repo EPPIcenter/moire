@@ -14,6 +14,12 @@ locus for a given sample.}
 \item{warn_uninformative}{boolean whether or not to print message when
 removing uninformative loci}
 }
+\value{
+List structured for \code{\link[=run_mcmc]{run_mcmc()}} with elements \code{sample_ids},
+\code{data} (list of per-locus lists of binary allele vectors), \code{loci},
+\code{is_missing} (loci by samples logical matrix), and \code{uninformative_loci}
+(loci removed for having a single allele).
+}
 \description{
 Load long form data
 }
@@ -22,4 +28,19 @@ Long form data is a data frame with
 3 columns: \code{sample_id}, \code{locus}, \code{allele}. Returned data contains
 vectors \code{sample_ids} and \code{loci} that are ordered as the results
 will be ordered from running the MCMC algorithm.
+}
+\examples{
+df <- data.frame(
+  sample_id = c("S1", "S1", "S1", "S2", "S2"),
+  locus = c("L1", "L1", "L2", "L1", "L2"),
+  allele = c("A", "B", "A", "A", "B")
+)
+dat <- load_long_form_data(df)
+dat$loci
+dat$data[["L1"]]
+
+# A subset of the bundled Namibia data
+ids <- unique(namibia_data$sample_id)[1:20]
+dat <- load_long_form_data(namibia_data[namibia_data$sample_id \%in\% ids, ])
+str(dat, max.level = 1)
 }

@@ -139,6 +139,19 @@ and printed if the run errors; per-chain offsets are \verb{$chain_seeds}.
 Replay needs the same sampler settings; \code{num_cores} does not affect the
 draws.}
 }
+\value{
+List with elements:
+\describe{
+\item{chains}{List with one entry per chain. Each holds the sampled
+\code{coi}, \code{allele_freqs}, \code{eps_pos}, \code{eps_neg}, and \code{relatedness}, along
+with log-likelihood traces, acceptance rates, and parallel tempering
+diagnostics. Pass the whole result to the \verb{summarize_*()} functions.}
+\item{args}{The arguments the sampler was called with, including \code{data}.}
+\item{seed}{Integer seed used for the run.}
+\item{chain_seeds}{Integer seed used for each chain.}
+\item{runtime}{Wall-clock time of the run as a \code{difftime}.}
+}
+}
 \description{
 Sample from the target distribution using MCMC
 }
@@ -152,3 +165,26 @@ and whose \verb{$diagnostics} field has Failure-locus counts and classification
 \code{tryCatch(run_mcmc(...), error = function(e) e$diagnostics)}.
 }
 
+\examples{
+sim <- simulate_data(
+  mean_coi = 2,
+  num_samples = 10,
+  epsilon_pos = 0.01,
+  epsilon_neg = 0.1,
+  locus_freq_alphas = list(rep(1, 4), rep(1, 4), rep(1, 4))
+)
+
+# A short run for illustration. Real analyses should use far more burnin
+# and samples (see the defaults) and parallel tempering (pt_chains) to
+# improve mixing.
+res <- run_mcmc(
+  sim,
+  is_missing = sim$is_missing,
+  burnin = 100,
+  samples_per_chain = 100,
+  verbose = FALSE,
+  seed = 1
+)
+res$seed
+summarize_coi(res)
+}

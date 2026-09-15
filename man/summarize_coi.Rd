@@ -25,6 +25,11 @@ distribution to return}
 
 \item{merge_chains}{boolean indicating that all chain results should be merged}
 }
+\value{
+Data frame with one row per sample (per chain if \code{merge_chains} is
+\code{FALSE}) giving posterior quantiles and mean of COI, naive estimates, and
+the posterior probability that the sample is polyclonal.
+}
 \description{
 Summarize COI
 }
@@ -33,4 +38,8 @@ Summarize complexity of infection results from MCMC. Returns
 a dataframe that contains summaries of the posterior
 distribution of COI for each biological sample, as well as naive
 estimates of COI.
+}
+\examples{
+coi_summary <- summarize_coi(mcmc_results)
+head(coi_summary)
 }

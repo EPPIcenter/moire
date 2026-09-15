@@ -7,6 +7,12 @@
 #'
 #' @param n total number of draws
 #' @param alpha vector controlling the concentration of simplex
+#'
+#' @return Numeric matrix with `n` rows and `length(alpha)` columns; each row
+#'  is a draw from the simplex.
+#'
+#' @examples
+#' rdirichlet(3, alpha = c(1, 1, 1))
 rdirichlet <- function(n, alpha) {
   len_alpha <- length(alpha)
   d <- matrix(rgamma(len_alpha * n, alpha), ncol = len_alpha, byrow = TRUE)
@@ -24,6 +30,12 @@ rdirichlet <- function(n, alpha) {
 #'
 #' @param alpha vector parameter controlling the Dirichlet distribution
 #' @param num_loci total number of loci to draw
+#'
+#' @return Numeric matrix with `length(alpha)` rows and `num_loci` columns;
+#'  each column is an allele frequency vector for one locus.
+#'
+#' @examples
+#' simulate_allele_frequencies(alpha = c(1, 1, 1, 1), num_loci = 3)
 simulate_allele_frequencies <- function(alpha, num_loci) {
   dists <- rdirichlet(num_loci, alpha)
   sapply(seq_len(num_loci), function(x) {
@@ -41,6 +53,12 @@ simulate_allele_frequencies <- function(alpha, num_loci) {
 #'
 #' @param num_samples the total number of biological samples to simulate
 #' @param mean_coi mean multiplicity of infection
+#'
+#' @return Integer vector of length `num_samples` with a COI of at least 1
+#'  for each sample.
+#'
+#' @examples
+#' simulate_sample_coi(num_samples = 10, mean_coi = 2)
 simulate_sample_coi <- function(num_samples, mean_coi) {
   qpois(runif(num_samples, dpois(0, mean_coi), 1), mean_coi)
 }
@@ -59,7 +77,16 @@ simulate_sample_coi <- function(num_samples, mean_coi) {
 #'   multinomial distribution
 #' @param internal_relatedness numeric 0-1 indicating the probability for a
 #'   strain's allele to come from an existing lineage within host
-#' @export
+#'
+#' @return List with one element per sample, each a 1-row integer matrix
+#'  counting the number of distinct strains carrying each allele.
+#'
+#' @examples
+#' simulate_sample_genotype(
+#'   sample_cois = c(1, 2, 3),
+#'   locus_allele_dist = c(0.5, 0.3, 0.2),
+#'   internal_relatedness = c(0, 0, 0.5)
+#' )
 simulate_sample_genotype <- function(sample_cois, locus_allele_dist, internal_relatedness) {
   purrr::map2(sample_cois, internal_relatedness, function(coi, r) {
     related_strains <- rbinom(1, coi - 1, r)
@@ -79,9 +106,18 @@ simulate_sample_genotype <- function(sample_cois, locus_allele_dist, internal_re
 #'
 #' @param alleles A numeric vector representing the number of strains
 #'  contributing each allele
-#' @param epsilon_pos expected number of false negatives
-#' @param epsilon_neg expected number of false positives
+#' @param epsilon_pos expected number of false positives
+#' @param epsilon_neg expected number of false negatives
 #' @param missingness probability that the data is missing
+#'
+#' @return Binary numeric vector the same length as `alleles` indicating
+#'  which alleles were observed. All zeros if the observation is missing.
+#'
+#' @examples
+#' simulate_observed_allele(
+#'   alleles = c(2, 0, 1),
+#'   epsilon_pos = 0.01, epsilon_neg = 0.1, missingness = 0
+#' )
 simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg, missingness) {
   # scale eps to the number of alleles so that given a fixed COI, there is a fixed
   # number of expected false positives or negatives across loci of varying
@@ -118,6 +154,16 @@ simulate_observed_allele <- function(alleles, epsilon_pos, epsilon_neg, missingn
 #' @param epsilon_pos expected number of false positives
 #' @param epsilon_neg expected number of false negatives
 #' @param missingness probability of data being missing
+#'
+#' @return List the same length as `true_genotypes`, each element a binary
+#'  vector of observed alleles as returned by [simulate_observed_allele()].
+#'
+#' @examples
+#' true_genotypes <- list(c(1, 0, 1), c(0, 2, 0))
+#' simulate_observed_genotype(
+#'   true_genotypes,
+#'   epsilon_pos = 0.01, epsilon_neg = 0.1, missingness = 0
+#' )
 simulate_observed_genotype <- function(true_genotypes,
                                        epsilon_pos,
                                        epsilon_neg,
@@ -149,8 +195,21 @@ simulate_observed_genotype <- function(true_genotypes,
 #' @param internal_relatedness List of internal relatedness values to be used
 #'  instead of simulating
 #' @param missingness probability of data being missing
-#' @return Simulated data that is structured to go into the MCMC sampler
+#' @return List structured for [run_mcmc()], with elements `data`,
+#'  `sample_ids`, `loci`, and `is_missing`, along with the simulated truth
+#'  (`allele_freqs`, `sample_cois`, `sample_relatedness`, `true_genotypes`)
+#'  and the `input` arguments.
 #'
+#' @examples
+#' sim <- simulate_data(
+#'   mean_coi = 2,
+#'   num_samples = 10,
+#'   epsilon_pos = 0.01,
+#'   epsilon_neg = 0.1,
+#'   locus_freq_alphas = list(rep(1, 4), rep(1, 4), rep(1, 4))
+#' )
+#' sim$sample_cois
+#' str(sim$data, max.level = 1)
 simulate_data <- function(mean_coi = NULL,
                           num_samples,
                           epsilon_pos,

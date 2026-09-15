@@ -16,10 +16,21 @@ multinomial distribution}
 \item{internal_relatedness}{numeric 0-1 indicating the probability for a
 strain's allele to come from an existing lineage within host}
 }
+\value{
+List with one element per sample, each a 1-row integer matrix
+counting the number of distinct strains carrying each allele.
+}
 \description{
 Simulate sample genotype
 }
 \details{
 Simulates sampling the genetics at a single locus given an allele
 frequency distribution and a vector of sample COIs
+}
+\examples{
+simulate_sample_genotype(
+  sample_cois = c(1, 2, 3),
+  locus_allele_dist = c(0.5, 0.3, 0.2),
+  internal_relatedness = c(0, 0, 0.5)
+)
 }

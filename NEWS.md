@@ -1,4 +1,4 @@
-# moire (development version)
+# moire 3.7.0
 
 ## New Features
 
@@ -7,6 +7,20 @@
   by the number of parallel-tempering replicas. The seed used is returned as
   `$seed` (printed if the run errors), with offsets as `$chain_seeds`. Replay
   needs the same sampler settings; `num_cores` does not affect the draws.
+
+## Other Changes
+
+* Every exported function now has runnable examples and documents its return
+  value, in preparation for CRAN submission.
+* Corrected the swapped `epsilon_pos` / `epsilon_neg` descriptions in
+  `simulate_observed_allele()`.
+* `parallel` is now declared in `Imports`; `markdown` was dropped from
+  `Suggests` as nothing used it.
+* Parallel tempering temperature adaptation now interpolates temperature as a
+  function of cumulative communication barrier with a monotone cubic Hermite
+  scheme (`src/monotone_interpolator.h`), replacing the bundled third-party
+  `spline.h` and its root solving. Adapted ladders differ slightly from
+  earlier versions; if no barrier has been observed yet the update is skipped.
 
 # moire 3.6.0
 

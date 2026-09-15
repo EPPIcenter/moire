@@ -1,6 +1,6 @@
 Package: moire
 Title: Multiplicity of Infection and Allele Frequency Recovery from Noisy Polyallelic Genetics Data
-Version: 3.6.0
+Version: 3.7.0
 Authors@R: c(
     person(given = "Maxwell",
            family = "Murphy",
@@ -12,8 +12,11 @@ Authors@R: c(
            role = c("aut", "ths"),
            email = "bryan.greenhouse@ucsf.edu",
            comment = c(ORCID = "0000-0003-0287-9111")))
-Description: A Markov Chain Monte Carlo (MCMC) based approach to Bayesian estimation of individual level multiplicity of infection, within host relatedness, and 
-    population allele frequencies from polyallelic genetic data.
+Description: A Markov Chain Monte Carlo (MCMC) based approach to Bayesian
+    estimation of individual level multiplicity of infection, within host
+    relatedness, and population allele frequencies from polyallelic genetic
+    data. Implements the model described in Murphy and Greenhouse (2024)
+    <doi:10.1093/bioinformatics/btae619>.
 License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
@@ -31,6 +34,7 @@ Imports:
     dplyr,
     tidyr,
     stats,
+    parallel,
     purrr,
     rlang,
     ggplot2
@@ -41,7 +45,6 @@ RoxygenNote: 7.3.3
 Suggests: 
     knitr,
     rmarkdown,
-    markdown,
     forcats,
     testthat (>= 3.0.0),
     parallelly
