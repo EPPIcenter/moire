@@ -47,8 +47,22 @@ instead of simulating}
 \item{missingness}{probability of data being missing}
 }
 \value{
-Simulated data that is structured to go into the MCMC sampler
+List structured for \code{\link[=run_mcmc]{run_mcmc()}}, with elements \code{data},
+\code{sample_ids}, \code{loci}, and \code{is_missing}, along with the simulated truth
+(\code{allele_freqs}, \code{sample_cois}, \code{sample_relatedness}, \code{true_genotypes})
+and the \code{input} arguments.
 }
 \description{
 Simulate data generated according to the assumed model
+}
+\examples{
+sim <- simulate_data(
+  mean_coi = 2,
+  num_samples = 10,
+  epsilon_pos = 0.01,
+  epsilon_neg = 0.1,
+  locus_freq_alphas = list(rep(1, 4), rep(1, 4), rep(1, 4))
+)
+sim$sample_cois
+str(sim$data, max.level = 1)
 }

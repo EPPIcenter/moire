@@ -14,6 +14,9 @@ load_delimited_data(data, sep = ";", warn_uninformative = TRUE)
 \item{warn_uninformative}{boolean whether or not to print message when
 removing uninformative loci}
 }
+\value{
+List structured for \code{\link[=run_mcmc]{run_mcmc()}}; see \code{\link[=load_long_form_data]{load_long_form_data()}}.
+}
 \description{
 Load delimited data
 }
@@ -23,4 +26,14 @@ columns are \code{loci}. Each cell contains a separator delimited string
 representing the observed alleles at that locus for that sample.
 Returned data contains vectors \code{sample_ids} and \code{loci} that are ordered
 as the results will be ordered from running the MCMC algorithm.
+}
+\examples{
+df <- data.frame(
+  sample_id = c("S1", "S2", "S3"),
+  L1 = c("A;B", "A", "B"),
+  L2 = c("A", "A;C", "C")
+)
+dat <- load_delimited_data(df, sep = ";")
+dat$sample_ids
+dat$data[["L2"]]
 }

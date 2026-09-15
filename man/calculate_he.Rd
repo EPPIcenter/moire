@@ -9,6 +9,12 @@ calculate_he(allele_freqs)
 \arguments{
 \item{allele_freqs}{Simplex of allele frequencies}
 }
+\value{
+Numeric scalar, the expected heterozygosity \code{1 - sum(p^2)}.
+}
 \description{
 Calculate the expected heterozygosity from allele frequencies
+}
+\examples{
+calculate_he(c(0.5, 0.3, 0.2))
 }

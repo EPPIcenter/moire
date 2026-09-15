@@ -10,10 +10,17 @@ calculate_naive_allele_frequencies(data)
 \item{data}{List of lists of numeric vectors, where each list element
 is a collection of observations across samples at a single genetic locus}
 }
+\value{
+List with one numeric vector of allele frequencies per locus.
+}
 \description{
 Calculate naive allele frequencies
 }
 \details{
 Estimate naive allele frequencies from the empirical distribution
 of alleles
+}
+\examples{
+naive_freqs <- calculate_naive_allele_frequencies(simulated_data$data)
+naive_freqs[[1]]
 }

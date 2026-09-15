@@ -5,7 +5,10 @@
 \alias{simulated_data}
 \title{Simulated genotyping data}
 \format{
-An object of class \code{list} of length 9.
+A list as returned by \code{\link[=simulate_data]{simulate_data()}}, with 100 samples at 30
+loci (15 with 5 alleles, 15 with 10) and a mean COI of 5: observed \code{data},
+\code{sample_ids}, \code{loci}, \code{is_missing}, and the simulated truth
+(\code{allele_freqs}, \code{sample_cois}, \code{sample_relatedness}, \code{true_genotypes}).
 }
 \usage{
 simulated_data

@@ -22,6 +22,10 @@ distribution to return}
 
 \item{merge_chains}{boolean indicating that all chain results should be merged}
 }
+\value{
+Data frame with one row per sample (per chain if \code{merge_chains} is
+\code{FALSE}) giving posterior quantiles and mean of the false positive rate.
+}
 \description{
 Summarize epsilon_pos
 }
@@ -29,4 +33,8 @@ Summarize epsilon_pos
 Summarize epsilon positive results from MCMC. Returns
 a dataframe that contains summaries of the posterior
 distribution of epsilon positive for each biological sample.
+}
+\examples{
+eps_pos_summary <- summarize_epsilon_pos(mcmc_results)
+head(eps_pos_summary)
 }

@@ -8,6 +8,15 @@
   `$seed` (printed if the run errors), with offsets as `$chain_seeds`. Replay
   needs the same sampler settings; `num_cores` does not affect the draws.
 
+## Other Changes
+
+* Every exported function now has runnable examples and documents its return
+  value, in preparation for CRAN submission.
+* Corrected the swapped `epsilon_pos` / `epsilon_neg` descriptions in
+  `simulate_observed_allele()`.
+* `parallel` is now declared in `Imports`; `markdown` was dropped from
+  `Suggests` as nothing used it.
+
 # moire 3.6.0
 
 ## New Features

@@ -21,10 +21,21 @@ to sim_observed_allele}
 
 \item{missingness}{probability of data being missing}
 }
+\value{
+List the same length as \code{true_genotypes}, each element a binary
+vector of observed alleles as returned by \code{\link[=simulate_observed_allele]{simulate_observed_allele()}}.
+}
 \description{
 Simulate observed genotypes
 }
 \details{
 Simulate the observation process across a list of observation
 vectors
+}
+\examples{
+true_genotypes <- list(c(1, 0, 1), c(0, 2, 0))
+simulate_observed_genotype(
+  true_genotypes,
+  epsilon_pos = 0.01, epsilon_neg = 0.1, missingness = 0
+)
 }

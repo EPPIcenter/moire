@@ -79,6 +79,41 @@
 #' and whose `$diagnostics` field has Failure-locus counts and classification
 #' (Consistent failure cause vs Hard starting set). Inspect with
 #' `tryCatch(run_mcmc(...), error = function(e) e$diagnostics)`.
+#'
+#' @return List with elements:
+#' \describe{
+#'   \item{chains}{List with one entry per chain. Each holds the sampled
+#'     `coi`, `allele_freqs`, `eps_pos`, `eps_neg`, and `relatedness`, along
+#'     with log-likelihood traces, acceptance rates, and parallel tempering
+#'     diagnostics. Pass the whole result to the `summarize_*()` functions.}
+#'   \item{args}{The arguments the sampler was called with, including `data`.}
+#'   \item{seed}{Integer seed used for the run.}
+#'   \item{chain_seeds}{Integer seed used for each chain.}
+#'   \item{runtime}{Wall-clock time of the run as a `difftime`.}
+#' }
+#'
+#' @examples
+#' sim <- simulate_data(
+#'   mean_coi = 2,
+#'   num_samples = 10,
+#'   epsilon_pos = 0.01,
+#'   epsilon_neg = 0.1,
+#'   locus_freq_alphas = list(rep(1, 4), rep(1, 4), rep(1, 4))
+#' )
+#'
+#' # A short run for illustration. Real analyses should use far more burnin
+#' # and samples (see the defaults) and parallel tempering (pt_chains) to
+#' # improve mixing.
+#' res <- run_mcmc(
+#'   sim,
+#'   is_missing = sim$is_missing,
+#'   burnin = 100,
+#'   samples_per_chain = 100,
+#'   verbose = FALSE,
+#'   seed = 1
+#' )
+#' res$seed
+#' summarize_coi(res)
 run_mcmc <-
   function(data,
            is_missing = FALSE,

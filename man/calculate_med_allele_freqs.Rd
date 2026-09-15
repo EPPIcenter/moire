@@ -12,6 +12,10 @@ calculate_med_allele_freqs(mcmc_results, merge_chains = TRUE)
 
 \item{merge_chains}{boolean indicating that all chain results should be merged}
 }
+\value{
+If \code{merge_chains} is \code{TRUE}, a named list with one numeric vector of
+allele frequencies per locus. Otherwise a list with one such list per chain.
+}
 \description{
 Calculate the geometric median of the posterior distribution of allele
 frequencies
@@ -19,4 +23,8 @@ frequencies
 \details{
 Returns the geometric median of the posterior distribution, defined
 as the point minimizing the L2 distance from each sampled point.
+}
+\examples{
+med_freqs <- calculate_med_allele_freqs(mcmc_results)
+med_freqs[[1]]
 }

@@ -22,6 +22,11 @@ distribution to return}
 
 \item{merge_chains}{boolean indicating that all chain results should be merged}
 }
+\value{
+Data frame with one row per sample (per chain if \code{merge_chains} is
+\code{FALSE}) giving posterior quantiles and mean of within-host relatedness,
+computed over draws where COI is greater than 1.
+}
 \description{
 Summarize relatedness
 }
@@ -29,4 +34,8 @@ Summarize relatedness
 Summarize relatedness results from MCMC. Returns
 a dataframe that contains summaries of the posterior
 distribution of relatedness for each biological sample.
+}
+\examples{
+relatedness_summary <- summarize_relatedness(mcmc_results)
+head(relatedness_summary)
 }

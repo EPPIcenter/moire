@@ -22,6 +22,11 @@ distribution to return}
 
 \item{merge_chains}{boolean indicating that all chain results should be merged}
 }
+\value{
+Data frame with one row per sample (per chain if \code{merge_chains} is
+\code{FALSE}) giving posterior quantiles and mean of effective COI,
+\code{(1 - relatedness) * (COI - 1) + 1}.
+}
 \description{
 Summarize effective COI
 }
@@ -29,4 +34,8 @@ Summarize effective COI
 Summarize effective COI from MCMC. Returns
 a dataframe that contains summaries of the posterior
 distribution of effective COI for each biological sample.
+}
+\examples{
+effective_coi_summary <- summarize_effective_coi(mcmc_results)
+head(effective_coi_summary)
 }

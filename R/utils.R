@@ -13,7 +13,27 @@
 #' @param warn_uninformative boolean whether or not to print message when
 #'  removing uninformative loci
 #'
+#' @return List structured for [run_mcmc()] with elements `sample_ids`,
+#'  `data` (list of per-locus lists of binary allele vectors), `loci`,
+#'  `is_missing` (loci by samples logical matrix), and `uninformative_loci`
+#'  (loci removed for having a single allele).
+#'
 #' @importFrom rlang .data
+#'
+#' @examples
+#' df <- data.frame(
+#'   sample_id = c("S1", "S1", "S1", "S2", "S2"),
+#'   locus = c("L1", "L1", "L2", "L1", "L2"),
+#'   allele = c("A", "B", "A", "A", "B")
+#' )
+#' dat <- load_long_form_data(df)
+#' dat$loci
+#' dat$data[["L1"]]
+#'
+#' # A subset of the bundled Namibia data
+#' ids <- unique(namibia_data$sample_id)[1:20]
+#' dat <- load_long_form_data(namibia_data[namibia_data$sample_id %in% ids, ])
+#' str(dat, max.level = 1)
 load_long_form_data <- function(df, warn_uninformative = TRUE) {
   uninformative_loci <- df |>
     dplyr::ungroup() |>
@@ -98,7 +118,19 @@ load_long_form_data <- function(df, warn_uninformative = TRUE) {
 #' @param warn_uninformative boolean whether or not to print message when
 #'  removing uninformative loci
 #'
+#' @return List structured for [run_mcmc()]; see [load_long_form_data()].
+#'
 #' @importFrom rlang .data
+#'
+#' @examples
+#' df <- data.frame(
+#'   sample_id = c("S1", "S2", "S3"),
+#'   L1 = c("A;B", "A", "B"),
+#'   L2 = c("A", "A;C", "C")
+#' )
+#' dat <- load_delimited_data(df, sep = ";")
+#' dat$sample_ids
+#' dat$data[["L2"]]
 load_delimited_data <- function(data, sep = ";", warn_uninformative = TRUE) {
   df <- data |>
     tidyr::pivot_longer(-"sample_id",
@@ -124,8 +156,11 @@ load_delimited_data <- function(data, sep = ";", warn_uninformative = TRUE) {
 #' @importFrom ggplot2 aes coord_cartesian geom_point geom_vline ggplot
 #' @importFrom rlang .data
 #'
-#' @return list of ggplot objects
+#' @return list of ggplot objects, one per chain
 #'
+#' @examples
+#' plots <- plot_chain_swaps(mcmc_results)
+#' plots[[1]]
 plot_chain_swaps <- function(mcmc_results) {
   plots <- lapply(mcmc_results$chains, function(chain) {
     # swaps for a chain happen every 2 samples

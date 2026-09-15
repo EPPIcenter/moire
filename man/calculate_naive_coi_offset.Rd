@@ -13,10 +13,16 @@ single genetic locus.}
 
 \item{offset}{Numeric offset -- n'th highest number of observed alleles}
 }
+\value{
+Numeric vector with one naive COI estimate per sample.
+}
 \description{
 Calculate naive COI offset
 }
 \details{
 Estimates the complexity of infection using a naive approach
 that chooses the n'th highest number of observed alleles.
+}
+\examples{
+calculate_naive_coi_offset(simulated_data$data, offset = 2)
 }

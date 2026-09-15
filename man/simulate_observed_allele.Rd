@@ -10,11 +10,15 @@ simulate_observed_allele(alleles, epsilon_pos, epsilon_neg, missingness)
 \item{alleles}{A numeric vector representing the number of strains
 contributing each allele}
 
-\item{epsilon_pos}{expected number of false negatives}
+\item{epsilon_pos}{expected number of false positives}
 
-\item{epsilon_neg}{expected number of false positives}
+\item{epsilon_neg}{expected number of false negatives}
 
 \item{missingness}{probability that the data is missing}
+}
+\value{
+Binary numeric vector the same length as \code{alleles} indicating
+which alleles were observed. All zeros if the observation is missing.
 }
 \description{
 Simulates the observation process
@@ -23,4 +27,10 @@ Simulates the observation process
 Takes a numeric value representing
 the number of strains contributing an allele and returns a binary vector
 indicating the presence or absence of the allele.
+}
+\examples{
+simulate_observed_allele(
+  alleles = c(2, 0, 1),
+  epsilon_pos = 0.01, epsilon_neg = 0.1, missingness = 0
+)
 }

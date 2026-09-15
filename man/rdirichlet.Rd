@@ -11,9 +11,16 @@ rdirichlet(n, alpha)
 
 \item{alpha}{vector controlling the concentration of simplex}
 }
+\value{
+Numeric matrix with \code{n} rows and \code{length(alpha)} columns; each row
+is a draw from the simplex.
+}
 \description{
 Dirichlet distribution
 }
 \details{
 Implementation of random sampling from a Dirichlet distribution
+}
+\examples{
+rdirichlet(3, alpha = c(1, 1, 1))
 }

@@ -2,10 +2,18 @@
 #'
 #' A simulated dataset created using `simulate_data()`
 #'
+#' @format A list as returned by [simulate_data()], with 100 samples at 30
+#'  loci (15 with 5 alleles, 15 with 10) and a mean COI of 5: observed `data`,
+#'  `sample_ids`, `loci`, `is_missing`, and the simulated truth
+#'  (`allele_freqs`, `sample_cois`, `sample_relatedness`, `true_genotypes`).
 "simulated_data"
 
 #' MCMC results from using the packaged simulated data and calling `run_mcmc()`
 #'
+#' @format A list as returned by [run_mcmc()] on [simulated_data]: a single
+#'  chain with 1000 burnin and 1000 sampling iterations, using 80 parallel
+#'  tempering replicas with adaptive temperatures. The `mcmc_demo` vignette
+#'  shows the call.
 "mcmc_results"
 
 #' Genetic and epidemiological data from Namibia

@@ -11,10 +11,16 @@ calculate_naive_coi(data)
 element is a collection of observations across samples at a
 single genetic locus.}
 }
+\value{
+Numeric vector with one naive COI estimate per sample.
+}
 \description{
 Calculate naive COI
 }
 \details{
 Estimates the complexity of infection using a naive approach
 that chooses the highest number of observed alleles.
+}
+\examples{
+calculate_naive_coi(simulated_data$data)
 }
